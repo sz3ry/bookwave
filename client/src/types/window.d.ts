@@ -4,14 +4,10 @@ export {};
 declare global {
   /** Mirrors `LanguageState` in the Electron main process (src/i18n/index.ts). */
   interface AppLanguageState {
-    /** 'auto', or an explicit language code the user picked. */
-    mode: string;
-    /** The language actually in use once 'auto' has been resolved. */
+    /** The UI language in use (follows the OS). */
     resolved: string;
     /** OS languages, most preferred first (e.g. ['sv-FI', 'en-FI']). */
     systemLanguages: string[];
-    /** What 'auto' resolves to right now. */
-    systemResolved: string;
     /** OS country code ('FI'), i.e. where the user is - not their language. */
     region: string | null;
   }
@@ -53,7 +49,6 @@ declare global {
     electronLocale?: {
       getLocale: () => Promise<string>;
       getState: () => Promise<AppLanguageState>;
-      setLocale: (locale: string) => Promise<AppLanguageState>;
     };
     electronLogs?: {
       openLogsFolder: () => Promise<void>;

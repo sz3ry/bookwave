@@ -233,19 +233,7 @@
     "email": "E-mail",
     "logout": "Wyloguj się",
     "developer": "Dla programistów",
-    "viewLogs": "Pokaż logi sesji",
-    "language": "Język",
-    "languageAuto": "Auto"
-  },
-  "language": {
-    "title": "Język",
-    "subtitle": "Wybierz język interfejsu aplikacji.",
-    "auto": "Automatycznie",
-    "autoDescription": "Zgodnie z językiem systemu",
-    "autoResolved": "Zgodnie z systemem · {{language}}",
-    "systemPreference": "Języki systemu: {{languages}}",
-    "change": "Zmień język ({{language}})",
-    "catalogNote": "Zmienia to tylko język interfejsu. To, jakie książki znajdziesz i w jakich językach, zależy od kraju Twojego konta Storytel."
+    "viewLogs": "Pokaż logi sesji"
   },
   "logs": {
     "title": "Logi aplikacji",

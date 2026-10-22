@@ -28,11 +28,8 @@ contextBridge.exposeInMainWorld('electronAuth', {
 // Locale API
 contextBridge.exposeInMainWorld('electronLocale', {
   getLocale: (): Promise<string> => ipcRenderer.invoke('get-locale'),
-  // Stored mode ('auto' or a code), the resolved language, and the OS
-  // preference list - everything the language picker needs in one round trip.
+  // The language in use plus the OS preference list and country.
   getState: (): Promise<LanguageState> => ipcRenderer.invoke('get-locale-state'),
-  // Resolves with the new state so the renderer can follow 'auto' immediately.
-  setLocale: (locale: string): Promise<LanguageState> => ipcRenderer.invoke('set-locale', locale),
 });
 
 // Window API

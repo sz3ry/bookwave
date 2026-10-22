@@ -26,7 +26,7 @@ Accounts created through Google or Apple sign-in cannot log in directly. Set a p
 - **Background playback**: a persistent mini-player with play/pause, skip, speed, chapters and sleep timer
 - **Offline listening**: download audiobooks for offline playback
 - **Desktop integration**: system tray and single instance lock
-- **Internationalization**: English, German, Spanish, Finnish, French, Italian, Polish and Swedish, with automatic language detection
+- **Internationalization**: English, German, Spanish, Finnish, French, Italian, Polish and Swedish, with the interface language following your operating system
 - **Logging**: HTTP and action logs, exportable for debugging, with automatic rotation
 
 ## Development

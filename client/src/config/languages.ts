@@ -16,7 +16,6 @@
  *   4. this file
  */
 
-export const AUTO_LANGUAGE = 'auto';
 export const FALLBACK_LANGUAGE = 'en';
 
 export interface AppLanguage {

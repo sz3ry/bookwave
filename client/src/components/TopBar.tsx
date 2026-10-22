@@ -2,7 +2,6 @@ import type React from 'react';
 import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import LanguageButton from './LanguageButton';
 
 interface TopBarProps {
   onOpenSettings: () => void;
@@ -145,9 +144,6 @@ export function TopBar({ onOpenSettings, searchQuery = '', onSearchChange }: Top
           )}
         </div>
       </div>
-
-      {/* 4. Language Button */}
-      <LanguageButton variant="topbar" className="flex-shrink-0" />
 
       {/* 5. Settings Button */}
       <button

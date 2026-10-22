@@ -231,19 +231,7 @@
     "email": "E-post",
     "logout": "Logga ut",
     "developer": "Utvecklare",
-    "viewLogs": "Visa sessionsloggar",
-    "language": "Språk",
-    "languageAuto": "Auto"
-  },
-  "language": {
-    "title": "Språk",
-    "subtitle": "Välj språk för appens gränssnitt.",
-    "auto": "Automatiskt",
-    "autoDescription": "Följ systemets språk",
-    "autoResolved": "Följer systemet · {{language}}",
-    "systemPreference": "Systemspråk: {{languages}}",
-    "change": "Byt språk ({{language}})",
-    "catalogNote": "Detta ändrar bara appens gränssnitt. Vilka böcker du hittar, och på vilka språk, avgörs av landet för ditt Storytel-konto."
+    "viewLogs": "Visa sessionsloggar"
   },
   "logs": {
     "title": "Applikationsloggar",

@@ -93,7 +93,10 @@ bookwave/
   4. `src/i18n/languages.ts` — add the code to `SUPPORTED_LANGUAGES`
 
 - **UI Language vs. Catalog Language**: they are unrelated and must not be
-  conflated. The UI language is the user's own choice (or their OS locale);
+  conflated. The UI language follows the OS only: `app.getPreferredSystemLanguages()`
+  in main and `navigator.languages` in the renderer, negotiated with
+  `negotiateLanguage` (English fallback). There is no manual picker, so the app
+  never mixes a chosen UI language with the account's market headings;
   which books exist, and in which languages, is decided by the country of the
   logged-in Storytel account. Never derive one from the other — a `sv-FI`
   system locale means "Swedish speaker in Finland", not "Finnish catalog".

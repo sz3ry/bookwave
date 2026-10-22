@@ -231,19 +231,7 @@
     "email": "Email",
     "logout": "Logout",
     "developer": "Developer",
-    "viewLogs": "View Session Logs",
-    "language": "Language",
-    "languageAuto": "Auto"
-  },
-  "language": {
-    "title": "Language",
-    "subtitle": "Choose the language of the app interface.",
-    "auto": "Automatic",
-    "autoDescription": "Follow the system language",
-    "autoResolved": "Follows the system · {{language}}",
-    "systemPreference": "System languages: {{languages}}",
-    "change": "Change language ({{language}})",
-    "catalogNote": "This changes the app interface only. Which books you can find, and in which languages, is decided by the country of your Storytel account."
+    "viewLogs": "View Session Logs"
   },
   "logs": {
     "title": "Application Logs",

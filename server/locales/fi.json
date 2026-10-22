@@ -231,19 +231,7 @@
     "email": "Sähköposti",
     "logout": "Kirjaudu ulos",
     "developer": "Kehittäjä",
-    "viewLogs": "Näytä istuntolokit",
-    "language": "Kieli",
-    "languageAuto": "Automaattinen"
-  },
-  "language": {
-    "title": "Kieli",
-    "subtitle": "Valitse sovelluksen käyttöliittymän kieli.",
-    "auto": "Automaattinen",
-    "autoDescription": "Käytä järjestelmän kieltä",
-    "autoResolved": "Seuraa järjestelmää · {{language}}",
-    "systemPreference": "Järjestelmän kielet: {{languages}}",
-    "change": "Vaihda kieltä ({{language}})",
-    "catalogNote": "Tämä muuttaa vain sovelluksen käyttöliittymää. Storytel-tilisi maa ratkaisee, mitä kirjoja ja millä kielillä löydät."
+    "viewLogs": "Näytä istuntolokit"
   },
   "logs": {
     "title": "Sovelluslokit",

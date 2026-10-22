@@ -231,19 +231,7 @@
     "email": "E-mail",
     "logout": "Se déconnecter",
     "developer": "Développeur",
-    "viewLogs": "Afficher les journaux de session",
-    "language": "Langue",
-    "languageAuto": "Auto"
-  },
-  "language": {
-    "title": "Langue",
-    "subtitle": "Choisissez la langue de l'interface de l'application.",
-    "auto": "Automatique",
-    "autoDescription": "Suivre la langue du système",
-    "autoResolved": "Suit le système · {{language}}",
-    "systemPreference": "Langues du système : {{languages}}",
-    "change": "Changer de langue ({{language}})",
-    "catalogNote": "Ceci ne modifie que l'interface de l'application. Les livres disponibles, et dans quelles langues, dépendent du pays de votre compte Storytel."
+    "viewLogs": "Afficher les journaux de session"
   },
   "logs": {
     "title": "Journaux de l'application",

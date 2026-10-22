@@ -231,19 +231,7 @@
     "email": "E-Mail",
     "logout": "Abmelden",
     "developer": "Entwickler",
-    "viewLogs": "Sitzungsprotokolle anzeigen",
-    "language": "Sprache",
-    "languageAuto": "Auto"
-  },
-  "language": {
-    "title": "Sprache",
-    "subtitle": "Wählen Sie die Sprache der Benutzeroberfläche.",
-    "auto": "Automatisch",
-    "autoDescription": "Systemsprache verwenden",
-    "autoResolved": "Folgt dem System · {{language}}",
-    "systemPreference": "Systemsprachen: {{languages}}",
-    "change": "Sprache ändern ({{language}})",
-    "catalogNote": "Dies ändert nur die Benutzeroberfläche. Welche Bücher Sie finden und in welchen Sprachen, bestimmt das Land Ihres Storytel-Kontos."
+    "viewLogs": "Sitzungsprotokolle anzeigen"
   },
   "logs": {
     "title": "Anwendungsprotokolle",

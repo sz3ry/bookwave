@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAudioContext } from '../contexts/AudioContext';
 import { buildCoverUrl } from '../utils/helpers';
-import LanguageButton from './LanguageButton';
 
 interface FloatingMenuProps {
   onOpenSearch: () => void;
@@ -196,9 +195,6 @@ export function FloatingMenu({ onOpenSearch, onOpenSettings }: FloatingMenuProps
             </div>
           </div>
         )}
-
-        {/* 4. Language Switcher */}
-        <LanguageButton variant="dock" />
 
         {/* 5. Settings Gear Icon Button */}
         <button

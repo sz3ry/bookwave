@@ -71,6 +71,9 @@ async function initialize(): Promise<void> {
   await serverManager.initialize();
   markMediaReady(serverManager.getMediaResolver());
 
+  // The UI language used to be a stored choice; it now only follows the OS.
+  storeManager.remove('appLanguage');
+
   // Initialize i18n with the Fastify server
   const fastifyServer = serverManager.getServer();
   if (fastifyServer) {

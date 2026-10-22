@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import LogsModal from './LogsModal';
-import LanguageModal from './LanguageModal';
 import Modal from './Modal';
-import { getLanguageState, type LanguageState } from '../i18n';
-import { AUTO_LANGUAGE, findLanguage } from '../config/languages';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -13,13 +10,11 @@ interface SettingsModalProps {
 }
 
 function SettingsModal({ isOpen, onClose, onLogout }: SettingsModalProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [email, setEmail] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [alwaysOnTop, setAlwaysOnTop] = useState<boolean>(false);
   const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
-  const [showLanguageModal, setShowLanguageModal] = useState<boolean>(false);
-  const [languageState, setLanguageState] = useState<LanguageState | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -27,21 +22,6 @@ function SettingsModal({ isOpen, onClose, onLogout }: SettingsModalProps) {
       fetchAlwaysOnTopSetting();
     }
   }, [isOpen]);
-
-  // Also refresh after the picker closes, so the summary line stays accurate.
-  useEffect(() => {
-    if (isOpen && !showLanguageModal) {
-      fetchAppLanguage();
-    }
-  }, [isOpen, showLanguageModal, i18n.language]);
-
-  // "Svenska" for an explicit choice, "Follows the system · Svenska" otherwise.
-  const activeLanguage = findLanguage(languageState?.resolved ?? i18n.language);
-  const activeName = activeLanguage?.nativeName ?? languageState?.resolved ?? i18n.language;
-  const languageSummary =
-    languageState?.mode === AUTO_LANGUAGE
-      ? t('language.autoResolved', { language: activeName })
-      : activeName;
 
   const fetchAccountInfo = async () => {
     try {
@@ -63,14 +43,6 @@ function SettingsModal({ isOpen, onClose, onLogout }: SettingsModalProps) {
       }
     } catch (error) {
       console.error('Failed to fetch always on top setting:', error);
-    }
-  };
-
-  const fetchAppLanguage = async () => {
-    try {
-      setLanguageState(await getLanguageState());
-    } catch (error) {
-      console.error('Failed to fetch app language setting:', error);
     }
   };
 
@@ -123,29 +95,6 @@ function SettingsModal({ isOpen, onClose, onLogout }: SettingsModalProps) {
                   />
                 </button>
               </div>
-
-              <button
-                onClick={() => setShowLanguageModal(true)}
-                className="w-full flex items-center justify-between gap-4 pt-4 border-t border-gray-700 text-left group"
-              >
-                <div className="min-w-0">
-                  <div className="text-white font-medium mb-1">{t('settings.language')}</div>
-                  <div className="text-sm text-gray-400 truncate">{languageSummary}</div>
-                </div>
-                <svg
-                  className="w-5 h-5 shrink-0 text-gray-500 group-hover:text-white transition-colors"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </button>
             </div>
           </div>
 
@@ -225,8 +174,6 @@ function SettingsModal({ isOpen, onClose, onLogout }: SettingsModalProps) {
       </Modal>
 
       <LogsModal isOpen={showLogsModal} onClose={() => setShowLogsModal(false)} />
-
-      <LanguageModal isOpen={showLanguageModal} onClose={() => setShowLanguageModal(false)} />
     </>
   );
 }

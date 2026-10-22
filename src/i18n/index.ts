@@ -1,10 +1,7 @@
 import * as dot from 'dot-object';
-import { storeManager } from '../modules/store';
 import {
-  AUTO_LANGUAGE,
   FALLBACK_LANGUAGE,
-  isSupportedLanguage,
-  negotiateLanguage,
+  resolveUiLanguage,
   type SupportedLanguage,
   SUPPORTED_LANGUAGES,
 } from './languages';
@@ -16,16 +13,12 @@ interface Translations {
 export type { SupportedLanguage };
 export { SUPPORTED_LANGUAGES };
 
-/** What the renderer needs to render the language picker. */
+/** What the renderer needs to know about the language and where the user is. */
 export interface LanguageState {
-  /** 'auto', or an explicit language code the user picked. */
-  mode: string;
-  /** The language actually in use once 'auto' has been resolved. */
+  /** The UI language in use: the OS languages negotiated against the bundled locales. */
   resolved: SupportedLanguage;
   /** OS languages, most preferred first (e.g. ['sv-FI', 'en-FI']). */
   systemLanguages: string[];
-  /** What 'auto' resolves to right now. */
-  systemResolved: SupportedLanguage;
   /** OS country code ('FI'), i.e. where the user is - not their language. */
   region: string | null;
 }
@@ -64,32 +57,15 @@ class I18n {
     await this.loadTranslations();
   }
 
-  /** The user's stored preference: 'auto' or an explicit language code. */
-  public getMode(): string {
-    const saved = storeManager.get<string>('appLanguage');
-    if (saved && saved !== AUTO_LANGUAGE && isSupportedLanguage(saved)) {
-      return saved.toLowerCase();
-    }
-    return AUTO_LANGUAGE;
-  }
-
-  /** What 'auto' resolves to: OS preferences, then APP_LOCALE, then English. */
-  private resolveSystemLanguage(): SupportedLanguage {
-    return negotiateLanguage([...this.systemLanguages, process.env.APP_LOCALE]);
-  }
-
+  /** The UI language follows the OS: OS preferences, then APP_LOCALE, then English. */
   public detectLanguage(): void {
-    const mode = this.getMode();
-    this.currentLanguage =
-      mode === AUTO_LANGUAGE ? this.resolveSystemLanguage() : (mode as SupportedLanguage);
+    this.currentLanguage = resolveUiLanguage(this.systemLanguages, process.env.APP_LOCALE);
   }
 
   public getState(): LanguageState {
     return {
-      mode: this.getMode(),
       resolved: this.currentLanguage,
       systemLanguages: [...this.systemLanguages],
-      systemResolved: this.resolveSystemLanguage(),
       region: this.region,
     };
   }

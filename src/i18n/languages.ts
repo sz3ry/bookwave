@@ -6,7 +6,6 @@
  * duplicated on purpose. Keep them in sync when adding a language.
  */
 
-export const AUTO_LANGUAGE = 'auto';
 export const FALLBACK_LANGUAGE = 'en';
 
 export const SUPPORTED_LANGUAGES = ['de', 'en', 'es', 'fr', 'it', 'pl', 'fi', 'sv'] as const;
@@ -37,3 +36,13 @@ export const negotiateLanguage = (
   }
   return fallback;
 };
+
+/**
+ * The UI language: the OS languages, most preferred first, negotiated against
+ * the bundled translations. There is no manual override - a stored preference
+ * (from versions that had a language picker) never takes part.
+ */
+export const resolveUiLanguage = (
+  systemLanguages: readonly (string | null | undefined)[],
+  appLocale?: string | null,
+): SupportedLanguage => negotiateLanguage([...systemLanguages, appLocale]);
