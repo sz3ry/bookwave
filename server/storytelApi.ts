@@ -187,12 +187,17 @@ class StorytelClient {
       },
     });
 
+    // Resolved outside the try: a login rejection while obtaining the bearer
+    // must reach the caller as is, never trigger another login attempt.
+    const firstAttempt = await withHeaders();
     try {
-      return await this.request<T>(await withHeaders());
+      return await this.request<T>(firstAttempt);
     } catch (error) {
       if (
         !(error instanceof StorytelAuthError) ||
+        error.isLoginFailure ||
         opts.isLogin ||
+        // Only bearer requests are retried: URL-token endpoints would resend the stale token.
         !opts.auth ||
         !this.savedEmail ||
         !this.savedEncryptedPassword
@@ -327,8 +332,10 @@ class StorytelClient {
             }
           }
         }
-      } catch {
-        // ignore
+      } catch (error) {
+        // Rejected credentials end here; a network error during the proactive
+        // refresh falls back to the current jwt.
+        if (error instanceof StorytelAuthError && error.isLoginFailure) throw error;
       }
       return jwt;
     }

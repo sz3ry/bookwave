@@ -167,6 +167,71 @@ describe('StorytelClient', () => {
     expect(rejected).toBe(0);
   });
 
+  test('empty jwt and rejected login calls login once and notifies once', async () => {
+    let rejected = 0;
+    const { fetchImpl, callsTo } = router({
+      [LOGIN_PATH]: () => json({ error: 'bad credentials' }, 401),
+      [BOOKSHELF_PATH]: () => json({ items: {} }),
+    });
+    const client = clientWithSession(fetchImpl, () => rejected++);
+    client.loginData.accountInfo.jwt = '';
+
+    const error: any = await client.getBookshelf().catch((e) => e);
+
+    expect(error.isStorytelUnauthorized).toBe(true);
+    expect(callsTo(LOGIN_PATH)).toHaveLength(1);
+    expect(callsTo(BOOKSHELF_PATH)).toHaveLength(0);
+    expect(rejected).toBe(1);
+  });
+
+  test('expiring jwt and rejected login notifies once', async () => {
+    let rejected = 0;
+    const { fetchImpl, callsTo } = router({
+      [LOGIN_PATH]: () => json({ error: 'bad credentials' }, 401),
+      [BOOKSHELF_PATH]: () => json({ error: 'expired' }, 401),
+    });
+    const client = clientWithSession(fetchImpl, () => rejected++);
+    client.loginData.accountInfo.jwt = makeJwt(30, 'expiring');
+
+    const error: any = await client.getBookshelf().catch((e) => e);
+
+    expect(error.isStorytelUnauthorized).toBe(true);
+    expect(callsTo(LOGIN_PATH)).toHaveLength(1);
+    expect(callsTo(BOOKSHELF_PATH)).toHaveLength(0);
+    expect(rejected).toBe(1);
+  });
+
+  test('network error during lazy login does not call onCredentialsRejected', async () => {
+    let rejected = 0;
+    const { fetchImpl } = router({
+      [LOGIN_PATH]: () => {
+        throw new TypeError('fetch failed');
+      },
+      [BOOKSHELF_PATH]: () => json({ items: {} }),
+    });
+    const client = clientWithSession(fetchImpl, () => rejected++);
+    client.loginData.accountInfo.jwt = '';
+
+    await expect(client.getBookshelf()).rejects.toBeInstanceOf(Error);
+    expect(rejected).toBe(0);
+  });
+
+  test('network error during proactive refresh falls back to the current jwt', async () => {
+    const expiring = makeJwt(30, 'expiring');
+    const { fetchImpl, callsTo } = router({
+      [LOGIN_PATH]: () => {
+        throw new TypeError('fetch failed');
+      },
+      [BOOKSHELF_PATH]: () => json({ items: {} }),
+    });
+    const client = clientWithSession(fetchImpl);
+    client.loginData.accountInfo.jwt = expiring;
+
+    await client.getBookshelf();
+
+    expect(header(callsTo(BOOKSHELF_PATH)[0], 'authorization')).toBe(`Bearer ${expiring}`);
+  });
+
   test('stream URL comes from 302 Location', async () => {
     const { fetchImpl, calls } = router({
       '/assets/v2/consumables/c1/abook': () =>
