@@ -29,6 +29,7 @@
     "resetFilters": "Nollaa suodattimet",
     "loading": "Ladataan kirjastoasi...",
     "loadError": "Kirjahyllyn lataaminen epäonnistui",
+    "offlineNotice": "Olet offline-tilassa – näytetään tälle tietokoneelle ladatut kirjat.",
     "filters": {
       "all": "Kaikki",
       "notStarted": "Ei aloitettu",

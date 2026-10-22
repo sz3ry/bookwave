@@ -29,6 +29,7 @@
     "resetFilters": "Återställ filter",
     "loading": "Laddar ditt bibliotek...",
     "loadError": "Kunde inte ladda bokhyllan",
+    "offlineNotice": "Du är offline – visar böcker som har laddats ned till den här datorn.",
     "filters": {
       "all": "Alla",
       "notStarted": "Ej påbörjad",

@@ -29,6 +29,7 @@
     "resetFilters": "Restablecer filtros",
     "loading": "Cargando tu biblioteca...",
     "loadError": "Error al cargar la biblioteca",
+    "offlineNotice": "Estás sin conexión: se muestran los libros descargados en este ordenador.",
     "filters": {
       "all": "Todos",
       "notStarted": "No empezado",

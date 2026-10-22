@@ -29,6 +29,7 @@
     "resetFilters": "Réinitialiser les filtres",
     "loading": "Chargement de votre bibliothèque...",
     "loadError": "Échec du chargement de la bibliothèque",
+    "offlineNotice": "Vous êtes hors ligne : affichage des livres téléchargés sur cet ordinateur.",
     "filters": {
       "all": "Tous",
       "notStarted": "Non commencé",

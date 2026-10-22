@@ -29,6 +29,7 @@
     "resetFilters": "Reimposta i filtri",
     "loading": "Caricamento della tua libreria...",
     "loadError": "Impossibile caricare la libreria",
+    "offlineNotice": "Sei offline: vengono mostrati i libri scaricati su questo computer.",
     "filters": {
       "all": "Tutti",
       "notStarted": "Non iniziati",

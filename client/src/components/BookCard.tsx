@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildCoverUrl, formatMicrosecondsTime } from '../utils/helpers';
 import type { BookShelfEntity } from '../interfaces/books';
@@ -29,6 +30,8 @@ export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCard
     book?.book?.cover ||
     book?.book?.coverE ||
     book?.book?.smallCover;
+  // Covers are remote, so they fail offline; show the placeholder instead.
+  const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null);
 
   return (
     <div
@@ -60,12 +63,13 @@ export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCard
 
       {/* Book Cover Container */}
       <div className="relative aspect-square w-full rounded-xl overflow-hidden shadow-md bg-gray-900 flex items-center justify-center flex-shrink-0">
-        {coverUrl ? (
+        {coverUrl && failedCoverUrl !== coverUrl ? (
           <img
             src={buildCoverUrl(coverUrl)}
             alt={book?.book?.name || ''}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
+            onError={() => setFailedCoverUrl(coverUrl)}
           />
         ) : (
           <svg

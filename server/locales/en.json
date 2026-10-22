@@ -29,6 +29,7 @@
     "resetFilters": "Reset filters",
     "loading": "Loading your library...",
     "loadError": "Failed to load bookshelf",
+    "offlineNotice": "You're offline — showing books downloaded to this computer.",
     "filters": {
       "all": "All",
       "notStarted": "Not started",

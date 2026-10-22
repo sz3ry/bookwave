@@ -22,6 +22,8 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
   const [books, setBooks] = useState<BookShelfEntity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  // Storytel was unreachable and the list shows only books downloaded to disk.
+  const [isOffline, setIsOffline] = useState(false);
   const [filterStatus, setFilterStatus] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [bookToRemove, setBookToRemove] = useState<BookShelfEntity | null>(null);
@@ -50,12 +52,16 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
       setIsLoading(true);
       const response = await api.get<BookShelfResponse>('/bookshelf');
       setBooks(response.data.books || []);
+      setIsOffline(false);
     } catch (err: any) {
+      console.warn('Failed to load bookshelf, falling back to downloaded books', err);
       try {
         const offline = await api.get<BookShelfResponse>('/offline/bookshelf');
         setBooks(offline.data?.books || []);
-      } catch {
-        setError(err.response?.data?.error || t('dashboard.loadError'));
+        setIsOffline(true);
+      } catch (offlineErr) {
+        console.error('Failed to load downloaded books', offlineErr);
+        setError(t('dashboard.loadError'));
       }
     } finally {
       setIsLoading(false);
@@ -251,6 +257,29 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
           </div>
         </div>
 
+        {isOffline && (
+          <div
+            role="status"
+            className="flex items-center gap-2.5 mb-5 px-4 py-2.5 rounded-xl bg-[#FF5100]/10 border border-[#FF5100]/30 text-xs text-[#FFB38A]"
+          >
+            <svg
+              aria-hidden="true"
+              className="w-4 h-4 flex-shrink-0 text-[#FF5100]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 3l18 18M8.5 16.4a5 5 0 017 0M5 12.9a10 10 0 015.2-2.8M19 12.9a10 10 0 00-2.4-1.8M1.4 9.4a15 15 0 014.3-2.8M22.6 9.4A15 15 0 0010.5 5.1M12 20h.01"
+              />
+            </svg>
+            <span>{t('dashboard.offlineNotice')}</span>
+          </div>
+        )}
+
         {/* Filter Status Tabs */}
         <div className="flex items-center gap-2 mb-7 overflow-x-auto pb-1 no-scrollbar border-b border-white/[0.06] pt-1">
           {[
@@ -344,7 +373,8 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
                   key={book.abook?.id || book.id || book.book?.consumableId}
                   book={book}
                   onBookSelect={handleBookSelect}
-                  onRemove={setBookToRemove}
+                  // Removing needs Storytel, which is unreachable offline.
+                  onRemove={isOffline ? undefined : setBookToRemove}
                   onQuickPlay={handleQuickPlay}
                 />
               ))}
