@@ -12,6 +12,40 @@ export interface LogEntry {
   data?: any;
 }
 
+// Query/form params that carry credentials or the account email.
+const SECRET_PARAMS = /(^|[?&])(pwd|uid|token|singleSignToken)=[^&\s"]*/g;
+// Object keys whose values are credentials, session tokens or the account email.
+const SECRET_KEY = /^(jwt|pwd|password|encryptedPassword|email|uid|.*token)$/i;
+
+// Hide credential-bearing params like the password or token in anything logged.
+export function maskSecrets(value: string): string {
+  return value.replace(SECRET_PARAMS, '$1$2=***');
+}
+
+// Deep copy of logged data with credential fields replaced and strings masked.
+export function redactLogData(data: unknown): unknown {
+  if (typeof data === 'string') return maskSecrets(data);
+  if (Array.isArray(data)) return data.map(redactLogData);
+  if (data && typeof data === 'object') {
+    return Object.fromEntries(
+      Object.entries(data).map(([key, value]) => [
+        key,
+        SECRET_KEY.test(key) ? '***' : redactLogData(value),
+      ]),
+    );
+  }
+  return data;
+}
+
+function redactEntry<T extends Partial<LogEntry>>(entry: T): T {
+  return {
+    ...entry,
+    message: typeof entry.message === 'string' ? maskSecrets(entry.message) : entry.message,
+    url: typeof entry.url === 'string' ? maskSecrets(entry.url) : entry.url,
+    data: redactLogData(entry.data),
+  };
+}
+
 class Logger {
   private logs: LogEntry[] = [];
   private readonly MAX_LOGS = 1000;
@@ -61,7 +95,8 @@ class Logger {
       if (fs.existsSync(this.LOG_FILE_PATH)) {
         const fileContent = fs.readFileSync(this.LOG_FILE_PATH, 'utf8');
         if (fileContent) {
-          this.logs = JSON.parse(fileContent);
+          // Entries written by older versions may still hold secrets.
+          this.logs = (JSON.parse(fileContent) as LogEntry[]).map(redactEntry);
         }
       }
     } catch (e) {
@@ -90,7 +125,7 @@ class Logger {
 
   add(entry: Omit<LogEntry, 'id' | 'timestamp'>) {
     const log: LogEntry = {
-      ...entry,
+      ...redactEntry(entry),
       id: this.generateId(),
       timestamp: new Date().toISOString(),
     };

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { FetchLike } from './http/storytelFetch';
+import { appLogger } from './logger';
 import { encryptPassword } from './passwordCrypt';
 import StorytelClient from './storytelApi';
 
@@ -261,6 +262,45 @@ describe('StorytelClient', () => {
     expect(await client.getStreamUrl('42')).toBe('https://cdn/legacy.mp3');
     expect(calls.map((c) => c.url.pathname)).toEqual([LOGIN_PATH, '/mp3streamRangeReq']);
     expect(calls[1].url.searchParams.get('token')).toBe('sst-fresh');
+  });
+
+  test('login and URL-token requests leave no secrets in the logs', async () => {
+    const jwt = makeJwt(3600, 'leaky');
+    const sst = 'sst-SECRET-123';
+    const { fetchImpl } = router({
+      [LOGIN_PATH]: () =>
+        json({ accountInfo: { jwt, singleSignToken: sst, email: 'leak@example.com' } }),
+      '/mp3streamRangeReq': () =>
+        new Response(null, { status: 302, headers: { location: 'https://cdn/legacy.mp3' } }),
+    });
+    const client = new StorytelClient({ fetch: fetchImpl });
+    appLogger.clearLogs();
+
+    await client.login('leak@example.com', 'hunter2');
+    await client.getStreamUrl('42');
+
+    const dump = JSON.stringify(appLogger.getLogs());
+    expect(dump).toContain('mp3streamRangeReq');
+    expect(dump).not.toContain(jwt);
+    expect(dump).not.toContain(sst);
+    expect(dump).not.toContain(encodeURIComponent(sst));
+    expect(dump).not.toContain('leak@example.com');
+    expect(dump).not.toContain(encodeURIComponent('leak@example.com'));
+    expect(dump).not.toMatch(/token=(?!\*\*\*)/);
+  });
+
+  test('action log data never keeps credential fields', () => {
+    appLogger.clearLogs();
+    appLogger.add({
+      type: 'action',
+      message: 'x',
+      data: { email: 'a@b.c', nested: { jwt: 'J', accessToken: 'T' }, bookId: '7' },
+    });
+    const dump = JSON.stringify(appLogger.getLogs());
+    expect(dump).not.toContain('a@b.c');
+    expect(dump).not.toContain('"J"');
+    expect(dump).not.toContain('"T"');
+    expect(dump).toContain('"7"');
   });
 
   test('stream URL comes from 302 Location', async () => {

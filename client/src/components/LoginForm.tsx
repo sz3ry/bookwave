@@ -38,7 +38,7 @@ function LoginForm({ onLogin, sessionExpired }: LoginFormProps) {
     setError('');
 
     try {
-      trackAction('User attempted login', { email });
+      trackAction('User attempted login');
       const result = await window.electronAuth?.login(email, password);
       if (result?.ok) {
         onLogin();

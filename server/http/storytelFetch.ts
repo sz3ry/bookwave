@@ -1,4 +1,4 @@
-import { appLogger } from '../logger';
+import { appLogger, maskSecrets } from '../logger';
 
 export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -59,15 +59,6 @@ export interface StorytelResponse<T> {
   data: T;
 }
 
-// Hide sensitive query params like the password in anything that gets logged.
-function maskSecrets(value: string): string {
-  return value.replace(/pwd=[^&]+/g, 'pwd=***');
-}
-
-function maskData(data: unknown): unknown {
-  return typeof data === 'string' ? maskSecrets(data) : data;
-}
-
 async function parseBody(res: Response): Promise<unknown> {
   const text = await res.text();
   const contentType = res.headers.get('content-type') ?? '';
@@ -116,12 +107,15 @@ export function createStorytelFetch(
     const signal = req.signal ? AbortSignal.any([req.signal, timeout]) : timeout;
 
     const cleanUrl = maskSecrets(url.toString());
+    // login.action replies carry the session tokens; never log their body.
+    const isLogin = url.pathname.includes('login.action');
+    const logData = (data: unknown) => (isLogin ? '[redacted]' : data);
     appLogger.add({
       type: 'http_request',
       message: `[${method}] ${cleanUrl}`,
       method,
       url: cleanUrl,
-      data: maskData(body),
+      data: body,
     });
 
     let res: Response;
@@ -147,10 +141,9 @@ export function createStorytelFetch(
         status: res.status,
         method,
         url: cleanUrl,
-        data,
+        data: logData(data),
       });
       if (res.status === 401) {
-        const isLogin = url.pathname.includes('login.action');
         throw new StorytelAuthError(
           isLogin ? 'Storytel login rejected' : 'Storytel session expired',
           data,
@@ -172,7 +165,7 @@ export function createStorytelFetch(
       status: res.status,
       method,
       url: cleanUrl,
-      data,
+      data: logData(data),
     });
     return { status: res.status, headers: res.headers, data: data as T };
   };
