@@ -18,7 +18,7 @@ export function useSeriesInfo(
   known?: SeriesInfo | null,
   fetchWhenMissing = true,
 ): SeriesInfo | null {
-  const [fetched, setFetched] = useState<SeriesInfo | null>(null);
+  const [fetched, setFetched] = useState<{ bookId: string; info: SeriesInfo } | null>(null);
 
   useEffect(() => {
     setFetched(null);
@@ -30,9 +30,12 @@ export function useSeriesInfo(
         const raw = res.data?.seriesInfo;
         if (cancelled || !raw?.id) return;
         setFetched({
-          id: String(raw.id),
-          name: String(raw.name ?? ''),
-          orderInSeries: typeof raw.orderInSeries === 'number' ? raw.orderInSeries : null,
+          bookId,
+          info: {
+            id: String(raw.id),
+            name: String(raw.name ?? ''),
+            orderInSeries: typeof raw.orderInSeries === 'number' ? raw.orderInSeries : null,
+          },
         });
       })
       .catch(() => {
@@ -43,7 +46,8 @@ export function useSeriesInfo(
     };
   }, [bookId, known, fetchWhenMissing]);
 
-  return known ?? fetched;
+  // Only the series fetched for this very book counts: a previous book's must not flash.
+  return known ?? (fetched?.bookId === bookId ? fetched.info : null);
 }
 
 export function SeriesHint({ seriesInfo, currentBookId, finished, onOpenBook }: SeriesHintProps) {
