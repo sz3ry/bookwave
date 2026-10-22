@@ -56,19 +56,7 @@ function LogsModal({ isOpen, onClose }: LogsModalProps) {
 
   const exportLogs = async () => {
     try {
-      if (window.electronLogs) {
-        await window.electronLogs.openLogsFolder();
-      } else {
-        const response = await api.get('/logs/export', { responseType: 'blob' });
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', 'storytel-logs.json');
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-      }
+      await window.electronLogs!.openLogsFolder();
     } catch (error) {
       console.error('Failed to export logs:', error);
     }

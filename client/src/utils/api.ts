@@ -1,5 +1,4 @@
 import storage from "./storage";
-import axios, {AxiosInstance, AxiosRequestConfig} from "axios";
 
 declare global {
     interface Window {
@@ -7,70 +6,66 @@ declare global {
     }
 }
 
-const axiosApi = axios.create({
-    baseURL: `${import.meta.env.VITE_BACKEND_API_URL}/api`, // o la tua baseURL reale
-    withCredentials: true,
-    timeout: 30000
-});
+export class ApiError extends Error {
+    response: { status: number; data: unknown };
 
-axiosApi.interceptors.request.use(async (config) => {
-    const token = await storage.get("token");
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+    constructor(message: string, response: { status: number; data: unknown }) {
+        super(message);
+        this.name = "ApiError";
+        this.response = response;
     }
-    return config;
-});
+}
 
-axiosApi.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        const hadToken = !!error.config?.headers?.Authorization;
-        if (error.response?.status === 401 && hadToken && !error.config?.url?.includes('/login')) {
+export interface ApiResponse<T = any> {
+    data: T;
+}
+
+interface RequestConfig {
+    headers?: Record<string, string>;
+}
+
+type Method = "get" | "post" | "put" | "delete";
+
+const request = async <T>(
+    method: Method,
+    url: string,
+    data?: unknown,
+    config?: RequestConfig,
+): Promise<ApiResponse<T>> => {
+    const token = await storage.get("token");
+    const headers = { ...(config?.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    const finalConfig = { ...config, headers };
+    const hadToken = !!headers.Authorization;
+    const notifyUnauthorized = (status: unknown) => {
+        if (status === 401 && hadToken && !url.includes('/login')) {
             window.dispatchEvent(new Event('unauthorized'));
         }
-        return Promise.reject(error);
-    }
-);
+    };
 
-const api: AxiosInstance = new Proxy(axiosApi, {
-    get(target, prop: string) {
-        if (!window.electronApi) return (target as any)[prop];
-
-        if (["get", "post", "put", "delete", "request"].includes(prop)) {
-            return async (url: string, dataOrConfig?: any, config?: AxiosRequestConfig) => {
-                const token = await storage.get("token");
-                const headers = { ...(config?.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-                const data = prop === "get" || prop === "delete" ? null : dataOrConfig;
-                const finalConfig = { ...config, headers };
-                return window.electronApi[prop](`/api${url}`, data, finalConfig).then((result: any) => {
-                    if (result?.__isError) {
-                        const hadToken = !!finalConfig.headers?.Authorization;
-                        if (result.statusCode === 401 && hadToken && !url.includes('/login')) {
-                            window.dispatchEvent(new Event('unauthorized'));
-                        }
-                        const err: any = new Error(result.error);
-                        err.response = { status: result.statusCode, data: result.data };
-                        return Promise.reject(err);
-                    }
-                    return result;
-                }).catch((error: any) => {
-                    // Fallback for unexpected IPC/network errors
-                    const hadToken = !!finalConfig.headers?.Authorization;
-                    const status = error?.response?.status ?? error?.status ?? error?.statusCode;
-                    if (status === 401 && hadToken && !url.includes('/login')) {
-                        window.dispatchEvent(new Event('unauthorized'));
-                    }
-                    return Promise.reject(error);
-                });
-            };
+    try {
+        const result = await window.electronApi[method](`/api${url}`, data ?? null, finalConfig);
+        if (result?.__isError) {
+            notifyUnauthorized(result.statusCode);
+            throw new ApiError(result.error, { status: result.statusCode, data: result.data });
         }
+        return result;
+    } catch (error: any) {
+        // ApiError was already reported above; this covers unexpected IPC errors
+        if (!(error instanceof ApiError)) {
+            notifyUnauthorized(error?.response?.status ?? error?.status ?? error?.statusCode);
+        }
+        throw error;
+    }
+};
 
-        return (target as any)[prop];
-    },
-});
+const api = {
+    get: <T = any>(url: string, config?: RequestConfig) => request<T>("get", url, null, config),
+    post: <T = any>(url: string, data?: unknown, config?: RequestConfig) => request<T>("post", url, data, config),
+    put: <T = any>(url: string, data?: unknown, config?: RequestConfig) => request<T>("put", url, data, config),
+    delete: <T = any>(url: string, config?: RequestConfig) => request<T>("delete", url, null, config),
+};
 
 export default api;
-
 
 export const trackAction = async (message: string, data?: any) => {
     try {

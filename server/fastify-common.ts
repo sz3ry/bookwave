@@ -3,7 +3,6 @@ import StorytelClient from "./storytelApi";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import fastifyJWT from "@fastify/jwt";
-import fastifyCors from "@fastify/cors";
 import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
@@ -151,12 +150,6 @@ const activeDownloads = new Map<
 const fastify = Fastify({ logger: process.env.NODE_ENV !== "production" });
 
 // Register plugins
-fastify.register(fastifyCors, {
-  origin: "http://localhost:3000",
-  credentials: true,
-  methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
-});
-
 fastify.register(fastifyJWT, {
   secret: JWT_SECRET,
 });
@@ -374,31 +367,12 @@ fastify.post<{
 
       // Check if file exists locally
       if (localFilePath) {
-        // Use custom protocol for Electron, fallback to HTTP for browser
-        const isElectron =
-          request.headers["user-agent"]?.includes("Electron") ||
-          process.env.IS_ELECTRON === "true";
-
-        if (isElectron) {
-          // Use file:// protocol directly for Electron
-          console.log(localFilePath);
-          reply.send({
-            // pathToFileURL escapes spaces and other characters in titles
-            streamUrl: pathToFileURL(localFilePath).href,
-            remote: false,
-          });
-        } else {
-          // Use HTTP endpoint for browser
-          const protocol = request.protocol;
-          const host = request.hostname;
-          const port = (request.socket as any).localPort || 3001;
-          const baseUrl = `${protocol}://${host}:${port}`;
-
-          reply.send({
-            streamUrl: `${baseUrl}/api/local-stream/${bookId}`,
-            remote: false,
-          });
-        }
+        console.log(localFilePath);
+        reply.send({
+          // pathToFileURL escapes spaces and other characters in titles
+          streamUrl: pathToFileURL(localFilePath).href,
+          remote: false,
+        });
       } else {
         const storytelClient = hydrateStorytelClient(request.user);
         // Prefer the new api.storytel.net assets endpoint (needs consumableId);
@@ -862,59 +836,6 @@ fastify.delete<{
       reply.send({ success: true, message: "Download cancelled" });
     } catch (error: any) {
       console.error("Error cancelling download:", error);
-      replyError(reply, error);
-    }
-  },
-);
-
-fastify.get<{ Params: { bookId: string } }>(
-  "/api/local-stream/:bookId",
-  async (request, reply) => {
-    try {
-      const { bookId } = request.params;
-      const filePath = findDownloadedFile(bookId);
-
-      if (!filePath) {
-        return reply.code(404).send({ error: "File not found" });
-      }
-
-      const stat = fs.statSync(filePath);
-      const range = request.headers.range;
-
-      if (range) {
-        const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
-        const start = parseInt(startStr, 10);
-        const end = endStr ? parseInt(endStr, 10) : stat.size - 1;
-
-        if (start >= stat.size || end >= stat.size) {
-          reply
-            .code(416)
-            .header("Content-Range", `bytes */${stat.size}`)
-            .send();
-          return;
-        }
-
-        const chunkSize = end - start + 1;
-        const fileStream = fs.createReadStream(filePath, { start, end });
-
-        reply
-          .code(206) // partial content
-          .header("Content-Range", `bytes ${start}-${end}/${stat.size}`)
-          .header("Accept-Ranges", "bytes")
-          .header("Content-Length", chunkSize)
-          .header("Content-Type", "audio/mpeg")
-          .send(fileStream);
-        return reply;
-      } else {
-        const fileStream = fs.createReadStream(filePath);
-        reply
-          .header("Content-Length", stat.size)
-          .header("Content-Type", "audio/mpeg")
-          .header("Accept-Ranges", "bytes")
-          .send(fileStream);
-        return reply;
-      }
-    } catch (error: any) {
       replyError(reply, error);
     }
   },
