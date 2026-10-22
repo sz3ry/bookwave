@@ -71,12 +71,10 @@ if (!gotTheLock) {
 }
 
 app.on('before-quit', () => {
-  // @ts-expect-error
   app.isQuitting = true;
 });
 
 app.on('window-all-closed', async () => {
-  // @ts-expect-error
   if (app.isQuitting) {
     const window = windowManager.getWindow();
     if (window) {

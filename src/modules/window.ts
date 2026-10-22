@@ -100,7 +100,6 @@ export class WindowManager {
     this.mainWindow.on('move', saveBounds);
 
     this.mainWindow.on('close', (event) => {
-      // @ts-expect-error
       if (!app.isQuitting) {
         event.preventDefault();
         this.mainWindow?.hide();

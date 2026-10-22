@@ -143,7 +143,6 @@ export class TrayManager {
     menuTemplate.push({
       label: i18n.t('tray.quit'),
       click: () => {
-        //@ts-expect-error
         app.isQuitting = true;
         app.quit();
       },
