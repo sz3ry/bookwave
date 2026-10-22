@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/sz3ry/bookwave/compare/v1.0.0...v1.1.0) (2026-10-22)
+
+
+### Features
+
+* **i18n:** add Polish translation ([017145f](https://github.com/sz3ry/bookwave/commit/017145f3589dfc25085888f663369fa6056f4d82))
+
+
+### Bug Fixes
+
+* **ui:** label the floating play button by its action and give book cards singular status labels ([c273c6f](https://github.com/sz3ry/bookwave/commit/c273c6f82db68442eccc52f3d26e105f35b37dc4))
+
 ## 1.0.0 (2026-10-22)
 
 
