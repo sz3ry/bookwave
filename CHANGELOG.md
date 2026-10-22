@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/sz3ry/bookwave/compare/v1.1.0...v1.1.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **ui:** remove the upstream Discord invite from the welcome and settings dialogs ([49e8fdb](https://github.com/sz3ry/bookwave/commit/49e8fdb247fe1ed4ae2d4839325be257ef49402a))
+
 ## [1.1.0](https://github.com/sz3ry/bookwave/compare/v1.0.0...v1.1.0) (2026-10-22)
 
 
