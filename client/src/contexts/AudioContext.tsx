@@ -9,28 +9,23 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import api, { trackAction } from '../utils/api';
+import { trackAction } from '../utils/api';
 import storage from '../utils/storage';
 import { type BookShelfEntity, BookMetaData } from '../interfaces/books';
 import type { Chapter } from '../interfaces/chapters';
-import type { BookmarkPositional } from '../interfaces/bookmarks';
-import { extractChaptersFromResponse, generateAudioTracks } from '../utils/chapters';
+import { generateAudioTracks } from '../utils/chapters';
 import i18n from '../i18n';
+import { createStorytelSource, type PlaybackSource } from '../playback/sources';
+import { locate, totalDurationMs } from '../playback/timeline';
+import { resolveStartPosition, type StoredPosition } from '../playback/positionSync';
 
-interface LocalPosition {
-  position: number;
-  updatedAt: string;
-}
-
-const positionStorageKey = (consumableId: string) => `pos:${consumableId}`;
-
-const readLocalPosition = async (consumableId: string): Promise<LocalPosition | null> => {
+const readLocalPosition = async (storageKey: string): Promise<StoredPosition | null> => {
   try {
-    const raw = await storage.get(positionStorageKey(consumableId));
+    const raw = await storage.get(storageKey);
     if (!raw) return null;
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (typeof parsed?.position === 'number' && typeof parsed?.updatedAt === 'string') {
-      return parsed as LocalPosition;
+      return parsed as StoredPosition;
     }
     return null;
   } catch {
@@ -38,17 +33,59 @@ const readLocalPosition = async (consumableId: string): Promise<LocalPosition | 
   }
 };
 
-const writeLocalPosition = async (consumableId: string, position: number) => {
+const writeLocalPosition = async (storageKey: string, position: number) => {
   try {
-    const payload: LocalPosition = {
+    const payload: StoredPosition = {
       position,
       updatedAt: new Date().toISOString(),
     };
-    await storage.set(positionStorageKey(consumableId), JSON.stringify(payload));
+    await storage.set(storageKey, JSON.stringify(payload));
   } catch {
     // best-effort cache; ignore failures
   }
 };
+
+// Local positions are written at this pace while playing; a source's remote
+// writes happen on every n-th of these ticks (`remoteWriteIntervalMs`).
+const LOCAL_POSITION_INTERVAL_MS = 15000;
+
+/**
+ * Current position on the book timeline, in seconds. A single-track source
+ * plays the whole book from one element, so book time is the element's time
+ * (its track duration may still be unknown, so it never goes through `locate`).
+ */
+const bookSeconds = (
+  audio: HTMLAudioElement,
+  source: PlaybackSource | null,
+  trackIndex: number,
+): number => {
+  if (!source || source.tracks.length <= 1) return audio.currentTime;
+  return (source.tracks[trackIndex]?.startMs ?? 0) / 1000 + audio.currentTime;
+};
+
+/** Start position in ms chosen from the local cache and the provider's position. */
+const chooseStartPosition = (
+  source: PlaybackSource,
+  local: StoredPosition | null,
+  remote: Awaited<ReturnType<PlaybackSource['readRemotePosition']>>,
+): number => {
+  if (source.conflictPolicy === 'ask') {
+    const start = resolveStartPosition(local, remote);
+    // The conflict prompt is not wired yet: keep this device's position.
+    return start.kind === 'use' ? start.positionMs : start.localMs;
+  }
+  if (remote && local) {
+    const remoteTime = remote.updatedTime ? Date.parse(remote.updatedTime) : 0;
+    const localTime = Date.parse(local.updatedAt);
+    return localTime > remoteTime ? local.position : remote.positionMs;
+  }
+  if (remote) return remote.positionMs;
+  if (local) return local.position;
+  return 0;
+};
+
+const errorMessage = (err: any): string =>
+  err.response?.data?.error || err.message || i18n.t('player.loadError');
 
 export interface CurrentChapterInfo {
   number: number;
@@ -102,6 +139,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [activeBook, setActiveBook] = useState<BookShelfEntity | null>(null);
   const [activeBookId, setActiveBookId] = useState<string | null>(null);
   const [activeConsumableId, setActiveConsumableId] = useState<string | null>(null);
+  const [activeSource, setActiveSource] = useState<PlaybackSource | null>(null);
 
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -121,105 +159,139 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   // it has to keep a stable identity across renders. It therefore reads the live
   // playback state through these mirrors instead of closing over the state.
   const activeBookIdRef = useRef<string | null>(null);
-  const activeConsumableIdRef = useRef<string | null>(null);
   const audioSrcRef = useRef<string | null>(null);
   const isPlayingRef = useRef(false);
-  // Discards a slow /stream response once a newer book has taken over.
+  // The source the `<audio>` element plays, and the track of it that is loaded.
+  const sourceRef = useRef<PlaybackSource | null>(null);
+  const trackIndexRef = useRef(0);
+  // Set while the element switches to another track of the same book: the
+  // offset to start the new track at once its metadata has loaded.
+  const pendingTrackStartRef = useRef<{ offsetSeconds: number; play: boolean } | null>(null);
+  // Discards a slow stream/track URL response once a newer load has taken over.
   const loadRequestIdRef = useRef(0);
 
   useEffect(() => {
     activeBookIdRef.current = activeBookId;
-    activeConsumableIdRef.current = activeConsumableId;
     audioSrcRef.current = audioSrc;
     isPlayingRef.current = isPlaying;
   });
 
   // Position synchronization helper
-  const updatePosition = useCallback(async () => {
-    if (!audioRef.current || !activeConsumableId) return;
+  const updatePosition = useCallback(
+    async (writeRemote: boolean = true) => {
+      if (!audioRef.current || !activeSource) return;
 
-    const position = Math.floor(audioRef.current.currentTime * 1000);
-    // Always persist locally first so offline listening is preserved
-    await writeLocalPosition(activeConsumableId, position);
+      const position = Math.floor(
+        bookSeconds(audioRef.current, activeSource, trackIndexRef.current) * 1000,
+      );
+      // Always persist locally first so offline listening is preserved
+      await writeLocalPosition(activeSource.positionStorageKey, position);
+      if (!writeRemote) return;
 
-    try {
-      await api.put(`/bookmark-positional/${activeConsumableId}`, { position });
-    } catch (err) {
-      console.warn('Failed to sync position to API, kept locally', err);
-    }
-  }, [activeConsumableId]);
-
-  // Read remote/local saved position and jump
-  const goToPosition = useCallback(async (consumableId: string) => {
-    let remote: { position: number; updatedAt: string | null } | null = null;
-    try {
-      const response = await api.get<BookmarkPositional[]>(`/bookmark-positional/${consumableId}`);
-      const entry = response.data?.find((format) => format.type === 'abook');
-      if (entry) {
-        remote = {
-          position: entry.position || 0,
-          updatedAt: entry.updatedTime || null,
-        };
+      try {
+        await activeSource.writeRemotePosition(position);
+      } catch (err) {
+        console.warn('Failed to sync position to API, kept locally', err);
       }
-    } catch (err) {
-      console.warn('Failed to fetch remote position, will use local cache', err);
-    }
+    },
+    [activeSource],
+  );
 
-    const local = await readLocalPosition(consumableId);
-    let chosenPosition = 0;
-    if (remote && local) {
-      const remoteTime = remote.updatedAt ? Date.parse(remote.updatedAt) : 0;
-      const localTime = Date.parse(local.updatedAt);
-      chosenPosition = localTime > remoteTime ? local.position : remote.position;
-    } else if (remote) {
-      chosenPosition = remote.position;
-    } else if (local) {
-      chosenPosition = local.position;
-    }
+  // Switch the element to another track of the current book
+  const loadTrack = useCallback(
+    async (source: PlaybackSource, index: number, offsetSeconds: number, play: boolean) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const requestId = ++loadRequestIdRef.current;
+      try {
+        const { url } = await source.resolveTrackUrl(index);
+        if (requestId !== loadRequestIdRef.current) return;
 
-    if (audioRef.current) {
-      audioRef.current.currentTime = Math.floor(chosenPosition / 1000);
-      setCurrentTime(audioRef.current.currentTime);
-    }
-  }, []);
+        trackIndexRef.current = index;
+        pendingTrackStartRef.current = { offsetSeconds, play };
+        audioSrcRef.current = url;
+        setAudioSrc(url);
+        audio.src = url;
+        audio.load();
+      } catch (err) {
+        if (requestId !== loadRequestIdRef.current) return;
+        console.error('Failed to load audio track:', err);
+        setError(errorMessage(err));
+        setIsLoading(false);
+        setIsPlaying(false);
+      }
+    },
+    [],
+  );
 
-  // Load chapters for active book
-  const loadChapters = useCallback(async (consumableId: string, knownDurationSeconds?: number) => {
-    if (!consumableId) return;
-    try {
-      const response = await api.get(`/bookmetadata/${consumableId}`);
-      const list = extractChaptersFromResponse(response.data);
-      if (list.length > 0) {
-        setChapters(list);
+  // Move to a book position in seconds. Returns true when that needs another
+  // track, which then starts asynchronously (and plays when `play` is set).
+  const seekBook = useCallback(
+    (seconds: number, play?: boolean): boolean => {
+      const audio = audioRef.current;
+      if (!audio) return false;
+      const source = sourceRef.current;
+      if (!source || source.tracks.length <= 1) {
+        audio.currentTime = seconds;
+        return false;
+      }
+      const { index, offsetMs } = locate(source.tracks, seconds * 1000);
+      if (index === trackIndexRef.current) {
+        audio.currentTime = offsetMs / 1000;
+        return false;
+      }
+      loadTrack(source, index, offsetMs / 1000, play ?? !audio.paused);
+      return true;
+    },
+    [loadTrack],
+  );
+
+  // Read remote/local saved position and jump. Returns true when the position
+  // is on another track, which then starts asynchronously.
+  const goToPosition = useCallback(
+    async (source: PlaybackSource, play: boolean): Promise<boolean> => {
+      let remote: Awaited<ReturnType<PlaybackSource['readRemotePosition']>> = null;
+      try {
+        remote = await source.readRemotePosition();
+      } catch (err) {
+        console.warn('Failed to fetch remote position, will use local cache', err);
+      }
+
+      const local = await readLocalPosition(source.positionStorageKey);
+      const chosenPosition = chooseStartPosition(source, local, remote);
+
+      if (sourceRef.current !== source || !audioRef.current) return false;
+      const switched = seekBook(Math.floor(chosenPosition / 1000), play);
+      if (!switched) {
+        setCurrentTime(bookSeconds(audioRef.current, source, trackIndexRef.current));
+      }
+      return switched;
+    },
+    [seekBook],
+  );
+
+  // Load chapters for the active book
+  const refreshChapters = useCallback(
+    async (source: PlaybackSource, knownDurationSeconds: number) => {
+      const list = await source.loadChapters(knownDurationSeconds);
+      // A newer book took over while the chapters were loading
+      if (sourceRef.current !== source) return;
+
+      // Single-track fallback: the stream may know the duration by now
+      const elementDuration = audioRef.current?.duration;
+      if (
+        list.length === 0 &&
+        source.tracks.length <= 1 &&
+        elementDuration &&
+        !Number.isNaN(elementDuration)
+      ) {
+        setChapters(generateAudioTracks(elementDuration));
         return;
       }
-    } catch (err) {
-      console.warn('Failed to load chapters from /bookmetadata:', err);
-    }
-
-    try {
-      const details = await api.get(`/book-details/${consumableId}`);
-      const list = extractChaptersFromResponse(details.data);
-      if (list.length > 0) {
-        setChapters(list);
-        return;
-      }
-    } catch (err) {
-      console.warn('Failed to load chapters from /book-details:', err);
-    }
-
-    // Fallback: If duration is known, generate structured audio tracks ("Ljudspår")
-    const durationSec =
-      knownDurationSeconds ||
-      (audioRef.current?.duration && !isNaN(audioRef.current.duration)
-        ? audioRef.current.duration
-        : 0);
-    if (durationSec > 0) {
-      setChapters(generateAudioTracks(durationSec));
-    } else {
-      setChapters([]);
-    }
-  }, []);
+      setChapters(list);
+    },
+    [],
+  );
 
   // Compute current chapter from chapters list and currentTime
   const currentChapter = useMemo<CurrentChapterInfo | null>(() => {
@@ -252,12 +324,15 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     return null;
   }, [chapters, currentTime]);
 
-  const jumpToChapter = useCallback((startTime: number) => {
-    if (audioRef.current && typeof startTime === 'number' && !isNaN(startTime)) {
-      audioRef.current.currentTime = startTime;
-      setCurrentTime(startTime);
-    }
-  }, []);
+  const jumpToChapter = useCallback(
+    (startTime: number) => {
+      if (audioRef.current && typeof startTime === 'number' && !isNaN(startTime)) {
+        seekBook(startTime);
+        setCurrentTime(startTime);
+      }
+    },
+    [seekBook],
+  );
 
   // Sleep timer implementation
   const setSleepTimer = useCallback((option: number | 'chapter' | null) => {
@@ -318,13 +393,21 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const source = createStorytelSource(validBook, bookId);
+
       // If switching from a previous book, flush its position bookmark immediately
-      const prevCid = activeConsumableIdRef.current;
-      if (prevCid && prevCid !== consumableId && audioRef.current) {
-        const prevPosition = Math.floor(audioRef.current.currentTime * 1000);
+      const prevSource = sourceRef.current;
+      if (
+        prevSource &&
+        (prevSource.provider !== source.provider || prevSource.bookKey !== source.bookKey) &&
+        audioRef.current
+      ) {
+        const prevPosition = Math.floor(
+          bookSeconds(audioRef.current, prevSource, trackIndexRef.current) * 1000,
+        );
         if (prevPosition > 0) {
-          writeLocalPosition(prevCid, prevPosition);
-          api.put(`/bookmark-positional/${prevCid}`, { position: prevPosition }).catch((err) => {
+          writeLocalPosition(prevSource.positionStorageKey, prevPosition);
+          prevSource.writeRemotePosition(prevPosition).catch((err) => {
             console.warn('Failed to sync previous book bookmark position:', err);
           });
         }
@@ -341,11 +424,14 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         positionUpdateIntervalRef.current = null;
       }
 
+      sourceRef.current = source;
+      trackIndexRef.current = 0;
+      pendingTrackStartRef.current = null;
       isPlayingRef.current = false;
       audioSrcRef.current = null;
       setIsPlaying(false);
       setCurrentTime(0);
-      setDuration(0);
+      setDuration(source.tracks.length > 1 ? totalDurationMs(source.tracks) / 1000 : 0);
       setAudioSrc(null);
 
       // Persist session to local storage for quick restore
@@ -354,7 +440,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         .catch(() => {});
 
       const knownDurationSec = validBook?.abook?.time ? validBook.abook.time / 1000000 : 0;
-      loadChapters(consumableId, knownDurationSec);
+      refreshChapters(source, knownDurationSec);
 
       const requestId = ++loadRequestIdRef.current;
 
@@ -363,30 +449,29 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         setError(null);
         setActiveBook(validBook);
         activeBookIdRef.current = bookId;
-        activeConsumableIdRef.current = consumableId;
         setActiveBookId(bookId);
         setActiveConsumableId(consumableId);
+        setActiveSource(source);
 
-        const response = await api.post('/stream', { bookId, consumableId });
-        // A newer loadBook call took over while this stream was being resolved
+        const { url } = await source.resolveTrackUrl(0);
+        // A newer load took over while this stream was being resolved
         if (requestId !== loadRequestIdRef.current) return;
 
-        const streamUrl = response.data.streamUrl;
-        audioSrcRef.current = streamUrl;
-        setAudioSrc(streamUrl);
+        audioSrcRef.current = url;
+        setAudioSrc(url);
 
         if (audioRef.current) {
-          audioRef.current.src = streamUrl;
+          audioRef.current.src = url;
           audioRef.current.load();
         }
       } catch (err: any) {
         if (requestId !== loadRequestIdRef.current) return;
         console.error('Failed to load audio stream:', err);
-        setError(err.response?.data?.error || err.message || i18n.t('player.loadError'));
+        setError(errorMessage(err));
         setIsLoading(false);
       }
     },
-    [loadChapters],
+    [refreshChapters],
   );
 
   // Restore previous session on launch
@@ -397,22 +482,23 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         if (!raw) return;
         const saved = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (saved?.bookId && !activeBookIdRef.current) {
+          const source = createStorytelSource(saved.book || null, saved.bookId);
+          sourceRef.current = source;
+          trackIndexRef.current = 0;
+          setActiveSource(source);
           setActiveBook(saved.book || null);
           activeBookIdRef.current = saved.bookId;
           setActiveBookId(saved.bookId);
           const cid = saved.consumableId || saved.bookId;
-          activeConsumableIdRef.current = cid;
           setActiveConsumableId(cid);
           const savedDurationSec = saved.book?.abook?.time ? saved.book.abook.time / 1000000 : 0;
           if (savedDurationSec > 0) {
             setDuration(savedDurationSec);
           }
-          loadChapters(cid, savedDurationSec);
-          if (cid) {
-            const local = await readLocalPosition(cid);
-            if (local) {
-              setCurrentTime(Math.floor(local.position / 1000));
-            }
+          refreshChapters(source, savedDurationSec);
+          const local = await readLocalPosition(source.positionStorageKey);
+          if (local) {
+            setCurrentTime(Math.floor(local.position / 1000));
           }
         }
       } catch (err) {
@@ -420,7 +506,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       }
     };
     restoreSession();
-  }, [loadChapters]);
+  }, [refreshChapters]);
 
   const togglePlayPause = useCallback(() => {
     if (!audioRef.current) return;
@@ -435,20 +521,23 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     }
   }, [isPlaying, audioSrc, activeBookId, activeBook, loadBook]);
 
-  const seek = useCallback((seekTime: number) => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime = seekTime;
-    setCurrentTime(seekTime);
-  }, []);
+  const seek = useCallback(
+    (seekTime: number) => {
+      if (!audioRef.current) return;
+      seekBook(seekTime);
+      setCurrentTime(seekTime);
+    },
+    [seekBook],
+  );
 
   const skipForward = useCallback(
     (seconds: number = 30) => {
       if (audioRef.current) {
         const nextTime = Math.min(
-          audioRef.current.currentTime + seconds,
+          bookSeconds(audioRef.current, sourceRef.current, trackIndexRef.current) + seconds,
           duration || audioRef.current.duration || Infinity,
         );
-        audioRef.current.currentTime = nextTime;
+        seekBook(nextTime);
         setCurrentTime(nextTime);
         trackAction('skip_forward', {
           bookId: activeBookId,
@@ -457,14 +546,17 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [duration, activeBookId, activeConsumableId],
+    [duration, activeBookId, activeConsumableId, seekBook],
   );
 
   const skipBackward = useCallback(
     (seconds: number = 15) => {
       if (audioRef.current) {
-        const nextTime = Math.max(audioRef.current.currentTime - seconds, 0);
-        audioRef.current.currentTime = nextTime;
+        const nextTime = Math.max(
+          bookSeconds(audioRef.current, sourceRef.current, trackIndexRef.current) - seconds,
+          0,
+        );
+        seekBook(nextTime);
         setCurrentTime(nextTime);
         trackAction('skip_backward', {
           bookId: activeBookId,
@@ -473,7 +565,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [activeBookId, activeConsumableId],
+    [activeBookId, activeConsumableId, seekBook],
   );
 
   const setRate = useCallback((rate: number) => {
@@ -517,7 +609,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const onPlay = () => {
     setIsPlaying(true);
     if (positionUpdateIntervalRef.current) clearInterval(positionUpdateIntervalRef.current);
-    positionUpdateIntervalRef.current = setInterval(updatePosition, 15000);
+    const remoteEveryTicks = Math.max(
+      1,
+      Math.round(
+        (activeSource?.remoteWriteIntervalMs ?? LOCAL_POSITION_INTERVAL_MS) /
+          LOCAL_POSITION_INTERVAL_MS,
+      ),
+    );
+    let ticks = 0;
+    positionUpdateIntervalRef.current = setInterval(() => {
+      ticks += 1;
+      updatePosition(ticks % remoteEveryTicks === 0);
+    }, LOCAL_POSITION_INTERVAL_MS);
+    sourceRef.current?.onPlaybackStarted?.();
     trackAction('play', { bookId: activeBookId, consumableId: activeConsumableId });
     if (window.trayControls?.updatePlayingState) {
       window.trayControls.updatePlayingState(true, activeBook?.book?.name || null);
@@ -525,6 +629,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   };
 
   const onPause = () => {
+    // Switching to the next track of the same book is not a pause
+    if (pendingTrackStartRef.current) return;
     setIsPlaying(false);
     updatePosition();
     if (positionUpdateIntervalRef.current) {
@@ -538,8 +644,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   };
 
   const onTimeUpdate = () => {
-    if (audioRef.current) {
-      const cur = audioRef.current.currentTime;
+    if (audioRef.current && !pendingTrackStartRef.current) {
+      const cur = bookSeconds(audioRef.current, sourceRef.current, trackIndexRef.current);
       setCurrentTime(cur);
       if (sleepTimerMode === 'chapter' && currentChapter && cur >= currentChapter.end - 0.5) {
         audioRef.current.pause();
@@ -549,28 +655,51 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   };
 
   const onLoadedMetadata = async () => {
-    const cid = activeConsumableIdRef.current || activeConsumableId;
-    if (audioRef.current && cid) {
-      const audioDuration = audioRef.current.duration;
-      if (audioDuration && !isNaN(audioDuration)) {
-        setDuration(audioDuration);
-        setChapters((prev) => {
-          if (!prev || prev.length === 0) {
-            return generateAudioTracks(audioDuration);
-          }
-          return prev;
-        });
-      }
-      await goToPosition(cid);
+    const audio = audioRef.current;
+    const source = sourceRef.current;
+    if (!audio || !source) return;
+
+    // Another track of the current book: start it where the timeline asked
+    const pendingStart = pendingTrackStartRef.current;
+    if (pendingStart) {
+      pendingTrackStartRef.current = null;
+      audio.currentTime = pendingStart.offsetSeconds;
+      setCurrentTime(bookSeconds(audio, source, trackIndexRef.current));
       setIsLoading(false);
-      audioRef.current.playbackRate = playbackRate;
-      if (shouldAutoPlayRef.current) {
-        audioRef.current.play().catch(console.error);
+      audio.playbackRate = playbackRate;
+      if (pendingStart.play) {
+        audio.play().catch(console.error);
       }
+      return;
+    }
+
+    const audioDuration = audio.duration;
+    if (source.tracks.length <= 1 && audioDuration && !Number.isNaN(audioDuration)) {
+      if (source.tracks[0]) source.tracks[0].durationMs = Math.round(audioDuration * 1000);
+      setDuration(audioDuration);
+      setChapters((prev) => {
+        if (!prev || prev.length === 0) {
+          return generateAudioTracks(audioDuration);
+        }
+        return prev;
+      });
+    }
+    const switchedTrack = await goToPosition(source, shouldAutoPlayRef.current);
+    if (switchedTrack || sourceRef.current !== source) return;
+    setIsLoading(false);
+    audio.playbackRate = playbackRate;
+    if (shouldAutoPlayRef.current) {
+      audio.play().catch(console.error);
     }
   };
 
   const onEnded = () => {
+    // A multi-track book plays on into its next track
+    const source = sourceRef.current;
+    if (source && trackIndexRef.current < source.tracks.length - 1) {
+      loadTrack(source, trackIndexRef.current + 1, 0, true);
+      return;
+    }
     setIsPlaying(false);
     updatePosition();
   };
@@ -587,11 +716,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   // Cleanup on unmount & save on window close
   useEffect(() => {
     const handleBeforeUnload = () => {
-      const consumableId = activeConsumableIdRef.current;
-      if (audioRef.current && consumableId) {
-        const position = Math.floor(audioRef.current.currentTime * 1000);
+      const source = sourceRef.current;
+      if (audioRef.current && source) {
+        const position = Math.floor(
+          bookSeconds(audioRef.current, source, trackIndexRef.current) * 1000,
+        );
         if (position > 0) {
-          writeLocalPosition(consumableId, position);
+          writeLocalPosition(source.positionStorageKey, position);
         }
       }
     };
