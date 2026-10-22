@@ -65,7 +65,10 @@ export function toSeriesInfo(raw: any): SeriesInfo | null {
 export function toDiscoveryItem(raw: any): DiscoveryItem | null {
   if (!raw?.id || !raw?.title) return null;
   const formats: any[] = Array.isArray(raw.formats) ? raw.formats : [];
-  const abook = formats.find((f) => f?.type === 'abook');
+  // An unreleased or locked audiobook cannot be played, so it does not count.
+  const abook = formats.find(
+    (f) => f?.type === 'abook' && f.isReleased !== false && f.isLockedContent !== true,
+  );
   const ebook = formats.find((f) => f?.type === 'ebook');
   return {
     id: String(raw.id),

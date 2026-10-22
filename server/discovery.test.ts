@@ -181,3 +181,42 @@ describe('createTtlCache', () => {
     expect(cache.get('k')).toBeUndefined();
   });
 });
+
+describe('unreleased and locked audiobooks', () => {
+  const withAbook = (extra: Record<string, unknown>) => ({
+    ...rawItem('9', ['abook']),
+    formats: [{ type: 'abook', cover: { url: 'https://c/9' }, ...extra }],
+  });
+
+  test('an unreleased abook is not playable', () => {
+    expect(toDiscoveryItem(withAbook({ isReleased: false }))?.hasAbook).toBe(false);
+  });
+
+  test('a locked abook is not playable', () => {
+    expect(toDiscoveryItem(withAbook({ isLockedContent: true }))?.hasAbook).toBe(false);
+  });
+
+  test('a released, unlocked abook is playable', () => {
+    expect(toDiscoveryItem(withAbook({ isReleased: true, isLockedContent: false }))?.hasAbook).toBe(
+      true,
+    );
+  });
+
+  test('Czerwony plecak from the trending sample is dropped from lists', async () => {
+    const sample = await Bun.file(
+      new URL('../.superpowers/sdd/2026-10-22-discovery/fixtures/trending.json', import.meta.url),
+    ).json();
+    const find = (o: any): any => {
+      if (!o || typeof o !== 'object') return undefined;
+      if (typeof o.title === 'string' && o.title.includes('Czerwony plecak')) return o;
+      for (const v of Object.values(o)) {
+        const r = find(v);
+        if (r) return r;
+      }
+      return undefined;
+    };
+    const mapped = toDiscoveryItem(find(sample));
+    expect(mapped?.hasAbook).toBe(false);
+    expect(playableOnly(mapped ? [mapped] : [])).toEqual([]);
+  });
+});
