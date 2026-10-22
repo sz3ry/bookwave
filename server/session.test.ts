@@ -99,6 +99,23 @@ describe('session', () => {
     expect(session.getClient()).toBe(client);
   });
 
+  test('login reply without a token fails without an auth error or a session', async () => {
+    const { fetchImpl } = stubFetch({
+      [LOGIN_PATH]: () => json({ accountInfo: { singleSignToken: 'sst' } }),
+    });
+    const session = sessionWith(fetchImpl);
+
+    const error = await session
+      .login('reader@example.com', 'secret')
+      .catch((e: unknown) => e as Error & { isStorytelUnauthorized?: boolean });
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('Storytel login returned no token');
+    expect(error.isStorytelUnauthorized).toBeUndefined();
+    expect(session.getState()).toEqual({ loggedIn: false, email: null });
+    expect(session.getClient()).toBeNull();
+  });
+
   test('restore() makes no network call', () => {
     const { fetchImpl, paths } = stubFetch({});
     const session = sessionWith(fetchImpl);

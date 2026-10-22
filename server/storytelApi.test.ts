@@ -89,6 +89,23 @@ describe('StorytelClient', () => {
     expect(data.accountInfo.jwt).toBe(jwt);
   });
 
+  test('login reply without a jwt throws a non-auth error', async () => {
+    let rejected = 0;
+    const { fetchImpl } = router({ [LOGIN_PATH]: () => json({ accountInfo: {} }) });
+    const client = new StorytelClient({
+      fetch: fetchImpl,
+      onCredentialsRejected: () => rejected++,
+    });
+
+    const error: any = await client.login(uniqueEmail(), 'hunter2').catch((e) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('Storytel login returned no token');
+    expect(error.isStorytelUnauthorized).toBeUndefined();
+    expect(rejected).toBe(0);
+    expect(client.loginData.accountInfo.jwt).toBe('');
+  });
+
   test('bearer refreshes when jwt expires within 60s', async () => {
     const fresh = makeJwt(3600, 'fresh');
     const { fetchImpl, calls } = router({

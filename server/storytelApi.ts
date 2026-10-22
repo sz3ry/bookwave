@@ -262,22 +262,28 @@ class StorytelClient {
     const trimmedPassword = password.trim();
     const encryptedPassword = encryptPassword(trimmedPassword);
     this.setCredentials(trimmedEmail, encryptedPassword);
+    let response: StorytelResponse<LoginData>;
     try {
-      const response = await this.send<LoginData>(
+      response = await this.send<LoginData>(
         {
           url: LOGIN_URL,
           query: { m: 1, uid: trimmedEmail, pwd: encryptedPassword },
         },
         { auth: false, isLogin: true },
       );
-      this.loginData = response.data;
-      return this.loginData;
     } catch (error: any) {
       if (error.isStorytelUnauthorized) {
         throw error;
       }
       throw new Error(`Login failed: ${error.message}`);
     }
+    // A 2xx without a token is not a credential rejection: fail without
+    // touching the session so nothing gets persisted.
+    if (!response.data?.accountInfo?.jwt) {
+      throw new Error('Login failed: Storytel login returned no token');
+    }
+    this.loginData = response.data;
+    return this.loginData;
   }
 
   // Bearer to send on api.storytel.net/* endpoints: the JWT returned by
