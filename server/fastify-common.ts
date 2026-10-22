@@ -583,6 +583,13 @@ fastify.post<{
 
       const indexDownload = () => {
         if (!isShelfEntry(book)) return;
+        // Never file one book's entry under another book's download.
+        if (downloadKeyOf(book) !== bookId) {
+          fastify.log.warn(
+            `Not indexing download ${bookId}: entry belongs to ${downloadKeyOf(book)}`,
+          );
+          return;
+        }
         try {
           downloadsIndex.upsert(bookId, book);
         } catch (error) {

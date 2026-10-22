@@ -279,6 +279,21 @@ describe('routes', () => {
     expect(downloadsIndex.list()).toEqual([{ bookId: '901', entry }]);
   });
 
+  test('download does not index an entry that belongs to another book', async () => {
+    writeBookFile('902', 'Lalka');
+    useNoNetwork();
+    auth.restore(creds);
+
+    const response = await fastify.inject({
+      method: 'POST',
+      url: '/api/download',
+      payload: { bookId: '902', consumableId: 'c903', book: shelfEntry('903', 'Potop') },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(downloadsIndex.list()).toEqual([]);
+  });
+
   test('deleting a downloaded file drops it from the index', async () => {
     writeBookFile('1001', 'Lalka');
     downloadsIndex.upsert('1001', shelfEntry('1001', 'Lalka'));

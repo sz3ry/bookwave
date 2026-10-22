@@ -47,24 +47,42 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
     };
   }, []);
 
+  // Loads can overlap (mount and 'bookshelfUpdated'); only the latest one may
+  // update the list, so an older failing load cannot replace a newer result.
+  const loadSeqRef = useRef(0);
+
   const loadBookshelf = async () => {
+    const seq = ++loadSeqRef.current;
+    const isCurrent = () => seq === loadSeqRef.current;
     try {
       setIsLoading(true);
       const response = await api.get<BookShelfResponse>('/bookshelf');
+      if (!isCurrent()) return;
       setBooks(response.data.books || []);
       setIsOffline(false);
     } catch (err: any) {
+      if (!isCurrent()) return;
+      // Only an unreachable Storytel (no HTTP status, or a server error) means
+      // offline; a 4xx such as a rejected session is a real error.
+      const status: number | undefined = err?.response?.status;
+      if (status !== undefined && status < 500) {
+        console.error('Failed to load bookshelf', err);
+        setError(t('dashboard.loadError'));
+        return;
+      }
       console.warn('Failed to load bookshelf, falling back to downloaded books', err);
       try {
         const offline = await api.get<BookShelfResponse>('/offline/bookshelf');
+        if (!isCurrent()) return;
         setBooks(offline.data?.books || []);
         setIsOffline(true);
       } catch (offlineErr) {
+        if (!isCurrent()) return;
         console.error('Failed to load downloaded books', offlineErr);
         setError(t('dashboard.loadError'));
       }
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   };
 
