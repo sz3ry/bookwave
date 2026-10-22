@@ -233,6 +233,9 @@ fastify.get<{
   Params: { slug: string };
   Querystring: { nextPageToken?: string };
 }>('/api/discovery/page/:slug', { preHandler: requireSession }, async (request, reply) => {
+  if (!/^[\w-]+$/.test(request.params.slug)) {
+    return reply.code(400).send({ error: 'Invalid page slug' });
+  }
   try {
     const page = await request.storytel.getExplorePage(
       request.params.slug,
@@ -277,6 +280,9 @@ fastify.get<{
   Params: { id: string };
   Querystring: { current?: string };
 }>('/api/discovery/series/:id', { preHandler: requireSession }, async (request, reply) => {
+  if (!/^\d+$/.test(request.params.id)) {
+    return reply.code(400).send({ error: 'Invalid series id' });
+  }
   try {
     const current = request.query.current;
     const currentOrder = current !== undefined && current !== '' ? Number(current) : null;
@@ -583,6 +589,9 @@ fastify.get<{
   async (request, reply) => {
     try {
       const { consumableId } = request.params;
+      if (!isValidBookId(consumableId)) {
+        return reply.code(400).send({ error: 'Invalid consumableId' });
+      }
       const storytelClient = request.storytel;
       const details = await storytelClient.getBookDetails(consumableId);
       reply.send(details);

@@ -385,6 +385,22 @@ describe('discovery routes', () => {
     expect(calls).toHaveLength(0);
   });
 
+  test('rejects malformed series ids, page slugs and book ids with 400', async () => {
+    useFetch({ [LOGIN_PATH]: loginRoute });
+    auth.restore(creds);
+    for (const url of [
+      '/api/discovery/series/abc',
+      '/api/discovery/series/1%2F..%2Fx',
+      '/api/discovery/page/a%2Fb',
+      '/api/discovery/page/a.b',
+      '/api/book-details/abc',
+      '/api/book-details/1%3Fx',
+    ]) {
+      const response = await fastify.inject({ method: 'GET', url });
+      expect({ url, status: response.statusCode }).toEqual({ url, status: 400 });
+    }
+  });
+
   test('page maps items to search results with seriesInfo', async () => {
     useFetch({
       [LOGIN_PATH]: loginRoute,
