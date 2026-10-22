@@ -4,7 +4,6 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { pathToFileURL } from 'url';
 import { downloadToFile } from './download';
 import type { FetchLike } from './http/storytelFetch';
 import { appLogger } from './logger';
@@ -74,6 +73,12 @@ function findDownloadedFile(bookId: string): string | null {
   const suffix = ` [${bookId}].mp3`;
   const match = fs.readdirSync(DOWNLOADS_DIR).find((name) => name.endsWith(suffix));
   return match ? path.join(DOWNLOADS_DIR, match) : null;
+}
+
+// Used by the Electron main process to serve downloaded books over its media
+// protocol; returns null for anything that is not a downloaded book id.
+export function resolveDownloadedFile(bookId: string): string | null {
+  return findDownloadedFile(bookId);
 }
 
 const activeDownloads = new Map<
@@ -237,11 +242,9 @@ fastify.post<{
 
       // Check if file exists locally
       if (localFilePath) {
-        reply.send({
-          // pathToFileURL escapes spaces and other characters in titles
-          streamUrl: pathToFileURL(localFilePath).href,
-          remote: false,
-        });
+        // Served by the Electron main process (src/modules/mediaProtocol.ts):
+        // a file:// URL is refused by Chromium when the page is http://.
+        reply.send({ streamUrl: `bookwave-media://book/${bookId}`, remote: false });
       } else {
         const storytelClient = request.storytel;
         // Prefer the new api.storytel.net assets endpoint (needs consumableId);

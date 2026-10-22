@@ -1,9 +1,11 @@
 import * as path from 'path';
 import type { AuthApi } from '../types';
+import type { FileResolver } from './mediaProtocol';
 
 export class ServerManager {
   private server: any | null = null;
   private auth: AuthApi | null = null;
+  private mediaResolver: FileResolver | null = null;
 
   async initialize(): Promise<void> {
     const serverPath = path.join(__dirname, '../../../server/dist/server.js');
@@ -13,8 +15,14 @@ export class ServerManager {
     if (!auth || typeof auth.login !== 'function') {
       throw new Error(`Server bundle at ${serverPath} does not export \`auth\``);
     }
+    const mediaResolver: FileResolver | undefined =
+      mod.resolveDownloadedFile ?? mod.default?.resolveDownloadedFile;
+    if (typeof mediaResolver !== 'function') {
+      throw new Error(`Server bundle at ${serverPath} does not export \`resolveDownloadedFile\``);
+    }
     this.server = mod.default;
     this.auth = auth;
+    this.mediaResolver = mediaResolver;
   }
 
   getAuth(): AuthApi {
@@ -22,6 +30,13 @@ export class ServerManager {
       throw new Error('Server not initialized');
     }
     return this.auth;
+  }
+
+  getMediaResolver(): FileResolver {
+    if (!this.mediaResolver) {
+      throw new Error('Server not initialized');
+    }
+    return this.mediaResolver;
   }
 
   async injectRequest(

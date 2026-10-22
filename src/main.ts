@@ -1,4 +1,4 @@
-import { app, BrowserWindow, safeStorage } from 'electron';
+import { app, BrowserWindow, protocol, safeStorage, session } from 'electron';
 import { WindowManager } from './modules/window';
 import { TrayManager } from './modules/tray';
 import { ServerManager } from './modules/server';
@@ -7,6 +7,8 @@ import { UpdaterManager } from './modules/updater';
 import { AuthManager } from './modules/auth';
 import { storeManager } from './modules/store';
 import { i18n } from './i18n';
+import { handleMediaRequest, MEDIA_SCHEME, registerMediaScheme } from './modules/mediaProtocol';
+import type { FileResolver } from './modules/mediaProtocol';
 
 const isDev = process.env.NODE_ENV === 'development';
 const isDebug = process.env.IS_DEBUG === 'true';
@@ -29,18 +31,45 @@ const authReady = new Promise<AuthManager>((resolve, reject) => {
 // A failed startup is reported by the IPC callers; avoid an unhandled rejection.
 authReady.catch(() => {});
 
+// Resolved once the server bundle is loaded; downloaded books are looked up
+// through it, so media requests arriving earlier wait for it.
+let markMediaReady!: (resolver: FileResolver) => void;
+let failMediaReady!: (error: unknown) => void;
+const mediaReady = new Promise<FileResolver>((resolve, reject) => {
+  markMediaReady = resolve;
+  failMediaReady = reject;
+});
+mediaReady.catch(() => {});
+
+// Privileged schemes must be registered before the app is ready.
+registerMediaScheme(protocol);
+
+// Serves downloaded books to the window's session (see mediaProtocol.ts).
+function setupMediaProtocol(): void {
+  session.fromPartition('persist:bookwave').protocol.handle(MEDIA_SCHEME, async (request) => {
+    try {
+      return await handleMediaRequest(request, await mediaReady);
+    } catch (error) {
+      console.error('Failed to serve media request:', error);
+      return new Response(null, { status: 500 });
+    }
+  });
+}
+
 async function initialize(): Promise<void> {
   process.env.IS_ELECTRON = 'true';
   process.env.DOWNLOAD_PATH = app.getPath('downloads');
   process.env.USER_DATA_PATH = app.getPath('userData');
 
   IpcManager.setupAuthHandlers(authReady);
+  setupMediaProtocol();
 
   windowManager = new WindowManager(isDev, isDebug);
   const mainWindow = windowManager.create();
 
   serverManager = new ServerManager();
   await serverManager.initialize();
+  markMediaReady(serverManager.getMediaResolver());
 
   // Initialize i18n with the Fastify server
   const fastifyServer = serverManager.getServer();
@@ -107,6 +136,7 @@ if (!gotTheLock) {
     .then(initialize)
     .catch((error) => {
       failAuthReady(error);
+      failMediaReady(error);
       console.error('Failed to start:', error);
     });
 }

@@ -18,7 +18,12 @@ const testEnv = {
 const savedEnv = Object.fromEntries(Object.keys(testEnv).map((key) => [key, process.env[key]]));
 Object.assign(process.env, testEnv);
 
-const { default: fastify, auth, configureSessionForTests } = await import('./fastify-common');
+const {
+  default: fastify,
+  auth,
+  configureSessionForTests,
+  resolveDownloadedFile,
+} = await import('./fastify-common');
 
 for (const [key, value] of Object.entries(savedEnv)) {
   if (value === undefined) delete process.env[key];
@@ -122,6 +127,44 @@ describe('routes', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ downloaded: false });
+  });
+
+  test('stream of a downloaded book points at the media protocol', async () => {
+    const bookId = '5134609';
+    const filePath = path.join(tmpDir, `Lalka [${bookId}].mp3`);
+    fs.writeFileSync(filePath, 'mp3');
+    useFetch({});
+    auth.restore(creds);
+
+    try {
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/stream',
+        payload: { bookId },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        streamUrl: `bookwave-media://book/${bookId}`,
+        remote: false,
+      });
+    } finally {
+      fs.rmSync(filePath, { force: true });
+    }
+  });
+
+  test('downloaded files resolve by book id only', () => {
+    const bookId = '5134610';
+    const filePath = path.join(tmpDir, `Lalka [${bookId}].mp3`);
+    fs.writeFileSync(filePath, 'mp3');
+
+    try {
+      expect(resolveDownloadedFile(bookId)).toBe(filePath);
+      expect(resolveDownloadedFile('999')).toBeNull();
+      expect(resolveDownloadedFile('../etc')).toBeNull();
+    } finally {
+      fs.rmSync(filePath, { force: true });
+    }
   });
 
   test('translations stay public', async () => {
