@@ -342,3 +342,184 @@ describe('routes', () => {
     }
   });
 });
+
+describe('discovery routes', () => {
+  const abook = (id: string) => ({ type: 'abook', id: `a${id}`, durationInMilliseconds: 60000 });
+  const rawBook = (id: string, order: number, type = 'abook') => ({
+    id,
+    title: `Book ${id}`,
+    authors: [{ name: 'Author' }],
+    formats: [type === 'abook' ? abook(id) : { type: 'ebook', id: `e${id}` }],
+    seriesInfo: { id: '70705', name: 'Saga', orderInSeries: order },
+  });
+  const loginRoute = () => json({ accountInfo: { jwt, singleSignToken: 'sst' } });
+
+  test('every route returns 401 without a session', async () => {
+    for (const url of [
+      '/api/discovery/chips',
+      '/api/discovery/page/x',
+      '/api/discovery/list?url=https://api.storytel.net/explore/lists/x',
+      '/api/discovery/series/1',
+    ]) {
+      const response = await fastify.inject({ method: 'GET', url });
+      expect(response.statusCode).toBe(401);
+    }
+  });
+
+  test('list rejects urls outside api.storytel.net/explore', async () => {
+    const calls = useNoNetwork();
+    auth.restore(creds);
+    for (const bad of [
+      'https://evil.example/x',
+      'https://api.storytel.net/bookmarks/1',
+      'http://api.storytel.net/explore/lists/x',
+    ]) {
+      const response = await fastify.inject({
+        method: 'GET',
+        url: `/api/discovery/list?url=${encodeURIComponent(bad)}`,
+      });
+      expect(response.statusCode).toBe(400);
+    }
+    const missing = await fastify.inject({ method: 'GET', url: '/api/discovery/list' });
+    expect(missing.statusCode).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
+  test('page maps items to search results with seriesInfo', async () => {
+    useFetch({
+      [LOGIN_PATH]: loginRoute,
+      '/explore/pages/home': () =>
+        json({
+          title: 'Home',
+          nextPageToken: 'n1',
+          contentBlocks: [
+            { id: 'r1', title: 'Row', items: [rawBook('1', 2), rawBook('2', 1, 'ebook')] },
+            { id: 'r2', title: 'Lazy', itemsUrl: 'https://api.storytel.net/explore/lists/z' },
+          ],
+        }),
+    });
+    auth.restore(creds);
+
+    const response = await fastify.inject({ method: 'GET', url: '/api/discovery/page/home' });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.nextPageToken).toBe('n1');
+    expect(body.rows[0].items).toHaveLength(1);
+    expect(body.rows[0].items[0]).toMatchObject({
+      id: '1',
+      authors: 'Author',
+      hasAbook: true,
+      durationMs: 60000,
+      seriesInfo: { id: '70705', name: 'Saga', orderInSeries: 2 },
+    });
+    expect(body.rows[1]).toMatchObject({
+      items: [],
+      itemsUrl: 'https://api.storytel.net/explore/lists/z',
+    });
+  });
+
+  test('list returns mapped audiobooks', async () => {
+    useFetch({
+      [LOGIN_PATH]: loginRoute,
+      '/explore/lists/z': () => json({ title: 'L', totalCount: 1, items: [rawBook('1', 1)] }),
+    });
+    auth.restore(creds);
+
+    const url = encodeURIComponent('https://api.storytel.net/explore/lists/z');
+    const response = await fastify.inject({ method: 'GET', url: `/api/discovery/list?url=${url}` });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ title: 'L', totalCount: 1, items: [{ id: '1' }] });
+  });
+
+  test('series returns the next audiobook part after current', async () => {
+    useFetch({
+      [LOGIN_PATH]: loginRoute,
+      '/explore/lists/series/70705': () =>
+        json({
+          title: 'Saga',
+          items: [
+            rawBook('13', 3),
+            rawBook('11', 1, 'ebook'),
+            rawBook('12', 2),
+            rawBook('14', 4, 'ebook'),
+          ],
+        }),
+    });
+    auth.restore(creds);
+
+    const response = await fastify.inject({
+      method: 'GET',
+      url: '/api/discovery/series/70705?current=2',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.next.seriesInfo.orderInSeries).toBe(3);
+    expect(body.next.id).toBe('13');
+    expect(body.firstIsAudiobook).toBe(false);
+    expect(body.first.id).toBe('11');
+    expect(body.firstAudiobook.id).toBe('12');
+    expect(body.parts.map((p: any) => p.id)).toEqual(['11', '12', '13', '14']);
+    expect(body.parts[0].hasAbook).toBe(false);
+  });
+
+  test('a re-login refetches instead of serving the previous account cache', async () => {
+    let served = 0;
+    useFetch({
+      [LOGIN_PATH]: loginRoute,
+      '/explore/pages/x': () => {
+        served += 1;
+        return json({ title: `T${served}`, contentBlocks: [] });
+      },
+    });
+    auth.restore(creds);
+    const first = await fastify.inject({ method: 'GET', url: '/api/discovery/page/x' });
+    const again = await fastify.inject({ method: 'GET', url: '/api/discovery/page/x' });
+    expect(again.json().title).toBe(first.json().title);
+
+    auth.logout();
+    auth.restore({ email: 'other@example.com', encryptedPassword: encryptPassword('pw') });
+    const other = await fastify.inject({ method: 'GET', url: '/api/discovery/page/x' });
+
+    expect(served).toBe(2);
+    expect(other.json().title).toBe('T2');
+  });
+
+  test('search and bookshelf carry seriesInfo', async () => {
+    useFetch({
+      [LOGIN_PATH]: loginRoute,
+      '/search/v2': () => json({ items: [rawBook('5', 3)] }),
+      [BOOKSHELF_PATH]: () =>
+        json({
+          items: {
+            '5': {
+              action: 'add',
+              model: {
+                id: '5',
+                title: 'Book 5',
+                state: 'WILL_CONSUME',
+                formats: [abook('5')],
+                seriesInfo: { id: '70705', name: 'Saga', orderInSeries: 3, deepLink: 'x' },
+              },
+            },
+          },
+        }),
+    });
+    auth.restore(creds);
+
+    const search = await fastify.inject({ method: 'GET', url: '/api/search?q=book' });
+    expect(search.json().results[0].seriesInfo).toEqual({
+      id: '70705',
+      name: 'Saga',
+      orderInSeries: 3,
+    });
+    const shelf = await fastify.inject({ method: 'GET', url: '/api/bookshelf' });
+    expect(shelf.json().books[0].book.seriesInfo).toEqual({
+      id: '70705',
+      name: 'Saga',
+      orderInSeries: 3,
+    });
+  });
+});

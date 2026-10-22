@@ -1,9 +1,10 @@
 import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
-import StorytelClient, { type BookShelfEntity } from './storytelApi';
+import StorytelClient, { type BookShelfEntity, mapCatalogItem } from './storytelApi';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import { type DiscoveryItem, isAllowedExploreUrl, pickSeriesParts } from './discovery';
 import { downloadToFile } from './download';
 import { createDownloadsIndex } from './downloadsIndex';
 import type { FetchLike } from './http/storytelFetch';
@@ -215,6 +216,88 @@ fastify.get<{
     }
   },
 );
+
+// --- Discovery (Storytel explore) --------------------------------------------
+
+const mapItems = (items: DiscoveryItem[]) => items.map(mapCatalogItem);
+
+fastify.get('/api/discovery/chips', { preHandler: requireSession }, async (request, reply) => {
+  try {
+    reply.send(await request.storytel.getExploreChips());
+  } catch (error: any) {
+    replyError(reply, error);
+  }
+});
+
+fastify.get<{
+  Params: { slug: string };
+  Querystring: { nextPageToken?: string };
+}>('/api/discovery/page/:slug', { preHandler: requireSession }, async (request, reply) => {
+  try {
+    const page = await request.storytel.getExplorePage(
+      request.params.slug,
+      request.query.nextPageToken || undefined,
+    );
+    reply.send({
+      title: page.title,
+      rows: page.rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        items: mapItems(row.items),
+        itemsUrl: row.itemsUrl,
+      })),
+      nextPageToken: page.nextPageToken,
+    });
+  } catch (error: any) {
+    replyError(reply, error);
+  }
+});
+
+fastify.get<{
+  Querystring: { url?: string; nextPageToken?: string };
+}>('/api/discovery/list', { preHandler: requireSession }, async (request, reply) => {
+  try {
+    const { url, nextPageToken } = request.query;
+    if (!url || !isAllowedExploreUrl(url)) {
+      return reply.code(400).send({ error: 'Invalid list url' });
+    }
+    const list = await request.storytel.getExploreList(url, nextPageToken || undefined);
+    reply.send({
+      title: list.title,
+      totalCount: list.totalCount,
+      items: mapItems(list.items),
+      nextPageToken: list.nextPageToken,
+    });
+  } catch (error: any) {
+    replyError(reply, error);
+  }
+});
+
+fastify.get<{
+  Params: { id: string };
+  Querystring: { current?: string };
+}>('/api/discovery/series/:id', { preHandler: requireSession }, async (request, reply) => {
+  try {
+    const current = request.query.current;
+    const currentOrder = current !== undefined && current !== '' ? Number(current) : null;
+    const series = await request.storytel.getSeries(request.params.id);
+    const picked = pickSeriesParts(
+      series.items,
+      currentOrder !== null && Number.isFinite(currentOrder) ? currentOrder : null,
+    );
+    const one = (item: DiscoveryItem | null) => (item ? mapCatalogItem(item) : null);
+    reply.send({
+      title: series.title,
+      parts: mapItems(picked.parts),
+      first: one(picked.first),
+      firstIsAudiobook: picked.firstIsAudiobook,
+      firstAudiobook: one(picked.firstAudiobook),
+      next: one(picked.next),
+    });
+  } catch (error: any) {
+    replyError(reply, error);
+  }
+});
 
 // Route to add book to bookshelf
 fastify.post<{

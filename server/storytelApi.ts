@@ -15,8 +15,10 @@ import {
   type DiscoveryPage,
   isAllowedExploreUrl,
   playableOnly,
+  type SeriesInfo,
   toDiscoveryList,
   toDiscoveryPage,
+  toSeriesInfo,
 } from './discovery';
 import { encryptPassword } from './passwordCrypt';
 
@@ -54,6 +56,7 @@ export interface SearchResultBook {
   hasEbook: boolean;
   language?: string;
   languageName?: string;
+  seriesInfo?: SeriesInfo;
 }
 
 // Base URL of the public web search endpoint, per market country. Storytel's own
@@ -66,6 +69,12 @@ const WEB_SEARCH_BASE_URLS: Record<string, string> = {
 
 const webSearchBaseUrl = (country: string): string =>
   WEB_SEARCH_BASE_URLS[country] ?? `https://www.storytel.com/${country}/${country}`;
+
+// Spreads `seriesInfo` only when Storytel sent a usable series reference.
+function seriesField(raw: unknown): { seriesInfo?: SeriesInfo } {
+  const info = toSeriesInfo(raw);
+  return info ? { seriesInfo: info } : {};
+}
 
 // --- Bookshelf ---------------------------------------------------------------
 
@@ -95,6 +104,7 @@ interface RawBookshelfModel {
   narrators?: RawBookshelfNamedEntity[];
   formats?: RawBookshelfFormat[];
   category?: { id: number; name: string };
+  seriesInfo?: unknown;
 }
 
 interface RawBookshelfResponse {
@@ -123,6 +133,7 @@ export interface BookShelfEntity {
     largeCoverE: string;
     category: { title: string };
     language: { localizedName: string };
+    seriesInfo?: SeriesInfo;
   };
   abook: {
     id: string;
@@ -532,6 +543,7 @@ class StorytelClient {
               largeCoverE: '',
               category: { title: model.category?.name ?? '' },
               language: { localizedName: '' },
+              ...seriesField(model.seriesInfo),
             },
             abook: abookFormat
               ? {
@@ -660,6 +672,7 @@ class StorytelClient {
               hasEbook: !!ebook,
               language,
               languageName,
+              ...seriesField(model.seriesInfo),
             });
           }
 
@@ -1293,6 +1306,41 @@ class StorytelClient {
     }
     return { title, items };
   }
+}
+
+function durationMsOf(raw: any, abook: any): number {
+  if (typeof abook?.durationInMilliseconds === 'number') return abook.durationInMilliseconds;
+  const d = raw?.duration;
+  if (!d) return 0;
+  return (((d.hours ?? 0) * 60 + (d.minutes ?? 0)) * 60 + (d.seconds ?? 0)) * 1000;
+}
+
+// Maps an explore item to the search result shape. Unlike a search hit it keeps
+// ebook-only items (hasAbook=false): series screens grey those parts out.
+export function mapCatalogItem(item: DiscoveryItem): SearchResultBook {
+  const raw: any = item.raw;
+  const formats: any[] = Array.isArray(raw?.formats) ? raw.formats : [];
+  const abook = formats.find((f) => f?.type === 'abook');
+  const ebook = formats.find((f) => f?.type === 'ebook');
+  const names = (list: unknown) =>
+    (Array.isArray(list) ? list : [])
+      .map((x: any) => (typeof x === 'string' ? x : x?.name))
+      .filter(Boolean)
+      .join(', ');
+  return {
+    id: item.id,
+    title: item.title,
+    authors: names(raw?.authors),
+    narrators: names(raw?.narrators),
+    coverUrl: item.coverUrl ?? '',
+    category: raw?.category?.name ?? '',
+    durationMs: abook ? durationMsOf(raw, abook) : 0,
+    description: raw?.description ?? '',
+    hasAbook: item.hasAbook,
+    hasEbook: !!ebook,
+    language: typeof raw?.language === 'string' ? raw.language.toLowerCase() : undefined,
+    ...seriesField(item.seriesInfo),
+  };
 }
 
 export default StorytelClient;

@@ -70,6 +70,7 @@ export interface AbookMark {
 }
 
 export interface Book {
+  seriesInfo?: SeriesInfo;
   AId: number;
   EId: number;
   abridged: number;
@@ -185,8 +186,52 @@ export interface SearchResultBook {
   hasEbook: boolean;
   language?: string;
   languageName?: string;
+  seriesInfo?: SeriesInfo;
+}
+
+export interface SeriesInfo {
+  id: string;
+  name: string;
+  orderInSeries: number | null;
 }
 
 export interface SearchResponse {
   results: SearchResultBook[];
+}
+
+export interface DiscoveryChip {
+  id: string;
+  label: string;
+  pageSlug: string;
+}
+
+export interface DiscoveryRow {
+  id: string;
+  title: string;
+  items: SearchResultBook[];
+  // Set for lazy rows: load the items with `getDiscoveryList`.
+  itemsUrl: string | null;
+}
+
+export interface DiscoveryPage {
+  title: string;
+  rows: DiscoveryRow[];
+  nextPageToken: string | null;
+}
+
+export interface DiscoveryList {
+  title: string;
+  totalCount: number;
+  items: SearchResultBook[];
+  nextPageToken: string | null;
+}
+
+export interface DiscoverySeries {
+  title: string;
+  // Every part in series order, all formats; check `hasAbook` before playing.
+  parts: SearchResultBook[];
+  first: SearchResultBook | null;
+  firstIsAudiobook: boolean;
+  firstAudiobook: SearchResultBook | null;
+  next: SearchResultBook | null;
 }

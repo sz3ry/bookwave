@@ -56,7 +56,7 @@ export const CACHE_TTL_MS = 3_600_000;
 
 const EXPLORE_ORIGIN = 'https://api.storytel.net';
 
-function toSeriesInfo(raw: any): SeriesInfo | null {
+export function toSeriesInfo(raw: any): SeriesInfo | null {
   if (!raw?.id) return null;
   const order = typeof raw.orderInSeries === 'number' ? raw.orderInSeries : null;
   return { id: String(raw.id), name: String(raw.name ?? ''), orderInSeries: order };
