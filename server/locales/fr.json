@@ -206,16 +206,14 @@
   },
   "welcome": {
     "title": "Bienvenue sur Bookwave !",
-    "message": "Merci d'utiliser Bookwave, une application de bureau open-source pour vos livres audio. Rejoignez notre communauté pour rester informé et partager vos commentaires !",
+    "message": "Merci d'utiliser Bookwave, une application de bureau open-source pour vos livres audio.",
     "starGithub": "Mettre une étoile sur GitHub",
-    "joinDiscord": "Rejoindre Discord",
     "getStarted": "Commencer"
   },
   "settings": {
     "title": "Paramètres",
     "community": "Communauté",
     "githubRepo": "Dépôt GitHub",
-    "discordCommunity": "Rejoindre Discord",
     "appearance": "Apparence",
     "alwaysOnTop": "Garder la fenêtre toujours au premier plan",
     "alwaysOnTopDescription": "La fenêtre restera au-dessus des autres fenêtres",

@@ -206,16 +206,14 @@
   },
   "welcome": {
     "title": "Tervetuloa Bookwaveen!",
-    "message": "Kiitos, että käytät Bookwavea, avoimen lähdekoodin työpöytäsovellusta äänikirjoillesi. Liity yhteisöömme pysyäksesi ajan tasalla ja jakaaksesi palautetta!",
+    "message": "Kiitos, että käytät Bookwavea, avoimen lähdekoodin työpöytäsovellusta äänikirjoillesi.",
     "starGithub": "Anna tähti GitHubissa",
-    "joinDiscord": "Liity Discordiin",
     "getStarted": "Aloita"
   },
   "settings": {
     "title": "Asetukset",
     "community": "Yhteisö",
     "githubRepo": "GitHub-repositorio",
-    "discordCommunity": "Liity Discordiin",
     "appearance": "Ulkoasu",
     "alwaysOnTop": "Pidä ikkuna aina päällimmäisenä",
     "alwaysOnTopDescription": "Ikkuna pysyy muiden ikkunoiden päällä",

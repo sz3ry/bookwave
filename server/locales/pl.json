@@ -208,16 +208,14 @@
   },
   "welcome": {
     "title": "Witaj w Bookwave!",
-    "message": "Dziękujemy, że korzystasz z Bookwave — otwartoźródłowej aplikacji desktopowej do słuchania audiobooków. Dołącz do społeczności, żeby być na bieżąco i dzielić się opinią!",
+    "message": "Dziękujemy, że korzystasz z Bookwave — otwartoźródłowej aplikacji desktopowej do słuchania audiobooków.",
     "starGithub": "Daj gwiazdkę na GitHubie",
-    "joinDiscord": "Dołącz do Discorda",
     "getStarted": "Zaczynamy"
   },
   "settings": {
     "title": "Ustawienia",
     "community": "Społeczność",
     "githubRepo": "Repozytorium GitHub",
-    "discordCommunity": "Dołącz do Discorda",
     "appearance": "Wygląd",
     "alwaysOnTop": "Okno zawsze na wierzchu",
     "alwaysOnTopDescription": "Okno pozostanie nad innymi oknami",
