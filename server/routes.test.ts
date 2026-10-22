@@ -313,6 +313,23 @@ describe('routes', () => {
     expect(response.statusCode).toBe(200);
   });
 
+  test('Polish translations are served, region variants included', async () => {
+    const english = await fastify.inject({ method: 'GET', url: '/api/translations?lang=en' });
+
+    for (const lang of ['pl', 'pl-PL']) {
+      const response = await fastify.inject({
+        method: 'GET',
+        url: `/api/translations?lang=${lang}`,
+      });
+      const body = response.json();
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-language']).toBe('pl');
+      expect(body.login.title).toBeString();
+      expect(body.login.title).not.toBe(english.json().login.title);
+    }
+  });
+
   test('JWT auth routes are gone', async () => {
     for (const [method, url] of [
       ['POST', '/api/login'],
