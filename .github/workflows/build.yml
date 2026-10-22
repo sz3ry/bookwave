@@ -39,7 +39,8 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bunx electron-builder --linux --publish always
+        # Only a published release uploads assets; a manual run just builds.
+        run: bunx electron-builder --linux --publish ${{ github.event_name == 'release' && 'always' || 'never' }}
 
   exe:
     runs-on: windows-latest
@@ -64,4 +65,5 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bunx electron-builder --win --publish always
+        # Only a published release uploads assets; a manual run just builds.
+        run: bunx electron-builder --win --publish ${{ github.event_name == 'release' && 'always' || 'never' }}
