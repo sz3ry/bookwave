@@ -131,7 +131,10 @@ export function DiscoverHome({ selectedBookId, onSelectBook }: DiscoverHomeProps
   return (
     <div className="flex-1 min-w-0 flex flex-col overflow-y-auto custom-scrollbar py-5 bg-[#0A0A0A]">
       {chips && chips.length > 1 && (
-        <div role="tablist" className="flex gap-2 overflow-x-auto custom-scrollbar px-6 pb-4">
+        <div
+          role="tablist"
+          className="flex flex-shrink-0 gap-2 overflow-x-auto custom-scrollbar px-6 pt-1 pb-4"
+        >
           {chips.map((chip) => (
             <button
               key={chip.id}
