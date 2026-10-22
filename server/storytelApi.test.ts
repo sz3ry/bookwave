@@ -49,10 +49,8 @@ function makeJwt(expInSeconds: number, tag = 'x'): string {
   return `${b64url({ alg: 'none' })}.${b64url({ iat: now, exp: now + expInSeconds, tag })}.sig`;
 }
 
-// legacyLoginCache is static and keyed by credentials, so every test logs in
-// as a different user to stay independent.
 let userCounter = 0;
-const uniqueEmail = () => `user${++userCounter}-${Date.now()}@example.com`;
+const uniqueEmail = () => `user${++userCounter}@example.com`;
 
 const LOGIN_PATH = '/api/login.action';
 const BOOKSHELF_PATH = '/libraries/bookshelf';
@@ -230,6 +228,24 @@ describe('StorytelClient', () => {
     await client.getBookshelf();
 
     expect(header(callsTo(BOOKSHELF_PATH)[0], 'authorization')).toBe(`Bearer ${expiring}`);
+  });
+
+  test('concurrent requests share one lazy login', async () => {
+    const fresh = makeJwt(3600, 'fresh');
+    const { fetchImpl, callsTo } = router({
+      [LOGIN_PATH]: loginOk(fresh),
+      [BOOKSHELF_PATH]: () => json({ items: {} }),
+    });
+    const client = clientWithSession(fetchImpl);
+    client.loginData.accountInfo.jwt = '';
+
+    await Promise.all([client.getBookshelf(), client.getBookshelf()]);
+
+    expect(callsTo(LOGIN_PATH)).toHaveLength(1);
+    expect(callsTo(BOOKSHELF_PATH).map((c) => header(c, 'authorization'))).toEqual([
+      `Bearer ${fresh}`,
+      `Bearer ${fresh}`,
+    ]);
   });
 
   test('stream URL comes from 302 Location', async () => {

@@ -2,48 +2,18 @@ import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
 import StorytelClient from './storytelApi';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import fastifyJWT from '@fastify/jwt';
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import { downloadToFile } from './download';
+import type { FetchLike } from './http/storytelFetch';
 import { appLogger } from './logger';
-import { encryptPassword } from './passwordCrypt';
+import { type AuthApi, createSession } from './session';
 
-// Extend JWT user type. Email/password login populates storytelToken, jwt, and
-// encryptedPassword.
-interface JWTUser {
-  email: string;
-  storytelToken: string;
-  jwt: string;
-  encryptedPassword?: string;
-}
-
-function hydrateStorytelClient(user: JWTUser): StorytelClient {
-  const client = new StorytelClient();
-  client.loginData = {
-    accountInfo: {
-      singleSignToken: user.storytelToken ?? '',
-      jwt: user.jwt ?? '',
-    },
-  };
-  if (user.email && user.encryptedPassword) {
-    client.setCredentials(user.email, user.encryptedPassword);
-  }
-  return client;
-}
-
-// Extend FastifyRequest with user property
-declare module '@fastify/jwt' {
-  interface FastifyJWT {
-    user: JWTUser;
-  }
-}
-
-// Extend Fastify instance with authenticate decorator
+// Routes behind requireSession get the session's shared Storytel client.
 declare module 'fastify' {
-  interface FastifyInstance {
-    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  interface FastifyRequest {
+    storytel: StorytelClient;
   }
 }
 
@@ -61,7 +31,6 @@ function replyError(reply: FastifyReply, error: any) {
   return reply.code(statusCode).send({ error: error.message });
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 const DOWNLOADS_DIR = process.env.IS_ELECTRON
   ? '' + process.env.DOWNLOAD_PATH
   : path.join(__dirname, 'downloads');
@@ -116,62 +85,42 @@ const activeDownloads = new Map<
 
 const fastify = Fastify({ logger: process.env.NODE_ENV !== 'production' });
 
-// Register plugins
-fastify.register(fastifyJWT, {
-  secret: JWT_SECRET,
-});
-// Authentication decorator
-fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
-  try {
-    await request.jwtVerify();
-  } catch (err) {
-    reply.code(401).send({ error: 'Not authenticated' });
+// Fetch used by the session's Storytel client; only tests replace it.
+let sessionFetch: FetchLike | undefined;
+
+// Test seam: routes.test.ts injects a fetch stub here before restoring a
+// session. Takes effect for clients created afterwards (login/restore).
+export function configureSession(options: { fetch?: FetchLike }): void {
+  sessionFetch = options.fetch;
+}
+
+// The logged-in account. The Electron main process drives it in-process
+// through `auth`; there is no login route, so the renderer cannot reach it.
+const session = createSession((opts) => new StorytelClient({ ...opts, fetch: sessionFetch }));
+
+export const auth: AuthApi = session;
+
+fastify.decorateRequest('storytel', null as unknown as StorytelClient);
+
+// Requires a session (stored credentials), never a live Storytel token: routes
+// serving local data keep working offline, and Storytel calls log in lazily.
+async function requireSession(request: FastifyRequest, reply: FastifyReply) {
+  const client = session.getClient();
+  if (!client) {
+    return reply.code(401).send({ error: 'Not authenticated' });
   }
-});
-
-// Route per login
-fastify.post<{
-  Body: { email: string; password: string };
-}>('/api/login', async (request, reply) => {
-  try {
-    const { email, password } = request.body;
-
-    if (!email || !password) {
-      return reply.code(400).send({ error: 'Email and password required' });
-    }
-
-    const storytelClient = new StorytelClient();
-    const loginData = await storytelClient.login(email, password);
-    const encPwd = encryptPassword(password.trim());
-
-    // Create JWT token with storytel client data
-    const token = fastify.jwt.sign({
-      storytelToken: loginData.accountInfo.singleSignToken,
-      jwt: loginData.accountInfo.jwt,
-      email: email,
-      encryptedPassword: encPwd,
-    });
-
-    reply.send({ success: true, message: 'Login successful', token });
-  } catch (error: any) {
-    replyError(reply, error);
-  }
-});
-
-// Route per logout
-fastify.post('/api/logout', async (_request, reply) => {
-  reply.send({ success: true, message: 'Logged out successfully' });
-});
+  request.storytel = client;
+}
 
 // Route per ottenere bookshelf
 fastify.get(
   '/api/bookshelf',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
 
       const bookshelf = await storytelClient.getBookshelf();
       reply.send(bookshelf);
@@ -187,7 +136,7 @@ fastify.get<{
 }>(
   '/api/search',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
@@ -196,7 +145,7 @@ fastify.get<{
         return reply.send({ results: [] });
       }
 
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
       const results = await storytelClient.searchCatalog(q);
       reply.send({ results });
     } catch (error: any) {
@@ -211,7 +160,7 @@ fastify.post<{
 }>(
   '/api/bookshelf/add',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
@@ -220,7 +169,7 @@ fastify.post<{
         return reply.code(400).send({ error: 'Missing consumableId' });
       }
 
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
       const result = await storytelClient.addToBookshelf(consumableId);
 
       // The Storytel endpoint answers 200 even when it ignores the write, so
@@ -245,7 +194,7 @@ fastify.post<{
 }>(
   '/api/bookshelf/remove',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
@@ -254,7 +203,7 @@ fastify.post<{
         return reply.code(400).send({ error: 'Missing consumableId' });
       }
 
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
       const result = await storytelClient.removeFromBookshelf(consumableId);
 
       // Same contract as /bookshelf/add: Storytel answers 200 even when it
@@ -279,7 +228,7 @@ fastify.post<{
 }>(
   '/api/stream',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
@@ -294,7 +243,7 @@ fastify.post<{
           remote: false,
         });
       } else {
-        const storytelClient = hydrateStorytelClient(request.user);
+        const storytelClient = request.storytel;
         // Prefer the new api.storytel.net assets endpoint (needs consumableId);
         // fall back to the legacy programId-based stream if not provided.
         const streamUrl = consumableId
@@ -315,14 +264,14 @@ fastify.post<{
 }>(
   '/api/bookmarks/:consumableId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
       const { consumableId } = request.params;
       const { position, note } = request.body;
 
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
 
       await storytelClient.setBookmark(consumableId, position, note);
 
@@ -338,12 +287,12 @@ fastify.delete<{
 }>(
   '/api/bookmarks/:consumableId/:bookmarkId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
       const { consumableId, bookmarkId } = request.params;
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
 
       await storytelClient.deleteBookmark(consumableId, bookmarkId);
 
@@ -360,12 +309,12 @@ fastify.put<{
 }>(
   '/api/bookmarks/:consumableId/:bookmarkId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
       const { consumableId, bookmarkId } = request.params;
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
 
       await storytelClient.updateBookmark(consumableId, bookmarkId, request.body);
 
@@ -379,11 +328,11 @@ fastify.put<{
 fastify.get(
   '/api/bookmark-positional',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
 
       const bookmarks = await storytelClient.getBookmarkPositional();
       reply.send(bookmarks);
@@ -398,13 +347,13 @@ fastify.get<{
 }>(
   '/api/bookmark-positional/:consumableId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
       const { consumableId } = request.params;
 
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
 
       const bookmarks = await storytelClient.getBookmarkPositional(consumableId);
       reply.send(bookmarks);
@@ -420,14 +369,14 @@ fastify.put<{
 }>(
   '/api/bookmark-positional/:consumableId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
       const { consumableId } = request.params;
       const { position } = request.body;
 
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
 
       const deviceId = process.env.DEVICE_ID || crypto.randomUUID().toUpperCase();
       const updated = await storytelClient.updateBookmarkPositional(
@@ -447,12 +396,12 @@ fastify.get<{
 }>(
   '/api/bookmarks/:consumableId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
       const { consumableId } = request.params;
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
 
       const bookmarks = await storytelClient.getBookmark(consumableId);
       reply.send(bookmarks);
@@ -467,12 +416,12 @@ fastify.get<{
 }>(
   '/api/bookmetadata/:consumableId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
       const { consumableId } = request.params;
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
       const bookInfoContent = await storytelClient.getPlayBookMetaData(consumableId);
       reply.send(bookInfoContent);
     } catch (error: any) {
@@ -486,39 +435,14 @@ fastify.get<{
 }>(
   '/api/book-details/:consumableId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
       const { consumableId } = request.params;
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
       const details = await storytelClient.getBookDetails(consumableId);
       reply.send(details);
-    } catch (error: any) {
-      replyError(reply, error);
-    }
-  },
-);
-
-// Route per controllare stato autenticazione
-fastify.get('/api/auth/status', async (request, reply) => {
-  try {
-    await request.jwtVerify();
-    reply.send({ authenticated: true });
-  } catch (err) {
-    reply.send({ authenticated: false });
-  }
-});
-
-// Route per ottenere informazioni account
-fastify.get(
-  '/api/account',
-  {
-    preHandler: fastify.authenticate,
-  },
-  async (request, reply) => {
-    try {
-      reply.send({ email: request.user.email });
     } catch (error: any) {
       replyError(reply, error);
     }
@@ -586,7 +510,7 @@ fastify.post<{
 }>(
   '/api/download',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
@@ -610,7 +534,7 @@ fastify.post<{
       }
 
       // Get stream URL
-      const storytelClient = hydrateStorytelClient(request.user);
+      const storytelClient = request.storytel;
       // Prefer the new api.storytel.net assets endpoint (needs consumableId);
       // fall back to the legacy programId-based stream if not provided.
       const streamUrl = consumableId
@@ -674,7 +598,7 @@ fastify.delete<{
 }>(
   '/api/download/:bookId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
@@ -705,7 +629,7 @@ fastify.get<{
 }>(
   '/api/download/:bookId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
@@ -730,7 +654,7 @@ fastify.get<{
 }>(
   '/api/download-status/:bookId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
@@ -748,7 +672,7 @@ fastify.delete<{
 }>(
   '/api/downloaded-file/:bookId',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     try {
@@ -772,7 +696,7 @@ fastify.delete<{
 fastify.get(
   '/api/logs',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (_request, reply) => {
     reply.send(appLogger.getLogs());
@@ -782,7 +706,7 @@ fastify.get(
 fastify.delete(
   '/api/logs',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (_request, reply) => {
     appLogger.clearLogs();
@@ -793,7 +717,7 @@ fastify.delete(
 fastify.post<{ Body: { message: string; data?: any } }>(
   '/api/logs/action',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (request, reply) => {
     appLogger.add({
@@ -808,7 +732,7 @@ fastify.post<{ Body: { message: string; data?: any } }>(
 fastify.get(
   '/api/logs/export',
   {
-    preHandler: fastify.authenticate,
+    preHandler: requireSession,
   },
   async (_request, reply) => {
     const logs = appLogger.getLogs();

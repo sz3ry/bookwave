@@ -152,13 +152,11 @@ class StorytelClient {
   private onCredentialsRejected?: () => void;
   public loginData: LoginData;
 
-  private static legacyLoginCache = new Map<
-    string,
-    { jwt: string; singleSignToken: string; expiresAt: number }
-  >();
-
   private savedEmail?: string;
   private savedEncryptedPassword?: string;
+  // In-flight re-login shared by concurrent requests, so a burst of requests
+  // with an expired token sends one login.action, not one each.
+  private pendingLogin?: Promise<void>;
 
   constructor(options: StorytelClientOptions = {}) {
     this.request = createStorytelFetch(options.fetch);
@@ -204,8 +202,6 @@ class StorytelClient {
       ) {
         throw error;
       }
-      const cacheKey = `${this.savedEmail}:${this.savedEncryptedPassword}`;
-      StorytelClient.legacyLoginCache.delete(cacheKey);
       try {
         await this.refreshLegacyLogin();
       } catch (refreshError) {
@@ -227,21 +223,21 @@ class StorytelClient {
     if (!this.savedEmail || !this.savedEncryptedPassword) {
       return;
     }
-    const now = Math.floor(Date.now() / 1000);
-    const cacheKey = `${this.savedEmail}:${this.savedEncryptedPassword}`;
-    const cached = StorytelClient.legacyLoginCache.get(cacheKey);
-    if (cached && cached.expiresAt - 60 > now) {
-      this.loginData.accountInfo.jwt = cached.jwt;
-      this.loginData.accountInfo.singleSignToken = cached.singleSignToken;
-      return;
-    }
+    this.pendingLogin ??= this.loginWith(this.savedEmail, this.savedEncryptedPassword).finally(
+      () => {
+        this.pendingLogin = undefined;
+      },
+    );
+    return this.pendingLogin;
+  }
 
+  private async loginWith(email: string, encryptedPassword: string): Promise<void> {
     let response: StorytelResponse<LoginData>;
     try {
       response = await this.send<LoginData>(
         {
           url: LOGIN_URL,
-          query: { m: 1, uid: this.savedEmail, pwd: this.savedEncryptedPassword },
+          query: { m: 1, uid: email, pwd: encryptedPassword },
         },
         { auth: false, isLogin: true },
       );
@@ -251,23 +247,6 @@ class StorytelClient {
     }
     if (response.data?.accountInfo?.jwt) {
       this.loginData = response.data;
-      let expiresIn = 1800; // default 30 min
-      try {
-        const parts = response.data.accountInfo.jwt.split('.');
-        if (parts.length >= 2) {
-          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
-          if (payload.exp && payload.iat) {
-            expiresIn = Math.max(300, payload.exp - payload.iat);
-          }
-        }
-      } catch {
-        // ignore
-      }
-      StorytelClient.legacyLoginCache.set(cacheKey, {
-        jwt: response.data.accountInfo.jwt,
-        singleSignToken: response.data.accountInfo.singleSignToken,
-        expiresAt: now + expiresIn,
-      });
     }
   }
 
@@ -285,27 +264,6 @@ class StorytelClient {
         { auth: false, isLogin: true },
       );
       this.loginData = response.data;
-
-      const now = Math.floor(Date.now() / 1000);
-      const cacheKey = `${trimmedEmail}:${encryptedPassword}`;
-      let expiresIn = 1800;
-      try {
-        const parts = response.data.accountInfo.jwt.split('.');
-        if (parts.length >= 2) {
-          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
-          if (payload.exp && payload.iat) {
-            expiresIn = Math.max(300, payload.exp - payload.iat);
-          }
-        }
-      } catch {
-        // ignore
-      }
-      StorytelClient.legacyLoginCache.set(cacheKey, {
-        jwt: response.data.accountInfo.jwt,
-        singleSignToken: response.data.accountInfo.singleSignToken,
-        expiresAt: now + expiresIn,
-      });
-
       return this.loginData;
     } catch (error: any) {
       if (error.isStorytelUnauthorized) {
