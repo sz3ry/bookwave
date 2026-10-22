@@ -5,6 +5,8 @@ import { ServerManager } from './modules/server';
 import { IpcManager } from './modules/ipc';
 import { UpdaterManager } from './modules/updater';
 import { AuthManager } from './modules/auth';
+import { AudiotekaAuthManager } from './modules/audiotekaAuth';
+import { openAudiotekaLogin } from './modules/audiotekaLogin';
 import { storeManager } from './modules/store';
 import { i18n } from './i18n';
 import { handleMediaRequest, MEDIA_SCHEME, registerMediaScheme } from './modules/mediaProtocol';
@@ -19,6 +21,7 @@ let serverManager: ServerManager;
 let ipcManager: IpcManager;
 let updaterManager: UpdaterManager;
 let authManager: AuthManager;
+let audiotekaAuthManager: AudiotekaAuthManager;
 
 // Resolved once the stored credentials are restored; the auth IPC handlers
 // wait for it, so the renderer never sees a premature logged-out state.
@@ -30,6 +33,15 @@ const authReady = new Promise<AuthManager>((resolve, reject) => {
 });
 // A failed startup is reported by the IPC callers; avoid an unhandled rejection.
 authReady.catch(() => {});
+
+// The same for the Audioteka account.
+let markAudiotekaReady!: (manager: AudiotekaAuthManager) => void;
+let failAudiotekaReady!: (error: unknown) => void;
+const audiotekaReady = new Promise<AudiotekaAuthManager>((resolve, reject) => {
+  markAudiotekaReady = resolve;
+  failAudiotekaReady = reject;
+});
+audiotekaReady.catch(() => {});
 
 // Resolved once the server bundle is loaded; downloaded books are looked up
 // through it, so media requests arriving earlier wait for it.
@@ -61,7 +73,7 @@ async function initialize(): Promise<void> {
   process.env.DOWNLOAD_PATH = app.getPath('downloads');
   process.env.USER_DATA_PATH = app.getPath('userData');
 
-  IpcManager.setupAuthHandlers(authReady);
+  IpcManager.setupAuthHandlers(authReady, audiotekaReady);
   setupMediaProtocol();
 
   windowManager = new WindowManager(isDev, isDebug);
@@ -94,11 +106,24 @@ async function initialize(): Promise<void> {
     safeStorage,
     platform: process.platform,
     notifyExpired: () => {
-      windowManager.getWindow()?.webContents.send('auth:expired');
+      windowManager.getWindow()?.webContents.send('auth:expired', 'storytel');
     },
   });
   authManager.initialize();
   markAuthReady(authManager);
+
+  audiotekaAuthManager = new AudiotekaAuthManager({
+    auth: serverManager.getAudiotekaAuth(),
+    store: storeManager,
+    safeStorage,
+    platform: process.platform,
+    openLogin: () => openAudiotekaLogin(windowManager.getWindow()),
+    notifyExpired: () => {
+      windowManager.getWindow()?.webContents.send('auth:expired', 'audioteka');
+    },
+  });
+  audiotekaAuthManager.initialize();
+  markAudiotekaReady(audiotekaAuthManager);
 
   trayManager = new TrayManager(windowManager);
   trayManager.create();
@@ -139,6 +164,7 @@ if (!gotTheLock) {
     .then(initialize)
     .catch((error) => {
       failAuthReady(error);
+      failAudiotekaReady(error);
       failMediaReady(error);
       console.error('Failed to start:', error);
     });

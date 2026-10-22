@@ -22,7 +22,7 @@ export type LoginResult =
   | { ok: true; state: AuthStateView }
   | { ok: false; error: 'invalid_credentials' | 'failed'; message?: string };
 
-interface KeyValueStore {
+export interface KeyValueStore {
   get(key: string): unknown;
   set(key: string, value: unknown): void;
   remove(key: string): void;
@@ -35,6 +35,88 @@ export const CREDENTIALS_KEY = 'auth.credentials';
 // IPC must not read, write or delete them.
 export function isProtectedStoreKey(key: string): boolean {
   return key === 'auth' || key.startsWith('auth.');
+}
+
+// Linux's basic_text backend is a hardcoded key, i.e. effectively plaintext.
+export function canPersistSecrets(
+  safeStorage: SafeStorageLike,
+  platform: NodeJS.Platform,
+): boolean {
+  if (!safeStorage.isEncryptionAvailable()) return false;
+  if (platform !== 'linux') return true;
+  return safeStorage.getSelectedStorageBackend?.() !== 'basic_text';
+}
+
+export interface SecretStorage {
+  store: KeyValueStore;
+  safeStorage: SafeStorageLike;
+  platform: NodeJS.Platform;
+}
+
+// Reads a JSON value stored as base64(safeStorage.encryptString(JSON)).
+// Returns null when there is nothing usable; removes only a blob that is
+// definitely corrupted, never one that merely cannot be read right now.
+export function readSecret<T>(
+  { store, safeStorage, platform }: SecretStorage,
+  key: string,
+  isValid: (value: unknown) => value is T,
+): T | null {
+  const blob = store.get(key);
+  if (blob === undefined) return null;
+  // Without a usable keyring right now (none, or a basic_text fallback) the
+  // blob cannot be read; keep it for a run where the keyring is back instead
+  // of throwing the credentials away.
+  if (!canPersistSecrets(safeStorage, platform)) return null;
+
+  if (typeof blob !== 'string') {
+    // Not something safeStorage ever wrote: the store value is corrupted.
+    store.remove(key);
+    return null;
+  }
+
+  let text: string;
+  try {
+    text = safeStorage.decryptString(Buffer.from(blob, 'base64'));
+  } catch (error) {
+    // A locked keyring or a cancelled unlock prompt: start logged out but
+    // keep the blob, a later run with the keyring unlocked can still read it.
+    console.error('Failed to decrypt stored credentials:', error);
+    return null;
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    value = undefined;
+  }
+  if (!isValid(value)) {
+    // Decrypted but not our credentials (corrupted file): start logged out.
+    store.remove(key);
+    return null;
+  }
+  return value;
+}
+
+// Stores `value` encrypted when the keyring can hold it; otherwise removes the
+// key, so an older account's credentials are never left behind to be restored.
+export function writeSecret(
+  { store, safeStorage, platform }: SecretStorage,
+  key: string,
+  value: unknown,
+): void {
+  if (!canPersistSecrets(safeStorage, platform)) {
+    store.remove(key);
+    return;
+  }
+  try {
+    const encrypted = safeStorage.encryptString(JSON.stringify(value));
+    store.set(key, encrypted.toString('base64'));
+  } catch (error) {
+    // The session still works for this run; only the next start needs a login.
+    console.error('Failed to persist credentials:', error);
+    store.remove(key);
+  }
 }
 
 function isStoredCredentials(value: unknown): value is StoredCredentials {
@@ -82,41 +164,8 @@ export class AuthManager {
       });
     }
 
-    const blob = this.store.get(CREDENTIALS_KEY);
-    if (blob === undefined) return;
-    // Without a usable keyring right now (none, or a basic_text fallback) the
-    // blob cannot be read; keep it for a run where the keyring is back instead
-    // of throwing the credentials away.
-    if (!this.canPersist()) return;
-
-    if (typeof blob !== 'string') {
-      // Not something safeStorage ever wrote: the store value is corrupted.
-      this.store.remove(CREDENTIALS_KEY);
-      return;
-    }
-
-    let text: string;
-    try {
-      text = this.safeStorage.decryptString(Buffer.from(blob, 'base64'));
-    } catch (error) {
-      // A locked keyring or a cancelled unlock prompt: start logged out but
-      // keep the blob, a later run with the keyring unlocked can still read it.
-      console.error('Failed to decrypt stored credentials:', error);
-      return;
-    }
-
-    let creds: unknown;
-    try {
-      creds = JSON.parse(text);
-    } catch {
-      creds = undefined;
-    }
-    if (!isStoredCredentials(creds)) {
-      // Decrypted but not our credentials (corrupted file): start logged out.
-      this.store.remove(CREDENTIALS_KEY);
-      return;
-    }
-    this.auth.restore(creds);
+    const creds = readSecret(this.secrets(), CREDENTIALS_KEY, isStoredCredentials);
+    if (creds) this.auth.restore(creds);
   }
 
   async login(email: string, password: string): Promise<LoginResult> {
@@ -134,19 +183,7 @@ export class AuthManager {
       };
     }
 
-    if (this.canPersist()) {
-      try {
-        const encrypted = this.safeStorage.encryptString(JSON.stringify(creds));
-        this.store.set(CREDENTIALS_KEY, encrypted.toString('base64'));
-      } catch (error) {
-        // The session still works for this run; only the next start needs a login.
-        console.error('Failed to persist credentials:', error);
-        this.store.remove(CREDENTIALS_KEY);
-      }
-    } else {
-      // Never leave an older account's credentials behind to be restored later.
-      this.store.remove(CREDENTIALS_KEY);
-    }
+    writeSecret(this.secrets(), CREDENTIALS_KEY, creds);
     return { ok: true, state: this.getState() };
   }
 
@@ -160,11 +197,12 @@ export class AuthManager {
     return { loggedIn, email, canPersist: this.canPersist() };
   }
 
-  // Linux's basic_text backend is a hardcoded key, i.e. effectively plaintext.
   canPersist(): boolean {
-    if (!this.safeStorage.isEncryptionAvailable()) return false;
-    if (this.platform !== 'linux') return true;
-    return this.safeStorage.getSelectedStorageBackend?.() !== 'basic_text';
+    return canPersistSecrets(this.safeStorage, this.platform);
+  }
+
+  private secrets(): SecretStorage {
+    return { store: this.store, safeStorage: this.safeStorage, platform: this.platform };
   }
 }
 

@@ -60,3 +60,36 @@ export interface AuthApi {
   // cleared. Returns an unsubscribe function.
   onCredentialsRejected(listener: () => void): () => void;
 }
+
+// Copies of the Audioteka session types (server/audioteka/session.ts and
+// server/audioteka/client.ts), for the same reason.
+
+// What the main process persists to restore an Audioteka session; refreshId
+// rotates on every refresh and deviceId must stay the one the login used.
+export interface AudiotekaCredentials {
+  deviceId: string;
+  refreshId: string;
+  token: string | null;
+  expiresAt: string | null;
+}
+
+// What the web login hands over: the ids the Audioteka site issued for this device.
+export interface AudiotekaLoginCapture {
+  deviceId: string;
+  refreshId: string;
+}
+
+export interface AudiotekaAuthApi {
+  // Refreshes at once with the captured ids; rejects when the refresh fails or
+  // the login was superseded by logout/restore/another login.
+  loginWithCapture(capture: AudiotekaLoginCapture): Promise<AudiotekaCredentials>;
+  // Starts a session from stored credentials without any network call.
+  restore(creds: AudiotekaCredentials): void;
+  logout(): void;
+  getState(): { loggedIn: boolean };
+  // Called synchronously whenever the client rotates its credentials; the
+  // listener must persist before returning.
+  onCredentialsChanged(listener: (credentials: AudiotekaCredentials) => void): () => void;
+  // Called after Audioteka rejected the refresh id and the session was cleared.
+  onCredentialsRejected(listener: () => void): () => void;
+}

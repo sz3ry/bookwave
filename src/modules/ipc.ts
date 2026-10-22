@@ -2,6 +2,7 @@ import { ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
 import path from 'path';
 import { storeManager } from './store';
 import { type AuthManager, createAuthIpcHandlers, isProtectedStoreKey } from './auth';
+import { type AudiotekaAuthManager, createAudiotekaIpcHandlers } from './audiotekaAuth';
 import type { ServerManager } from './server';
 import type { TrayManager } from './tray';
 import type { WindowManager } from './window';
@@ -26,13 +27,21 @@ export class IpcManager {
   // Registered before the window loads, ahead of the other handlers: the
   // renderer asks for the auth state first thing, while main is still
   // starting the server and restoring the stored credentials.
-  static setupAuthHandlers(authReady: Promise<AuthManager>): void {
+  static setupAuthHandlers(
+    authReady: Promise<AuthManager>,
+    audiotekaReady: Promise<AudiotekaAuthManager>,
+  ): void {
     const handlers = createAuthIpcHandlers(authReady);
     ipcMain.handle('auth:login', (_event: IpcMainInvokeEvent, email: unknown, password: unknown) =>
       handlers.login(email, password),
     );
     ipcMain.handle('auth:logout', () => handlers.logout());
     ipcMain.handle('auth:state', () => handlers.state());
+
+    const audioteka = createAudiotekaIpcHandlers(authReady, audiotekaReady);
+    ipcMain.handle('auth:providers', () => audioteka.providers());
+    ipcMain.handle('auth:audioteka-login', () => audioteka.login());
+    ipcMain.handle('auth:audioteka-logout', () => audioteka.logout());
   }
 
   setupHandlers(): void {

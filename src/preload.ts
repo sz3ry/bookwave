@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { LanguageState } from './i18n';
+import type { AudiotekaLoginResult, ProvidersState } from './modules/audiotekaAuth';
 import type { AuthStateView, LoginResult } from './modules/auth';
 
 // Store API
@@ -15,9 +16,14 @@ contextBridge.exposeInMainWorld('electronAuth', {
     ipcRenderer.invoke('auth:login', email, password),
   logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
   getState: (): Promise<AuthStateView> => ipcRenderer.invoke('auth:state'),
-  // Storytel rejected the stored credentials; returns an unsubscribe function.
-  onExpired: (callback: () => void): (() => void) => {
-    const listener = () => callback();
+  getProviders: (): Promise<ProvidersState> => ipcRenderer.invoke('auth:providers'),
+  // Opens the audioteka.com login window; resolves once it is done or closed.
+  audiotekaLogin: (): Promise<AudiotekaLoginResult> => ipcRenderer.invoke('auth:audioteka-login'),
+  audiotekaLogout: (): Promise<void> => ipcRenderer.invoke('auth:audioteka-logout'),
+  // A provider rejected its stored credentials; returns an unsubscribe function.
+  onExpired: (callback: (provider: 'storytel' | 'audioteka') => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, provider: 'storytel' | 'audioteka') =>
+      callback(provider);
     ipcRenderer.on('auth:expired', listener);
     return () => {
       ipcRenderer.removeListener('auth:expired', listener);

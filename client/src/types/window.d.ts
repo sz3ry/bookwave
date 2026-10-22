@@ -25,13 +25,37 @@ declare global {
     | { ok: true; state: AuthStateView }
     | { ok: false; error: 'invalid_credentials' | 'failed'; message?: string };
 
+  /** Mirrors `AudiotekaStateView` in the Electron main process (src/modules/audiotekaAuth.ts). */
+  interface AudiotekaStateView {
+    loggedIn: boolean;
+    /** False when there is no OS keyring: the session lasts for this run only. */
+    canPersist: boolean;
+  }
+
+  /** Mirrors `ProvidersState` in the Electron main process (src/modules/audiotekaAuth.ts). */
+  interface ProvidersState {
+    storytel: AuthStateView;
+    audioteka: AudiotekaStateView;
+  }
+
+  /** Mirrors `AudiotekaLoginResult` in the Electron main process (src/modules/audiotekaAuth.ts). */
+  type AudiotekaLoginResult =
+    | { ok: true; state: AudiotekaStateView }
+    | { ok: false; error: 'cancelled' | 'failed' };
+
+  type AuthProvider = 'storytel' | 'audioteka';
+
   interface Window {
     electronAuth?: {
       login: (email: string, password: string) => Promise<AuthLoginResult>;
       logout: () => Promise<void>;
       getState: () => Promise<AuthStateView>;
+      getProviders: () => Promise<ProvidersState>;
+      /** Opens the audioteka.com login window; resolves once it is done or closed. */
+      audiotekaLogin: () => Promise<AudiotekaLoginResult>;
+      audiotekaLogout: () => Promise<void>;
       /** Returns an unsubscribe function. */
-      onExpired: (callback: () => void) => () => void;
+      onExpired: (callback: (provider: AuthProvider) => void) => () => void;
     };
     // TODO: Define proper types for tray control methods based on actual Electron IPC
     trayControls?: {

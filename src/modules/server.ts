@@ -1,10 +1,11 @@
 import * as path from 'path';
-import type { AuthApi } from '../types';
+import type { AudiotekaAuthApi, AuthApi } from '../types';
 import type { FileResolver } from './mediaProtocol';
 
 export class ServerManager {
   private server: any | null = null;
   private auth: AuthApi | null = null;
+  private audiotekaAuth: AudiotekaAuthApi | null = null;
   private mediaResolver: FileResolver | null = null;
 
   async initialize(): Promise<void> {
@@ -15,6 +16,11 @@ export class ServerManager {
     if (!auth || typeof auth.login !== 'function') {
       throw new Error(`Server bundle at ${serverPath} does not export \`auth\``);
     }
+    const audiotekaAuth: AudiotekaAuthApi | undefined =
+      mod.audiotekaAuth ?? mod.default?.audiotekaAuth;
+    if (!audiotekaAuth || typeof audiotekaAuth.loginWithCapture !== 'function') {
+      throw new Error(`Server bundle at ${serverPath} does not export \`audiotekaAuth\``);
+    }
     const mediaResolver: FileResolver | undefined =
       mod.resolveDownloadedFile ?? mod.default?.resolveDownloadedFile;
     if (typeof mediaResolver !== 'function') {
@@ -22,6 +28,7 @@ export class ServerManager {
     }
     this.server = mod.default;
     this.auth = auth;
+    this.audiotekaAuth = audiotekaAuth;
     this.mediaResolver = mediaResolver;
   }
 
@@ -30,6 +37,13 @@ export class ServerManager {
       throw new Error('Server not initialized');
     }
     return this.auth;
+  }
+
+  getAudiotekaAuth(): AudiotekaAuthApi {
+    if (!this.audiotekaAuth) {
+      throw new Error('Server not initialized');
+    }
+    return this.audiotekaAuth;
   }
 
   getMediaResolver(): FileResolver {
