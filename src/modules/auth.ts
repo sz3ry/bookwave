@@ -84,9 +84,10 @@ export class AuthManager {
 
     const blob = this.store.get(CREDENTIALS_KEY);
     if (blob === undefined) return;
-    // Without a keyring right now the blob cannot be read; keep it for a run
-    // where the keyring is back instead of throwing the credentials away.
-    if (!this.safeStorage.isEncryptionAvailable()) return;
+    // Without a usable keyring right now (none, or a basic_text fallback) the
+    // blob cannot be read; keep it for a run where the keyring is back instead
+    // of throwing the credentials away.
+    if (!this.canPersist()) return;
 
     let creds: unknown;
     try {

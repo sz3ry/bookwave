@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import type { AuthApi, StoredCredentials } from '../types';
 import { AuthManager, CREDENTIALS_KEY, isProtectedStoreKey, type SafeStorageLike } from './auth';
 
@@ -7,11 +7,15 @@ const PASSWORD = 'plain-secret-password';
 
 // Reversible stand-in for the OS keyring: prefixes and byte-reverses the text.
 function fakeSafeStorage(opts: { available?: boolean; backend?: string } = {}) {
-  const storage: SafeStorageLike & { failDecrypt: boolean } = {
+  const storage: SafeStorageLike & { failDecrypt: boolean; failEncrypt: boolean } = {
     failDecrypt: false,
+    failEncrypt: false,
     isEncryptionAvailable: () => opts.available ?? true,
     getSelectedStorageBackend: () => opts.backend ?? 'gnome_libsecret',
-    encryptString: (s) => Buffer.from(`enc:${s}`).reverse(),
+    encryptString: (s) => {
+      if (storage.failEncrypt) throw new Error('Error while encrypting the text provided');
+      return Buffer.from(`enc:${s}`).reverse();
+    },
     decryptString: (b) => {
       if (storage.failDecrypt) throw new Error('Error while decrypting the ciphertext');
       const text = Buffer.from(b).reverse().toString();
@@ -159,6 +163,34 @@ describe('AuthManager.login', () => {
     expect(manager.getState().loggedIn).toBe(false);
   });
 
+  test('non-persisting login removes an older blob', async () => {
+    const { manager, store } = setup({
+      backend: 'basic_text',
+      stored: { [CREDENTIALS_KEY]: blobFor(CREDS) },
+    });
+    const result = await manager.login(CREDS.email, PASSWORD);
+
+    expect(result.ok).toBe(true);
+    expect(store.calls.set).toBe(0);
+    expect(store.data.has(CREDENTIALS_KEY)).toBe(false);
+  });
+
+  test('encryptString failure leaves a logged-in session without a stored key', async () => {
+    const { manager, store, safeStorage } = setup({
+      stored: { [CREDENTIALS_KEY]: blobFor(CREDS) },
+    });
+    safeStorage.failEncrypt = true;
+    const errorSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const result = await manager.login(CREDS.email, PASSWORD);
+    errorSpy.mockRestore();
+
+    expect(result).toEqual({
+      ok: true,
+      state: { loggedIn: true, email: CREDS.email, canPersist: true },
+    });
+    expect(store.data.has(CREDENTIALS_KEY)).toBe(false);
+  });
+
   test('any other failure maps to failed with its message', async () => {
     const { manager, store } = setup({
       loginImpl: () => Promise.reject(new Error('Login failed: fetch failed')),
@@ -187,6 +219,20 @@ describe('AuthManager.initialize', () => {
     manager.initialize();
 
     expect(store.data.has(CREDENTIALS_KEY)).toBe(false);
+    expect(fake.restored).toEqual([]);
+    expect(manager.getState().loggedIn).toBe(false);
+  });
+
+  test('keeps stored blob when the backend cannot persist', () => {
+    const blob = blobFor(CREDS);
+    const { manager, store, fake } = setup({
+      backend: 'basic_text',
+      stored: { [CREDENTIALS_KEY]: blob },
+    });
+    manager.initialize();
+
+    expect(store.calls.remove).toBe(0);
+    expect(store.data.get(CREDENTIALS_KEY)).toBe(blob);
     expect(fake.restored).toEqual([]);
     expect(manager.getState().loggedIn).toBe(false);
   });

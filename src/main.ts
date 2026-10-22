@@ -65,6 +65,14 @@ async function initialize(): Promise<void> {
   updaterManager.initialize();
 }
 
+// Electron only picks a Secret Service keyring on desktops it recognises; on
+// others (e.g. niri) it falls back to basic_text and credentials would not be
+// persisted. Ask for libsecret explicitly unless the user chose a store; with
+// no Secret Service running Electron still falls back to basic_text.
+if (process.platform === 'linux' && !app.commandLine.hasSwitch('password-store')) {
+  app.commandLine.appendSwitch('password-store', 'gnome-libsecret');
+}
+
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 
