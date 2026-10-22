@@ -13,9 +13,10 @@ export interface LogEntry {
 }
 
 // Query/form params that carry credentials or the account email.
-const SECRET_PARAMS = /(^|[?&])(pwd|uid|token|singleSignToken)=[^&\s"]*/g;
+const SECRET_PARAMS = /(^|[?&])(pwd|uid|token|singleSignToken|refresh_id|device_id)=[^&\s"]*/g;
 // Object keys whose values are credentials, session tokens or the account email.
-const SECRET_KEY = /^(jwt|pwd|password|encryptedPassword|email|uid|.*token)$/i;
+const SECRET_KEY =
+  /^(jwt|pwd|password|encryptedPassword|email|uid|refresh_?id|device_?id|.*token)$/i;
 
 // Hide credential-bearing params like the password or token in anything logged.
 export function maskSecrets(value: string): string {
