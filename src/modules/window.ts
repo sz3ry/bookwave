@@ -112,7 +112,7 @@ export class WindowManager {
         const outFd = fs.openSync(clientLogFile, 'w');
         const errFd = fs.openSync(clientLogFile, 'a');
 
-        this.clientProcess = spawn('npm', ['run', 'client'], {
+        this.clientProcess = spawn('bun', ['run', '--filter', 'bookwave-client', 'start'], {
             cwd: cwd,
             stdio: ['pipe', outFd, errFd],
             shell: true,

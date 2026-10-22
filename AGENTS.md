@@ -117,18 +117,18 @@ storytel-player/
 
 ### Development Workflow
 
-1. **Install dependencies**: `npm run install-all`
-2. **Development mode**: `npm run dev` (runs both client and server with hot reload)
-3. **Electron dev**: `npm run electron:dev`
-4. **Build**: `npm run build` (builds client and server)
-5. **Distribution**: `npm run dist:linux` / `npm run dist:win` (x64 only)
+1. **Install dependencies**: `bun install` (Bun workspaces: `bookwave-client`, `bookwave-server`)
+2. **Electron dev**: `bun run electron:dev` (builds server and main process, starts Vite on :3000)
+3. **Build**: `bun run build:all` (client, server and Electron main process)
+4. **Typecheck**: `bun run typecheck`
+5. **Distribution**: `bun run dist:linux` / `bun run dist:win` (x64 only)
 
 There is no browser mode: the app only runs inside Electron (from the Electron-only restructuring onward). The Fastify server runs in-process inside the Electron main process.
 
 ### Testing Strategy
 
 - Manual testing in development mode
-- Test across platforms (Windows, macOS, Linux)
+- Test across platforms (Windows, Linux)
 - Verify i18n translations for all supported languages
 - Test both online and offline modes
 

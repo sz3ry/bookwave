@@ -9,26 +9,18 @@
   "main": "dist/electron/main.js",
   "homepage": "./",
   "scripts": {
-    "start": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "cd server && npm install && npm start",
-    "client": "cd client && npm install && npm start",
-    "build": "cd client && npm run build",
-    "dev": "concurrently \"npm run server:dev\" \"npm run client\"",
-    "server:dev": "cd server && npm install && npm run dev",
-    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "electron:build": "tsc -p tsconfig.electron.json",
-    "electron": "npm run electron:build && electron .",
-    "electron:dev": "npm run server:build && npm run electron:build && cross-env NODE_ENV=development electron .",
-    "electron:debug": "npm run server:build && npm run electron:build && cross-env NODE_ENV=development IS_DEBUG=true electron .",
-    "electron:pack": "electron-builder",
-    "preelectron:pack": "npm run build && npm run server:build && npm run electron:build",
-    "preelectron": "npm run build && npm run server:build",
-    "server:build": "cd server && npm run build",
-    "clean": "rm -rf dist; rm -rf server/dist; rm -rf client/build",
-    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md && git add README.md CHANGELOG.md src/version.ts",
-    "dist:linux": "npm run build && npm run server:build && npm run electron:build && electron-builder --linux",
-    "dist:win": "npm run build && npm run server:build && npm run electron:build && electron-builder --win"
+    "build:client": "bun run --filter bookwave-client build",
+    "build:server": "bun run --filter bookwave-server build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:all": "bun run build:client && bun run build:server && bun run build:electron",
+    "electron:dev": "bun run build:server && bun run build:electron && cross-env NODE_ENV=development electron .",
+    "electron:debug": "bun run build:server && bun run build:electron && cross-env NODE_ENV=development IS_DEBUG=true electron .",
+    "dist:linux": "bun run build:all && electron-builder --linux",
+    "dist:win": "bun run build:all && electron-builder --win",
+    "typecheck": "tsc -p tsconfig.electron.json --noEmit && bun run --filter '*' typecheck",
+    "test": "bun test --pass-with-no-tests",
+    "clean": "rm -rf dist server/dist client/build",
+    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md && git add README.md CHANGELOG.md src/version.ts"
   },
   "author": "Łukasz Wiśniewski <fr.luksus@gmail.com>",
   "license": "MIT",
@@ -52,7 +44,6 @@
     "@babel/preset-react": "^7.28.5",
     "@types/dot-object": "^2.1.6",
     "@types/node": "^24.10.13",
-    "concurrently": "^7.6.0",
     "conventional-changelog": "^7.2.0",
     "conventional-changelog-angular": "^8.3.1",
     "cross-env": "^10.1.0",
@@ -115,5 +106,14 @@
         "releaseType": "release"
       }
     ]
-  }
+  },
+  "packageManager": "bun@1.4.3",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "trustedDependencies": [
+    "electron",
+    "esbuild"
+  ]
 }

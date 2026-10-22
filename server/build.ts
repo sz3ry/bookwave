@@ -6,7 +6,7 @@ const build = async (): Promise<void> => {
             entryPoints: ['fastify-common.ts'],
             bundle: true,
             platform: 'node',
-            target: 'node18',
+            target: 'node24',
             outfile: 'dist/server.js',
             format: 'cjs',
             external: [],

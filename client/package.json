@@ -1,5 +1,5 @@
 {
-  "name": "storytel-client",
+  "name": "bookwave-client",
   "version": "1.0.0",
   "description": "Storytel Web Client",
   "homepage": ".",
@@ -22,7 +22,8 @@
   "scripts": {
     "start": "vite",
     "build": "tsc && cross-env VITE_REACT_APP_USE_MEMORY_ROUTER=true vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
   "eslintConfig": {
     "extends": [

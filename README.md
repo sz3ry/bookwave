@@ -32,19 +32,18 @@ Accounts created through Google or Apple sign-in cannot log in directly. Set a p
 
 ## Development
 
-Requirements: Node.js 22+ and npm 7+.
+Requirements: [Bun](https://bun.sh) 1.4+.
 
 ```bash
-npm run install-all
-npm run dev            # Vite (port 3000) + Fastify (port 3001) with hot reload
-npm run electron:dev   # Electron in development mode
+bun install
+bun run electron:dev   # Electron in development mode (Vite on port 3000)
 ```
 
 Build distributables (output in `dist/`):
 
 ```bash
-npm run dist:linux     # AppImage + deb (x64)
-npm run dist:win       # NSIS installer (x64)
+bun run dist:linux     # AppImage + deb (x64)
+bun run dist:win       # NSIS installer (x64)
 ```
 
 Project layout:
