@@ -15,6 +15,7 @@
       "!**/node_modules",
       "!bun.lock",
       "!.release-please-manifest.json",
+      "!CHANGELOG.md",
       "!docs/superpowers",
       "!.superpowers"
     ]
