@@ -12,11 +12,13 @@ const stored: AudiotekaCredentials = {
 
 // A client stand-in whose refresh rotates the refresh id and can be held open.
 function fakeFactory() {
-  const created: { opts: AudiotekaClientOptions; release: () => void }[] = [];
+  const created: { opts: AudiotekaClientOptions; release: () => void; fail: () => void }[] = [];
   const factory = (opts: AudiotekaClientOptions) => {
     let release = () => {};
-    const gate = new Promise<void>((resolve) => {
+    let fail = () => {};
+    const gate = new Promise<void>((resolve, reject) => {
       release = resolve;
+      fail = () => reject(new Error('refresh failed'));
     });
     const instance = {
       refresh: async () => {
@@ -29,7 +31,7 @@ function fakeFactory() {
         });
       },
     } as unknown as AudiotekaClient;
-    created.push({ opts, release });
+    created.push({ opts, release, fail });
     return instance;
   };
   return { factory, created };
@@ -66,6 +68,28 @@ describe('createAudiotekaSession', () => {
     await expect(login).rejects.toThrow('Login superseded');
     expect(seen).toEqual([]);
     expect(session.getState().loggedIn).toBe(false);
+  });
+
+  test('a current client keeps persisting rotations while a second login is in flight', async () => {
+    const { factory, created } = fakeFactory();
+    const session = createAudiotekaSession(factory);
+    const seen: string[] = [];
+    session.onCredentialsChanged((c) => seen.push(c.refreshId));
+
+    const first = session.loginWithCapture(capture);
+    created[0].release();
+    await first;
+    const clientA = session.getClient();
+    seen.length = 0;
+
+    const second = session.loginWithCapture({ deviceId: 'd2', refreshId: 'x' });
+    created[0].opts.onCredentialsChanged({ ...stored, refreshId: 'a-rotated' });
+    expect(seen).toEqual(['a-rotated']);
+
+    created[1].fail();
+    await expect(second).rejects.toThrow('refresh failed');
+    expect(session.getClient()).toBe(clientA);
+    expect(session.getState().loggedIn).toBe(true);
   });
 
   test('a later login supersedes an earlier one', async () => {

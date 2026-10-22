@@ -71,8 +71,10 @@ export function createAudiotekaSession(
         credentials: latest,
         onCredentialsChanged: (changed) => {
           latest = changed;
-          // Superseded logins must not leak credentials to the persister.
-          if (generation !== started) return;
+          // Forward while this login is current, or once it became the current
+          // client (a later login in flight must not drop its rotations). A
+          // superseded, never-adopted login must not leak credentials.
+          if (client !== candidate && generation !== started) return;
           for (const listener of [...changedListeners]) listener(changed);
         },
         onCredentialsRejected: () => {

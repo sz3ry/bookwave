@@ -96,17 +96,51 @@ describe('Audioteka routes', () => {
       if (p === '/v2/me/shelf') {
         return json({
           _embedded: {
-            'app:audiobook': [{ id: ID, name: 'Lalka', duration_in_seconds: 60 }],
+            'app:audiobook': [{ id: ID, name: 'Lalka', tracks_duration_in_ms: 60000 }],
           },
         });
       }
-      if (p.startsWith('/v2/me/audiobook-license-channels/')) return json({});
       return json({});
     });
     login();
     const res = await fastify.inject({ method: 'GET', url: '/api/audioteka/library' });
     expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.json())).toBe(true);
+    const [entry, ...rest] = res.json();
+    expect(rest).toHaveLength(0);
+    expect(entry).toMatchObject({
+      id: ID,
+      title: 'Lalka',
+      durationMs: 60000,
+      sources: ['shelf'],
+      available: true,
+      positionMs: null,
+    });
+  });
+
+  test('400 for an invalid id on PUT position and POST start', async () => {
+    const calls = useFetch(() => json({}));
+    login();
+    const put = await fastify.inject({
+      method: 'PUT',
+      url: '/api/audioteka/positions/nope',
+      payload: { position: 1 },
+    });
+    const start = await fastify.inject({ method: 'POST', url: '/api/audioteka/books/nope/start' });
+    expect(put.statusCode).toBe(400);
+    expect(start.statusCode).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
+  test('a rejected refresh id maps to 401', async () => {
+    useFetch(() => json({ message: 'invalid' }, 401));
+    audiotekaAuth.restore({
+      deviceId: 'd',
+      refreshId: 'r',
+      token: null,
+      expiresAt: null,
+    });
+    const res = await fastify.inject({ method: 'GET', url: `/api/audioteka/positions/${ID}` });
+    expect(res.statusCode).toBe(401);
   });
 
   test('PUT position rejects a non-numeric body', async () => {

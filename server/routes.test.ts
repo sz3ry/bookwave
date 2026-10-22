@@ -95,8 +95,8 @@ afterEach(() => {
   }
 });
 
-// The fastify instance is not closed here: bun runs all test files in one
-// process and server/audioteka/routes.test.ts injects into the same instance.
+// Not closed: bun shares one fastify-common instance across test files (the first
+// file to import it fixes DOWNLOAD_PATH/USER_DATA_PATH), and later files inject into it.
 afterAll(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
