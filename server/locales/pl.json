@@ -319,5 +319,9 @@
   "providers": {
     "pickTitle": "Wybierz serwis",
     "pickSubtitle": "Zaloguj się do serwisu z audiobookami, z którego chcesz korzystać"
+  },
+  "library": {
+    "unavailable": "Niedostępny",
+    "providerUnavailable": "Serwis {{provider}} jest teraz niedostępny, więc jego książki nie są widoczne."
   }
 }

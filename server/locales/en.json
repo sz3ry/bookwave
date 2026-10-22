@@ -315,5 +315,9 @@
   "providers": {
     "pickTitle": "Choose a service",
     "pickSubtitle": "Sign in to the audiobook service you want to listen with"
+  },
+  "library": {
+    "unavailable": "Unavailable",
+    "providerUnavailable": "{{provider}} is unavailable right now, so its books are not shown."
   }
 }

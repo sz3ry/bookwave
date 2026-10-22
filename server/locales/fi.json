@@ -315,5 +315,9 @@
   "providers": {
     "pickTitle": "Valitse palvelu",
     "pickSubtitle": "Kirjaudu äänikirjapalveluun, jolla haluat kuunnella"
+  },
+  "library": {
+    "unavailable": "Ei saatavilla",
+    "providerUnavailable": "{{provider}} ei ole juuri nyt käytettävissä, joten sen kirjoja ei näytetä."
   }
 }

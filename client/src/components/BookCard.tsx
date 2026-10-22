@@ -1,42 +1,51 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { buildCoverUrl, formatMicrosecondsTime, isBookFinished } from '../utils/helpers';
-import type { BookShelfEntity } from '../interfaces/books';
+import { formatMicrosecondsTime, isBookFinished } from '../utils/helpers';
+import type { LibraryBook } from '../interfaces/library';
+import { useProviders } from '../contexts/ProvidersContext';
+
+const PROVIDER_LABEL: Record<LibraryBook['provider'], string> = {
+  storytel: 'Storytel',
+  audioteka: 'Audioteka',
+};
 
 interface BookCardProps {
-  book: BookShelfEntity;
-  onBookSelect: (book: BookShelfEntity) => void;
-  onRemove?: (book: BookShelfEntity) => void;
-  onQuickPlay?: (e: React.MouseEvent, book: BookShelfEntity) => void;
+  book: LibraryBook;
+  onBookSelect: (book: LibraryBook) => void;
+  onRemove?: (book: LibraryBook) => void;
+  onQuickPlay?: (e: React.MouseEvent, book: LibraryBook) => void;
 }
 
 export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCardProps) {
   const { t } = useTranslation();
+  const { both } = useProviders();
 
-  const position = book.abookMark ? book.abookMark.pos : 0;
-  const totalDuration = book.abook?.time || 0;
+  // formatMicrosecondsTime takes microseconds.
+  const position = book.positionMs * 1000;
+  const totalDuration = book.durationMs * 1000;
   const remainingTime = Math.max(totalDuration - position, 0);
 
   const progressPercent =
     totalDuration > 0 ? Math.min(Math.max((position / totalDuration) * 100, 0), 100) : 0;
 
-  const isFinished = isBookFinished(book);
+  const isFinished = book.storytel ? isBookFinished(book.storytel) : book.status === 'concluded';
   const isStarted = position > 0 && !isFinished;
+  const isAudiobook = book.provider === 'audioteka' || !!book.storytel?.abook;
 
-  const coverUrl =
-    book?.book?.largeCover ||
-    book?.book?.largeCoverE ||
-    book?.book?.cover ||
-    book?.book?.coverE ||
-    book?.book?.smallCover;
+  const coverUrl = book.coverUrl;
   // Covers are remote, so they fail offline; show the placeholder instead.
   const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null);
 
   return (
     <div
-      onClick={() => onBookSelect(book)}
-      className="group flex flex-col bg-[#141414] hover:bg-[#1A1A1A] border border-white/[0.06] hover:border-white/15 rounded-2xl p-3 transition-all duration-200 shadow-md hover:shadow-xl cursor-pointer select-none relative overflow-hidden"
+      onClick={() => {
+        if (book.available) onBookSelect(book);
+      }}
+      aria-disabled={!book.available}
+      className={`group flex flex-col bg-[#141414] hover:bg-[#1A1A1A] border border-white/[0.06] hover:border-white/15 rounded-2xl p-3 transition-all duration-200 shadow-md hover:shadow-xl select-none relative overflow-hidden ${
+        book.available ? 'cursor-pointer' : 'cursor-default opacity-50'
+      }`}
     >
       {/* Remove Button (Hover top-right) */}
       {onRemove && (
@@ -65,8 +74,8 @@ export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCard
       <div className="relative aspect-square w-full rounded-xl overflow-hidden shadow-md bg-gray-900 flex items-center justify-center flex-shrink-0">
         {coverUrl && failedCoverUrl !== coverUrl ? (
           <img
-            src={buildCoverUrl(coverUrl)}
-            alt={book?.book?.name || ''}
+            src={coverUrl}
+            alt={book.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
             onError={() => setFailedCoverUrl(coverUrl)}
@@ -88,23 +97,38 @@ export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCard
         )}
 
         {/* Quick Play Overlay Button */}
-        <div
-          onClick={(e) => {
-            if (onQuickPlay) {
-              onQuickPlay(e, book);
-            }
-          }}
-          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-        >
-          <div className="w-12 h-12 rounded-full bg-[#FF5100] text-white flex items-center justify-center shadow-xl shadow-[#FF5100]/40 transform scale-90 group-hover:scale-100 transition-transform active:scale-95">
-            <svg className="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
+        {book.available && (
+          <div
+            onClick={(e) => {
+              if (onQuickPlay) {
+                onQuickPlay(e, book);
+              }
+            }}
+            className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+          >
+            <div className="w-12 h-12 rounded-full bg-[#FF5100] text-white flex items-center justify-center shadow-xl shadow-[#FF5100]/40 transform scale-90 group-hover:scale-100 transition-transform active:scale-95">
+              <svg className="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Source Badge, only when both services are logged in */}
+        {both && (
+          <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-sm text-[10px] font-bold text-white/90 tracking-wide">
+            {PROVIDER_LABEL[book.provider]}
+          </span>
+        )}
+
+        {!book.available && (
+          <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-sm text-[10px] font-bold text-white/90">
+            {t('library.unavailable')}
+          </span>
+        )}
 
         {/* Format Badge (Audio / Ebook) */}
-        {book.abook && (
+        {isAudiobook && (
           <span className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-sm text-[10px] font-bold text-white/90 uppercase tracking-wider">
             {t('search.audiobook', 'Audiobook')}
           </span>
@@ -116,13 +140,11 @@ export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCard
         <div>
           <h3
             className="text-white font-bold text-sm line-clamp-2 leading-snug group-hover:text-[#FF5100] transition-colors"
-            title={book?.book?.name || ''}
+            title={book.title}
           >
-            {book?.book?.name || '—'}
+            {book.title || '—'}
           </h3>
-          <p className="text-xs text-[#9ca3af] mt-1 truncate">
-            {book?.book?.authorsAsString || '—'}
-          </p>
+          <p className="text-xs text-[#9ca3af] mt-1 truncate">{book.authors || '—'}</p>
         </div>
 
         {/* Progress bar / Duration readout */}

@@ -315,5 +315,9 @@
   "providers": {
     "pickTitle": "Välj en tjänst",
     "pickSubtitle": "Logga in på ljudboktjänsten du vill lyssna med"
+  },
+  "library": {
+    "unavailable": "Inte tillgänglig",
+    "providerUnavailable": "{{provider}} är inte tillgänglig just nu, så dess böcker visas inte."
   }
 }

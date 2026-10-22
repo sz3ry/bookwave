@@ -315,5 +315,9 @@
   "providers": {
     "pickTitle": "Dienst auswählen",
     "pickSubtitle": "Melde dich beim Hörbuchdienst an, mit dem du hören möchtest"
+  },
+  "library": {
+    "unavailable": "Nicht verfügbar",
+    "providerUnavailable": "{{provider}} ist gerade nicht erreichbar, daher werden die Bücher von dort nicht angezeigt."
   }
 }

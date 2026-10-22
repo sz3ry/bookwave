@@ -9,11 +9,55 @@ import ErrorState from './ErrorState';
 import ContinueSeriesRow from './ContinueSeriesRow';
 import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
 import type { BookShelfEntity, BookShelfResponse } from '../interfaces/books';
-import { compareByRecency } from '../utils/series';
+import type { AudiotekaLibraryEntry, LibraryBook, ProviderId } from '../interfaces/library';
+import {
+  combineLibraries,
+  fromAudiotekaEntry,
+  fromShelfEntity,
+  readAudiotekaLocalPosition,
+} from '../utils/library';
+import { useProviders } from '../contexts/ProvidersContext';
 import { isOfflineError, removeFromBookshelfErrorKey } from '../utils/helpers';
 
 // How often the offline Dashboard retries Storytel in the background.
 const OFFLINE_RETRY_MS = 30_000;
+
+const PROVIDER_NAME: Record<ProviderId, string> = {
+  storytel: 'Storytel',
+  audioteka: 'Audioteka',
+};
+
+/** Storytel bookshelf; `offline` when it lists only books downloaded to disk. */
+interface StorytelShelf {
+  entities: BookShelfEntity[];
+  offline: boolean;
+}
+
+/** A provider's load result; null when the provider is not logged in. */
+type ProviderLoad<T> = PromiseSettledResult<T> | null;
+
+const settle = <T,>(promise: Promise<T>): Promise<PromiseSettledResult<T>> =>
+  Promise.allSettled([promise]).then(([result]) => result);
+
+/** Online bookshelf, or the downloaded books when Storytel is unreachable. */
+async function loadStorytelShelf(): Promise<StorytelShelf> {
+  try {
+    const response = await api.get<BookShelfResponse>('/bookshelf');
+    return { entities: response.data.books || [], offline: false };
+  } catch (err) {
+    if (!isOfflineError(err)) throw err;
+    console.warn('Failed to load bookshelf, falling back to downloaded books', err);
+    const offline = await api.get<BookShelfResponse>('/offline/bookshelf');
+    return { entities: offline.data?.books || [], offline: true };
+  }
+}
+
+async function loadAudiotekaBooks(): Promise<LibraryBook[]> {
+  const response = await api.get<AudiotekaLibraryEntry[]>('/audioteka/library');
+  const entries = response.data || [];
+  const locals = await Promise.all(entries.map((e) => readAudiotekaLocalPosition(e.id)));
+  return entries.map((e, i) => fromAudiotekaEntry(e, locals[i]));
+}
 
 interface DashboardProps {
   onLogout: () => void;
@@ -24,12 +68,11 @@ interface DashboardProps {
 export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: DashboardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [books, setBooks] = useState<BookShelfEntity[]>([]);
+  const { storytel: hasStorytel, audioteka: hasAudioteka } = useProviders();
+  const [storytelShelf, setStorytelShelf] = useState<ProviderLoad<StorytelShelf>>(null);
+  const [audiotekaBooks, setAudiotekaBooks] = useState<ProviderLoad<LibraryBook[]>>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  // Storytel was unreachable and the list shows only books downloaded to disk.
-  const [isOffline, setIsOffline] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<number | null>(null);
+  const [filterStatus, setFilterStatus] = useState<LibraryBook['status'] | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [bookToRemove, setBookToRemove] = useState<BookShelfEntity | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -39,63 +82,86 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
   } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Loads can overlap (mount, provider changes and 'bookshelfUpdated'); only the
+  // latest one may update the list, so an older load cannot replace a newer result.
+  const loadSeqRef = useRef(0);
+
+  // Each logged-in provider loads on its own; one failing keeps the other's books.
+  const loadLibrary = async () => {
+    const seq = ++loadSeqRef.current;
+    setIsLoading(true);
+    const [storytel, audioteka] = await Promise.all([
+      hasStorytel ? settle(loadStorytelShelf()) : null,
+      hasAudioteka ? settle(loadAudiotekaBooks()) : null,
+    ]);
+    if (seq !== loadSeqRef.current) return;
+    if (storytel?.status === 'rejected') {
+      console.error('Failed to load bookshelf', storytel.reason);
+    }
+    if (audioteka?.status === 'rejected') {
+      console.error('Failed to load Audioteka library', audioteka.reason);
+    }
+    setStorytelShelf(storytel);
+    setAudiotekaBooks(audioteka);
+    setIsLoading(false);
+  };
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reload only when the logged-in providers change
   useEffect(() => {
-    loadBookshelf();
+    loadLibrary();
     const handleUpdate = () => {
       setFilterStatus(null);
       setSearchQuery('');
-      loadBookshelf();
+      loadLibrary();
     };
     window.addEventListener('bookshelfUpdated', handleUpdate);
     return () => {
       window.removeEventListener('bookshelfUpdated', handleUpdate);
     };
-  }, []);
+  }, [hasStorytel, hasAudioteka]);
 
-  // Loads can overlap (mount and 'bookshelfUpdated'); only the latest one may
-  // update the list, so an older failing load cannot replace a newer result.
-  const loadSeqRef = useRef(0);
+  const storytelEntities =
+    storytelShelf?.status === 'fulfilled' ? storytelShelf.value.entities : [];
+  // Storytel was unreachable and its part lists only books downloaded to disk.
+  const isOffline = storytelShelf?.status === 'fulfilled' && storytelShelf.value.offline;
 
-  // `silent` retries the online bookshelf in the background while offline: no
-  // loading state, and a failure keeps the offline list as it is.
-  const loadBookshelf = async ({ silent = false }: { silent?: boolean } = {}) => {
-    const seq = ++loadSeqRef.current;
-    const isCurrent = () => seq === loadSeqRef.current;
+  const { books, failed } = useMemo(
+    () =>
+      combineLibraries(
+        storytelShelf?.status === 'fulfilled'
+          ? { status: 'fulfilled', value: storytelShelf.value.entities.map(fromShelfEntity) }
+          : storytelShelf,
+        audiotekaBooks,
+      ),
+    [storytelShelf, audiotekaBooks],
+  );
+  const loggedInCount = Number(hasStorytel) + Number(hasAudioteka);
+  // Every logged-in provider failed: nothing to show but the error page.
+  const allFailed = failed.length > 0 && failed.length >= loggedInCount;
+
+  // Background retry of the online bookshelf while offline: no loading state,
+  // and a failure keeps the offline list as it is.
+  const retryStorytelOnline = async () => {
+    const seq = loadSeqRef.current;
     try {
-      if (!silent) setIsLoading(true);
       const response = await api.get<BookShelfResponse>('/bookshelf');
-      if (!isCurrent()) return;
-      setBooks(response.data.books || []);
-      setIsOffline(false);
-    } catch (err: any) {
-      if (!isCurrent() || silent) return;
-      if (!isOfflineError(err)) {
-        console.error('Failed to load bookshelf', err);
-        setError(t('dashboard.loadError'));
-        return;
-      }
-      console.warn('Failed to load bookshelf, falling back to downloaded books', err);
-      try {
-        const offline = await api.get<BookShelfResponse>('/offline/bookshelf');
-        if (!isCurrent()) return;
-        setBooks(offline.data?.books || []);
-        setIsOffline(true);
-      } catch (offlineErr) {
-        if (!isCurrent()) return;
-        console.error('Failed to load downloaded books', offlineErr);
-        setError(t('dashboard.loadError'));
-      }
-    } finally {
-      if (isCurrent() && !silent) setIsLoading(false);
+      if (seq !== loadSeqRef.current) return;
+      setStorytelShelf({
+        status: 'fulfilled',
+        value: { entities: response.data.books || [], offline: false },
+      });
+    } catch {
+      // Still offline; try again later.
     }
   };
 
   // While showing the offline list, switch back to the online bookshelf as soon
   // as Storytel is reachable again, without a manual reload.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the retry only depends on the offline flag
   useEffect(() => {
     if (!isOffline) return;
     const retry = () => {
-      void loadBookshelf({ silent: true });
+      void retryStorytelOnline();
     };
     window.addEventListener('online', retry);
     window.addEventListener('focus', retry);
@@ -114,15 +180,9 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
     let concluded = 0;
 
     for (const b of books) {
-      const s = +b.status;
-      const pos = b.abookMark?.pos || 0;
-      if (s === 3) {
-        concluded += 1;
-      } else if (s === 2 || (pos > 0 && s !== 3)) {
-        started += 1;
-      } else {
-        notStarted += 1;
-      }
+      if (b.status === 'concluded') concluded += 1;
+      else if (b.status === 'started') started += 1;
+      else notStarted += 1;
     }
 
     return {
@@ -133,60 +193,66 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
     };
   }, [books]);
 
-  // Filtered and sorted books
+  // Filtered books, already ordered most recent first by combineLibraries
   const filteredBooks = useMemo(() => {
     if (books.length === 0) return [];
 
-    let result = [...books];
+    let result = books;
 
     // Filter by status if selected
     if (filterStatus !== null) {
-      result = result.filter((book) => {
-        const s = +book.status;
-        const pos = book.abookMark?.pos || 0;
-        if (filterStatus === 1) {
-          return s === 1 && pos === 0;
-        }
-        if (filterStatus === 2) {
-          return s === 2 || (pos > 0 && s !== 3);
-        }
-        if (filterStatus === 3) {
-          return s === 3;
-        }
-        return s === filterStatus;
-      });
+      result = result.filter((book) => book.status === filterStatus);
     }
 
     // Filter by local search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (book) =>
-          book.book?.name?.toLowerCase().includes(q) ||
-          book.book?.authorsAsString?.toLowerCase().includes(q) ||
-          book.abook?.narratorAsString?.toLowerCase().includes(q),
-      );
+      result = result.filter((book) => {
+        const narrators =
+          book.storytel?.abook?.narratorAsString ?? book.audioteka?.narrators.join(', ');
+        return (
+          book.title.toLowerCase().includes(q) ||
+          book.authors.toLowerCase().includes(q) ||
+          narrators?.toLowerCase().includes(q)
+        );
+      });
     }
-
-    // Sort by most recently updated
-    result.sort(compareByRecency);
 
     return result;
   }, [books, filterStatus, searchQuery]);
 
-  const handleBookSelect = (book: BookShelfEntity) => {
-    const bookId = book.abook?.id || book.id;
+  const handleBookSelect = (book: LibraryBook) => {
+    if (book.audioteka) {
+      navigate(`/player/audioteka/${book.audioteka.id}`, {
+        state: { audiotekaBook: book.audioteka },
+      });
+      return;
+    }
+    if (!book.storytel) return;
+    const bookId = book.storytel.abook?.id || book.storytel.id;
     navigate(`/book/${bookId}`, {
-      state: { book },
+      state: { book: book.storytel },
     });
   };
 
-  const handleQuickPlay = (e: React.MouseEvent, book: BookShelfEntity) => {
+  const handleQuickPlay = (e: React.MouseEvent, book: LibraryBook) => {
     e.stopPropagation();
-    const bookId = book.abook?.id || book.id;
+    if (book.audioteka) {
+      navigate(`/player/audioteka/${book.audioteka.id}`, {
+        state: { audiotekaBook: book.audioteka, autoPlay: true },
+      });
+      return;
+    }
+    if (!book.storytel) return;
+    const bookId = book.storytel.abook?.id || book.storytel.id;
     navigate(`/player/${bookId}`, {
-      state: { book, autoPlay: true },
+      state: { book: book.storytel, autoPlay: true },
     });
+  };
+
+  // Only Storytel books can be removed, and not while Storytel is unreachable.
+  const handleRemoveRequest = (book: LibraryBook) => {
+    if (book.storytel) setBookToRemove(book.storytel);
   };
 
   const handleRemoveBook = async () => {
@@ -198,12 +264,22 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
       setIsRemoving(true);
       await api.post('/bookshelf/remove', { consumableId: String(consumableId) });
       setBookToRemove(null);
-      setBooks((prev) => prev.filter((b) => b !== bookToRemove));
+      setStorytelShelf((prev) =>
+        prev?.status === 'fulfilled'
+          ? {
+              ...prev,
+              value: {
+                ...prev.value,
+                entities: prev.value.entities.filter((b) => b !== bookToRemove),
+              },
+            }
+          : prev,
+      );
       setToastMessage({
         type: 'success',
         text: t('bookshelf.removed', 'Removed from your library'),
       });
-      loadBookshelf();
+      loadLibrary();
     } catch (err: any) {
       console.error('Failed to remove book from bookshelf:', err);
       setBookToRemove(null);
@@ -218,10 +294,14 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
     return <LoadingState message={t('dashboard.loading', 'Loading your library...')} />;
   }
 
-  if (error) {
+  if (allFailed) {
     return (
       <div className="min-h-screen bg-[#0A0A0A] text-white">
-        <ErrorState error={error} onRetry={() => window.location.reload()} onLogout={onLogout} />
+        <ErrorState
+          error={t('dashboard.loadError')}
+          onRetry={() => window.location.reload()}
+          onLogout={onLogout}
+        />
       </div>
     );
   }
@@ -312,18 +392,46 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
           </div>
         )}
 
+        {failed.map((provider) => (
+          <div
+            key={provider}
+            role="status"
+            className="flex items-center gap-2.5 mb-5 px-4 py-2.5 rounded-xl bg-[#FF5100]/10 border border-[#FF5100]/30 text-xs text-[#FFB38A]"
+          >
+            <svg
+              aria-hidden="true"
+              className="w-4 h-4 flex-shrink-0 text-[#FF5100]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"
+              />
+            </svg>
+            <span>{t('library.providerUnavailable', { provider: PROVIDER_NAME[provider] })}</span>
+          </div>
+        ))}
+
         {/* Filter Status Tabs */}
         <div className="flex items-center gap-2 mb-7 overflow-x-auto pb-1 no-scrollbar border-b border-white/[0.06] pt-1">
           {[
             { status: null, label: t('dashboard.filters.all', 'All'), count: counts.all },
-            { status: 2, label: t('dashboard.filters.started', 'Started'), count: counts.started },
             {
-              status: 1,
+              status: 'started' as const,
+              label: t('dashboard.filters.started', 'Started'),
+              count: counts.started,
+            },
+            {
+              status: 'notStarted' as const,
               label: t('dashboard.filters.notStarted', 'Not started'),
               count: counts.notStarted,
             },
             {
-              status: 3,
+              status: 'concluded' as const,
               label: t('dashboard.filters.concluded', 'Concluded'),
               count: counts.concluded,
             },
@@ -353,7 +461,7 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
           })}
         </div>
 
-        <ContinueSeriesRow books={books} offline={isOffline} />
+        {hasStorytel && <ContinueSeriesRow books={storytelEntities} offline={isOffline} />}
 
         {/* Book Grid */}
         {books.length === 0 ? (
@@ -401,14 +509,15 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-5">
             {filteredBooks
-              .filter((book) => !!book?.abook || !!book?.book)
+              .filter((book) => !book.storytel || !!book.storytel.abook || !!book.storytel.book)
               .map((book) => (
                 <BookCard
-                  key={book.abook?.id || book.id || book.book?.consumableId}
+                  key={book.key}
                   book={book}
                   onBookSelect={handleBookSelect}
-                  // Removing needs Storytel, which is unreachable offline.
-                  onRemove={isOffline ? undefined : setBookToRemove}
+                  // Removing needs Storytel, which is unreachable offline; Audioteka
+                  // books cannot be removed from Bookwave.
+                  onRemove={book.storytel && !isOffline ? handleRemoveRequest : undefined}
                   onQuickPlay={handleQuickPlay}
                 />
               ))}
