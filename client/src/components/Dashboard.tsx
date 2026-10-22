@@ -8,7 +8,7 @@ import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
 import type { BookShelfEntity, BookShelfResponse } from '../interfaces/books';
-import { removeFromBookshelfErrorKey } from '../utils/helpers';
+import { isOfflineError, removeFromBookshelfErrorKey } from '../utils/helpers';
 
 // How often the offline Dashboard retries Storytel in the background.
 const OFFLINE_RETRY_MS = 30_000;
@@ -67,10 +67,7 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
       setIsOffline(false);
     } catch (err: any) {
       if (!isCurrent() || silent) return;
-      // Only an unreachable Storytel (no HTTP status, or a server error) means
-      // offline; a 4xx such as a rejected session is a real error.
-      const status: number | undefined = err?.response?.status;
-      if (status !== undefined && status < 500) {
+      if (!isOfflineError(err)) {
         console.error('Failed to load bookshelf', err);
         setError(t('dashboard.loadError'));
         return;

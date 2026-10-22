@@ -37,6 +37,15 @@
       "concluded": "Terminé"
     }
   },
+  "discover": {
+    "seeAll": "Tout voir",
+    "loadMore": "Charger plus",
+    "back": "Retour",
+    "offline": "Vous êtes hors ligne. La page d'accueil de Storytel nécessite une connexion.",
+    "error": "Impossible de charger cette page.",
+    "retry": "Réessayer",
+    "empty": "Il n'y a encore rien à afficher ici."
+  },
   "player": {
     "chapters": "Chapitres",
     "bookmarks": "Marque-pages",

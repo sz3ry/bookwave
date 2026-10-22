@@ -12,6 +12,7 @@ import {
 import SearchFilterRail, { type DurationFilter, type LanguageStat } from './SearchFilterRail';
 import SearchResultList, { type SortOption } from './SearchResultList';
 import SearchPreviewPane from './SearchPreviewPane';
+import DiscoverHome from './DiscoverHome';
 
 interface SearchViewProps {
   query?: string;
@@ -140,16 +141,20 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
     return list;
   }, [rawResults, selectedLanguages, selectedDuration, sortBy]);
 
-  // Keep selectedBook valid after filter changes
+  // Keep selectedBook valid after filter changes. Runs only when the results
+  // change, so a book picked from the Discover page (not part of the results)
+  // stays selected.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
-    if (filteredResults.length > 0) {
-      if (!selectedBook || !filteredResults.some((b) => b.id === selectedBook.id)) {
-        setSelectedBook(filteredResults[0]);
+    if (!activeQuery.trim()) return;
+    setSelectedBook((current) => {
+      if (filteredResults.length === 0) return null;
+      if (!current || !filteredResults.some((b) => b.id === current.id)) {
+        return filteredResults[0];
       }
-    } else {
-      setSelectedBook(null);
-    }
-  }, [filteredResults, selectedBook]);
+      return current;
+    });
+  }, [filteredResults]);
 
   const handleToggleLanguage = (iso: string) => {
     const code = iso.toLowerCase();
@@ -261,24 +266,10 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
           </p>
         </div>
       ) : !activeQuery.trim() ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0A0A0A]">
-          <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-gray-500 mb-3">
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
-          <h3 className="text-base font-bold text-white mb-1">
-            {t('search.title', 'Search Storytel')}
-          </h3>
-          <p className="text-xs text-gray-500 max-w-sm">
-            {t('search.initialPrompt', "Type to search Storytel's vast catalog of audiobooks")}
-          </p>
-        </div>
+        <DiscoverHome
+          selectedBookId={selectedBook?.id || null}
+          onSelectBook={(book) => setSelectedBook(book)}
+        />
       ) : rawResults.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0A0A0A]">
           <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-gray-500 mb-3">

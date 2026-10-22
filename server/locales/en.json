@@ -37,6 +37,15 @@
       "concluded": "Concluded"
     }
   },
+  "discover": {
+    "seeAll": "See all",
+    "loadMore": "Load more",
+    "back": "Back",
+    "offline": "You're offline. Storytel's front page needs a connection.",
+    "error": "Couldn't load this page.",
+    "retry": "Try again",
+    "empty": "Nothing to show here yet."
+  },
   "player": {
     "chapters": "Chapters",
     "bookmarks": "Bookmarks",

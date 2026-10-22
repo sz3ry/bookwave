@@ -37,6 +37,15 @@
       "concluded": "Kuunneltu"
     }
   },
+  "discover": {
+    "seeAll": "Näytä kaikki",
+    "loadMore": "Lataa lisää",
+    "back": "Takaisin",
+    "offline": "Olet offline-tilassa. Storytelin etusivu vaatii verkkoyhteyden.",
+    "error": "Sivun lataaminen epäonnistui.",
+    "retry": "Yritä uudelleen",
+    "empty": "Täällä ei ole vielä mitään näytettävää."
+  },
   "player": {
     "chapters": "Luvut",
     "bookmarks": "Kirjanmerkit",

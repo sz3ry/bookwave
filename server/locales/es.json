@@ -37,6 +37,15 @@
       "concluded": "Terminado"
     }
   },
+  "discover": {
+    "seeAll": "Ver todo",
+    "loadMore": "Cargar más",
+    "back": "Atrás",
+    "offline": "Estás sin conexión. La portada de Storytel necesita conexión a internet.",
+    "error": "No se pudo cargar esta página.",
+    "retry": "Reintentar",
+    "empty": "Aún no hay nada que mostrar."
+  },
   "player": {
     "chapters": "Capítulos",
     "bookmarks": "Marcadores",

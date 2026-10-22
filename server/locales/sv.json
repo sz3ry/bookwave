@@ -37,6 +37,15 @@
       "concluded": "Avslutad"
     }
   },
+  "discover": {
+    "seeAll": "Visa alla",
+    "loadMore": "Ladda fler",
+    "back": "Tillbaka",
+    "offline": "Du är offline. Storytels startsida kräver en internetanslutning.",
+    "error": "Det gick inte att ladda sidan.",
+    "retry": "Försök igen",
+    "empty": "Det finns inget att visa här ännu."
+  },
   "player": {
     "chapters": "Ljudspår",
     "bookmarks": "Bokmärken",

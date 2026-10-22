@@ -37,6 +37,15 @@
       "concluded": "Abgeschlossen"
     }
   },
+  "discover": {
+    "seeAll": "Alle anzeigen",
+    "loadMore": "Mehr laden",
+    "back": "Zurück",
+    "offline": "Du bist offline. Die Storytel-Startseite braucht eine Internetverbindung.",
+    "error": "Diese Seite konnte nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "empty": "Hier gibt es noch nichts zu sehen."
+  },
   "player": {
     "chapters": "Kapitel",
     "bookmarks": "Lesezeichen",

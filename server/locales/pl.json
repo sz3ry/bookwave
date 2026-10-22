@@ -39,6 +39,15 @@
       "concluded": "Ukończone"
     }
   },
+  "discover": {
+    "seeAll": "Zobacz wszystkie",
+    "loadMore": "Załaduj więcej",
+    "back": "Wstecz",
+    "offline": "Jesteś offline. Strona główna Storytel wymaga połączenia z internetem.",
+    "error": "Nie udało się wczytać tej strony.",
+    "retry": "Spróbuj ponownie",
+    "empty": "Na razie nic tu nie ma."
+  },
   "player": {
     "chapters": "Rozdziały",
     "bookmarks": "Zakładki",

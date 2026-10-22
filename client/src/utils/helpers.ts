@@ -166,3 +166,10 @@ export const truncateTitle = (title: string, maxLength: number = 30): string => 
   if (title.length <= maxLength) return title;
   return title.substring(0, maxLength - 3) + '...';
 };
+
+// Only an unreachable Storytel (no HTTP status, e.g. a network error, or a 5xx)
+// means offline; a 4xx such as a rejected session is a real error.
+export const isOfflineError = (err: any): boolean => {
+  const status: number | undefined = err?.response?.status;
+  return status === undefined || status >= 500;
+};
