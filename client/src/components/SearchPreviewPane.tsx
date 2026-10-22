@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { SearchResultBook } from '../interfaces/books';
+import type { SearchResultBook } from '../interfaces/books';
 import { buildCoverUrl, formatMicrosecondsTime, localizedLanguageName } from '../utils/helpers';
 
 interface SearchPreviewPaneProps {
@@ -25,10 +25,17 @@ export function SearchPreviewPane({
       <aside className="w-[340px] p-[22px] bg-[#0D0D0F] border-l border-white/[0.05] flex flex-col items-center justify-center text-center flex-shrink-0 select-none">
         <div className="w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-gray-600 mb-3">
           <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+            />
           </svg>
         </div>
-        <p className="text-sm font-medium text-gray-400">{t('search.selectBookHint', 'Select a book to preview')}</p>
+        <p className="text-sm font-medium text-gray-400">
+          {t('search.selectBookHint', 'Select a book to preview')}
+        </p>
       </aside>
     );
   }
@@ -42,7 +49,9 @@ export function SearchPreviewPane({
       : '—';
   const languageLabel = book.language
     ? localizedLanguageName(book.language, i18n.language, book.languageName)
-    : (book.languageName ? (book.languageName.charAt(0).toUpperCase() + book.languageName.slice(1)) : '—');
+    : book.languageName
+      ? book.languageName.charAt(0).toUpperCase() + book.languageName.slice(1)
+      : '—';
 
   return (
     <aside className="w-[340px] p-[22px] bg-[#0D0D0F] border-l border-white/[0.05] flex flex-col flex-shrink-0 select-none overflow-y-auto custom-scrollbar">
@@ -57,7 +66,12 @@ export function SearchPreviewPane({
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-600">
             <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+              />
             </svg>
           </div>
         )}
@@ -65,12 +79,8 @@ export function SearchPreviewPane({
 
       {/* Title & Author */}
       <div className="text-center mb-5">
-        <h2 className="text-[19px] font-bold text-white leading-snug line-clamp-2">
-          {book.title}
-        </h2>
-        <p className="text-sm text-[#9ca3af] mt-1 line-clamp-1">
-          {book.authors}
-        </p>
+        <h2 className="text-[19px] font-bold text-white leading-snug line-clamp-2">{book.title}</h2>
+        <p className="text-sm text-[#9ca3af] mt-1 line-clamp-1">{book.authors}</p>
       </div>
 
       {/* Action Buttons: Listen & Add */}
@@ -94,14 +104,24 @@ export function SearchPreviewPane({
             isAdded
               ? 'bg-green-600/20 text-green-400 border-green-500/40 cursor-default'
               : isAdding
-              ? 'bg-[#1A1A1A] text-white border-white/20 animate-pulse'
-              : 'bg-[#1A1A1A] hover:bg-[#242426] text-white border-white/10'
+                ? 'bg-[#1A1A1A] text-white border-white/20 animate-pulse'
+                : 'bg-[#1A1A1A] hover:bg-[#242426] text-white border-white/10'
           }`}
         >
           {isAdded ? (
             <>
-              <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <svg
+                className="w-4 h-4 text-green-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
               <span>{t('bookView.inLibrary', 'In Library')}</span>
             </>
@@ -110,7 +130,12 @@ export function SearchPreviewPane({
           ) : (
             <>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
               <span>{t('bookView.addToLibrary', 'Add to Library')}</span>
             </>
@@ -131,7 +156,10 @@ export function SearchPreviewPane({
         {book.narrators && (
           <div className="py-2.5 flex items-center justify-between">
             <span className="text-gray-500">{t('bookView.narrator', 'Narrator')}</span>
-            <span className="text-gray-200 font-medium truncate max-w-[170px] text-right" title={book.narrators}>
+            <span
+              className="text-gray-200 font-medium truncate max-w-[170px] text-right"
+              title={book.narrators}
+            >
               {book.narrators}
             </span>
           </div>
@@ -139,7 +167,10 @@ export function SearchPreviewPane({
         {book.category && (
           <div className="py-2.5 flex items-center justify-between">
             <span className="text-gray-500">{t('bookView.category', 'Category')}</span>
-            <span className="text-gray-200 font-medium truncate max-w-[170px] text-right" title={book.category}>
+            <span
+              className="text-gray-200 font-medium truncate max-w-[170px] text-right"
+              title={book.category}
+            >
               {book.category}
             </span>
           </div>

@@ -13,7 +13,7 @@ export class ServerManager {
     method: string,
     url: string,
     payload?: any,
-    headers?: Record<string, string>
+    headers?: Record<string, string>,
   ): Promise<any> {
     if (!this.server) {
       throw new Error('Server not initialized');
@@ -28,7 +28,9 @@ export class ServerManager {
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       let errorData: any = {};
-      try { errorData = response.json(); } catch {}
+      try {
+        errorData = response.json();
+      } catch {}
       // Return a plain object instead of throwing so that the statusCode
       // survives the Electron IPC structured-clone boundary (custom Error
       // properties are stripped when crossing main→renderer).

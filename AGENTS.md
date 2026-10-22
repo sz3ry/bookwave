@@ -5,6 +5,7 @@
 **Bookwave** is an unofficial desktop application for playing Storytel audiobooks (Linux x64: AppImage and deb; Windows x64: NSIS), built with TypeScript, React, Fastify, and Electron.
 
 ### Tech Stack
+
 - **Frontend**: React 18 + TypeScript + Tailwind CSS + Vite
 - **Backend**: Fastify 5 + TypeScript
 - **Desktop**: Electron 43
@@ -13,6 +14,7 @@
 - **Build Tools**: Vite, esbuild, electron-builder
 
 ### Architecture
+
 ```
 storytel-player/
 ├── client/          # React frontend application
@@ -39,23 +41,27 @@ storytel-player/
 ### Language Requirements
 
 #### Code and Documentation
+
 - **ALL documentation files** (README, CONTRIBUTING, AGENTS.md, etc.) **MUST be written in English**
 - **ALL code comments** MUST be written in English
 - **ALL commit messages** MUST be written in English
 - **ALL variable names, function names, and identifiers** MUST be in English
 
 #### User-Facing Content
+
 - **ALL user-facing text** (UI labels, messages, errors) MUST use the i18n translation system
 - Never hardcode user-facing strings in components
 - Always add new strings to translation files in `server/locales/`
 
 #### Translation System
+
 - **Location**: Translation files are in `server/locales/`
   - `server/locales/en.json` - English translations (default)
   - `server/locales/it.json` - Italian translations
   - Add more languages as needed
 
 - **Usage in Frontend**:
+
   ```typescript
   import { useTranslation } from 'react-i18next';
 
@@ -66,6 +72,7 @@ storytel-player/
   ```
 
 - **Usage in Backend**:
+
   ```typescript
   // Server automatically provides translations via API
   // Use i18next instance configured in server
@@ -89,7 +96,7 @@ storytel-player/
   which books exist, and in which languages, is decided by the country of the
   logged-in Storytel account. Never derive one from the other — a `sv-FI`
   system locale means "Swedish speaker in Finland", not "Finnish catalog".
-  Language *names* shown in the UI are produced locally with
+  Language _names_ shown in the UI are produced locally with
   `Intl.DisplayNames` (see `localizedLanguageName` in `client/src/utils/helpers.ts`);
   the `languageName` the Storytel API returns is localized for the account's
   market, not for the app UI, so it is only a last-resort fallback.
@@ -134,22 +141,26 @@ There is no browser mode: the app only runs inside Electron (from the Electron-o
 ## Project-Specific Patterns
 
 ### Modal Components
+
 - Follow the pattern in existing modal components
 - Use proper state management with hooks
 - Include proper TypeScript interfaces
 - Ensure proper i18n integration
 
 ### Storage Keys
+
 - Use descriptive names for storage keys
 - Document storage schema in code comments
 - Use TypeScript interfaces for stored data structures
 
 ### API Integration
+
 - Backend API calls go through `client/src/utils/api.ts`
 - Storytel API integration is in `server/storytelApi.ts`
 - Handle errors gracefully with user feedback
 
 ### IPC Communication
+
 - Electron IPC handlers are in `src/modules/ipc.ts`
 - Frontend uses `window.electron` API (typed in `client/src/types/window.d.ts`)
 - Always handle both success and error cases

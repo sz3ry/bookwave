@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import type React from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
@@ -6,7 +7,7 @@ import BookCard from './BookCard';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
-import { BookShelfEntity, BookShelfResponse } from '../interfaces/books';
+import type { BookShelfEntity, BookShelfResponse } from '../interfaces/books';
 import { removeFromBookshelfErrorKey } from '../utils/helpers';
 
 interface DashboardProps {
@@ -118,7 +119,7 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
         (book) =>
           book.book?.name?.toLowerCase().includes(q) ||
           book.book?.authorsAsString?.toLowerCase().includes(q) ||
-          book.abook?.narratorAsString?.toLowerCase().includes(q)
+          book.abook?.narratorAsString?.toLowerCase().includes(q),
       );
     }
 
@@ -160,7 +161,10 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
       await api.post('/bookshelf/remove', { consumableId: String(consumableId) });
       setBookToRemove(null);
       setBooks((prev) => prev.filter((b) => b !== bookToRemove));
-      setToastMessage({ type: 'success', text: t('bookshelf.removed', 'Removed from your library') });
+      setToastMessage({
+        type: 'success',
+        text: t('bookshelf.removed', 'Removed from your library'),
+      });
       loadBookshelf();
     } catch (err: any) {
       console.error('Failed to remove book from bookshelf:', err);
@@ -228,8 +232,18 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
                   onClick={() => setSearchQuery('')}
                   className="text-gray-400 hover:text-white ml-1.5 p-1 rounded-full hover:bg-white/10"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               )}
@@ -242,8 +256,16 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
           {[
             { status: null, label: t('dashboard.filters.all', 'All'), count: counts.all },
             { status: 2, label: t('dashboard.filters.started', 'Started'), count: counts.started },
-            { status: 1, label: t('dashboard.filters.notStarted', 'Not started'), count: counts.notStarted },
-            { status: 3, label: t('dashboard.filters.concluded', 'Concluded'), count: counts.concluded },
+            {
+              status: 1,
+              label: t('dashboard.filters.notStarted', 'Not started'),
+              count: counts.notStarted,
+            },
+            {
+              status: 3,
+              label: t('dashboard.filters.concluded', 'Concluded'),
+              count: counts.concluded,
+            },
           ].map(({ status, label, count }) => {
             const isActive = filterStatus === status;
             return (
@@ -299,7 +321,9 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
           </div>
         ) : filteredBooks.length === 0 ? (
           <div className="text-center py-16 bg-[#141414] border border-white/[0.06] rounded-3xl p-8 space-y-3 max-w-lg mx-auto shadow-xl">
-            <p className="text-gray-300 text-sm font-medium">{t('dashboard.noFilterMatch', 'No books matched your filter.')}</p>
+            <p className="text-gray-300 text-sm font-medium">
+              {t('dashboard.noFilterMatch', 'No books matched your filter.')}
+            </p>
             <button
               type="button"
               onClick={() => {

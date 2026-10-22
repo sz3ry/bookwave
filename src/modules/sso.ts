@@ -93,17 +93,14 @@ export class SsoManager {
           const host = (c.domain ?? '').replace(/^\./, '') || STORYTEL_HOST;
           const url = `${c.secure ? 'https' : 'http'}://${host}${c.path ?? '/'}`;
           return ssoSession.cookies.remove(url, c.name).catch(() => undefined);
-        })
+        }),
       );
     } catch (err) {
       console.error('[sso] failed to clear storytel cookies:', err);
     }
     // Clear IndexedDB / localStorage / sessionStorage on the storytel origins
     // (this is where the Firebase Web SDK persists the authenticated user).
-    const origins = [
-      'https://www.storytel.com',
-      'https://private.storytel.com',
-    ];
+    const origins = ['https://www.storytel.com', 'https://private.storytel.com'];
     for (const origin of origins) {
       try {
         await ssoSession.clearStorageData({
@@ -118,7 +115,7 @@ export class SsoManager {
 
   async openSsoWindow(
     parent?: BrowserWindow | null,
-    provider?: SsoProvider
+    provider?: SsoProvider,
   ): Promise<SsoLoginResult> {
     if (this.window) {
       this.window.focus();
@@ -222,7 +219,7 @@ export class SsoManager {
               return null;
             }
           })()`,
-          true
+          true,
         );
         return result ?? null;
       };

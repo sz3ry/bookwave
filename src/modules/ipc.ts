@@ -1,11 +1,11 @@
-import { ipcMain, IpcMainInvokeEvent, shell } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
 import path from 'path';
 import { storeManager } from './store';
-import { ServerManager } from './server';
-import { TrayManager } from './tray';
-import { WindowManager } from './window';
-import { SsoManager } from './sso';
-import { ApiConfig } from '../types';
+import type { ServerManager } from './server';
+import type { TrayManager } from './tray';
+import type { WindowManager } from './window';
+import type { SsoManager } from './sso';
+import type { ApiConfig } from '../types';
 import { i18n } from '../i18n';
 
 export class IpcManager {
@@ -18,7 +18,7 @@ export class IpcManager {
     serverManager: ServerManager,
     trayManager: TrayManager,
     windowManager: WindowManager,
-    ssoManager: SsoManager
+    ssoManager: SsoManager,
   ) {
     this.serverManager = serverManager;
     this.trayManager = trayManager;
@@ -41,12 +41,9 @@ export class IpcManager {
       return storeManager.get(key);
     });
 
-    ipcMain.handle(
-      'store-set',
-      (_event: IpcMainInvokeEvent, key: string, value: any) => {
-        storeManager.set(key, value);
-      }
-    );
+    ipcMain.handle('store-set', (_event: IpcMainInvokeEvent, key: string, value: any) => {
+      storeManager.set(key, value);
+    });
 
     ipcMain.handle('store-remove', (_event: IpcMainInvokeEvent, key: string) => {
       storeManager.remove(key);
@@ -57,59 +54,29 @@ export class IpcManager {
     ipcMain.handle(
       'api:get',
       async (_event: IpcMainInvokeEvent, url: string, config: ApiConfig = {}) => {
-        return await this.serverManager.injectRequest(
-          'GET',
-          url,
-          undefined,
-          config?.headers
-        );
-      }
+        return await this.serverManager.injectRequest('GET', url, undefined, config?.headers);
+      },
     );
 
     ipcMain.handle(
       'api:post',
-      async (
-        _event: IpcMainInvokeEvent,
-        url: string,
-        data: any = {},
-        config: ApiConfig = {}
-      ) => {
-        return await this.serverManager.injectRequest(
-          'POST',
-          url,
-          data,
-          config?.headers
-        );
-      }
+      async (_event: IpcMainInvokeEvent, url: string, data: any = {}, config: ApiConfig = {}) => {
+        return await this.serverManager.injectRequest('POST', url, data, config?.headers);
+      },
     );
 
     ipcMain.handle(
       'api:put',
-      async (
-        _event: IpcMainInvokeEvent,
-        url: string,
-        data: any = {},
-        config: ApiConfig = {}
-      ) => {
-        return await this.serverManager.injectRequest(
-          'PUT',
-          url,
-          data,
-          config?.headers
-        );
-      }
+      async (_event: IpcMainInvokeEvent, url: string, data: any = {}, config: ApiConfig = {}) => {
+        return await this.serverManager.injectRequest('PUT', url, data, config?.headers);
+      },
     );
 
     ipcMain.handle(
       'api:delete',
       async (_event: IpcMainInvokeEvent, url: string, config: ApiConfig = {}) => {
-        return await this.serverManager.injectRequest(
-          'DELETE',
-          url,
-          undefined,
-          config?.headers
-        );
-      }
+        return await this.serverManager.injectRequest('DELETE', url, undefined, config?.headers);
+      },
     );
   }
 
@@ -118,15 +85,12 @@ export class IpcManager {
       'update-playing-state',
       (_event, { isPlaying, bookTitle }: { isPlaying: boolean; bookTitle: string }) => {
         this.trayManager.updatePlayingState({ isPlaying, bookTitle });
-      }
+      },
     );
 
-    ipcMain.on(
-      'update-auth-state',
-      (_event, { isAuthenticated }: { isAuthenticated: boolean }) => {
-        this.trayManager.updatePlayingState({ isAuthenticated });
-      }
-    );
+    ipcMain.on('update-auth-state', (_event, { isAuthenticated }: { isAuthenticated: boolean }) => {
+      this.trayManager.updatePlayingState({ isAuthenticated });
+    });
   }
 
   private setupLocaleHandlers(): void {
@@ -172,9 +136,12 @@ export class IpcManager {
   }
 
   private setupWindowHandlers(): void {
-    ipcMain.handle('window-set-always-on-top', (_event: IpcMainInvokeEvent, alwaysOnTop: boolean) => {
-      this.windowManager.setAlwaysOnTop(alwaysOnTop);
-    });
+    ipcMain.handle(
+      'window-set-always-on-top',
+      (_event: IpcMainInvokeEvent, alwaysOnTop: boolean) => {
+        this.windowManager.setAlwaysOnTop(alwaysOnTop);
+      },
+    );
 
     ipcMain.handle('window-is-always-on-top', () => {
       return this.windowManager.isAlwaysOnTop();
@@ -187,7 +154,7 @@ export class IpcManager {
       async (_event: IpcMainInvokeEvent, provider?: 'google' | 'apple') => {
         const parent = this.windowManager.getWindow();
         return this.ssoManager.openSsoWindow(parent, provider);
-      }
+      },
     );
   }
 }

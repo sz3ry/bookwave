@@ -20,30 +20,30 @@ export const AUTO_LANGUAGE = 'auto';
 export const FALLBACK_LANGUAGE = 'en';
 
 export interface AppLanguage {
-    /** BCP-47 tag of the bundled translation file. */
-    code: string;
-    /** Endonym - the language's own name. Never translated. */
-    nativeName: string;
+  /** BCP-47 tag of the bundled translation file. */
+  code: string;
+  /** Endonym - the language's own name. Never translated. */
+  nativeName: string;
 }
 
 /** Ordered alphabetically by endonym so no language looks privileged. */
 export const APP_LANGUAGES: readonly AppLanguage[] = [
-    {code: 'de', nativeName: 'Deutsch'},
-    {code: 'en', nativeName: 'English'},
-    {code: 'es', nativeName: 'Español'},
-    {code: 'fr', nativeName: 'Français'},
-    {code: 'it', nativeName: 'Italiano'},
-    {code: 'fi', nativeName: 'Suomi'},
-    {code: 'sv', nativeName: 'Svenska'},
+  { code: 'de', nativeName: 'Deutsch' },
+  { code: 'en', nativeName: 'English' },
+  { code: 'es', nativeName: 'Español' },
+  { code: 'fr', nativeName: 'Français' },
+  { code: 'it', nativeName: 'Italiano' },
+  { code: 'fi', nativeName: 'Suomi' },
+  { code: 'sv', nativeName: 'Svenska' },
 ];
 
 export const SUPPORTED_LANGUAGE_CODES: readonly string[] = APP_LANGUAGES.map((l) => l.code);
 
 export const isSupportedLanguage = (code?: string | null): boolean =>
-    !!code && SUPPORTED_LANGUAGE_CODES.includes(code.toLowerCase());
+  !!code && SUPPORTED_LANGUAGE_CODES.includes(code.toLowerCase());
 
 export const findLanguage = (code?: string | null): AppLanguage | undefined =>
-    code ? APP_LANGUAGES.find((l) => l.code === code.toLowerCase()) : undefined;
+  code ? APP_LANGUAGES.find((l) => l.code === code.toLowerCase()) : undefined;
 
 /**
  * Pick the best bundled translation for an ordered list of user preferences.
@@ -54,28 +54,28 @@ export const findLanguage = (code?: string | null): AppLanguage | undefined =>
  * to German rather than skipping straight to the English fallback.
  */
 export const negotiateLanguage = (
-    preferred: readonly (string | null | undefined)[],
-    fallback: string = FALLBACK_LANGUAGE,
+  preferred: readonly (string | null | undefined)[],
+  fallback: string = FALLBACK_LANGUAGE,
 ): string => {
-    for (const raw of preferred) {
-        if (!raw) continue;
-        const tag = String(raw).trim().toLowerCase().replace(/_/g, '-');
-        if (!tag) continue;
+  for (const raw of preferred) {
+    if (!raw) continue;
+    const tag = String(raw).trim().toLowerCase().replace(/_/g, '-');
+    if (!tag) continue;
 
-        const parts = tag.split('-').filter(Boolean);
-        for (let i = parts.length; i > 0; i--) {
-            const candidate = parts.slice(0, i).join('-');
-            const match = APP_LANGUAGES.find((l) => l.code.toLowerCase() === candidate);
-            if (match) return match.code;
-        }
+    const parts = tag.split('-').filter(Boolean);
+    for (let i = parts.length; i > 0; i--) {
+      const candidate = parts.slice(0, i).join('-');
+      const match = APP_LANGUAGES.find((l) => l.code.toLowerCase() === candidate);
+      if (match) return match.code;
     }
-    return fallback;
+  }
+  return fallback;
 };
 
 /** The languages the OS/browser reports, most preferred first, deduplicated. */
 export const systemPreferredLanguages = (): string[] => {
-    if (typeof navigator === 'undefined') return [];
-    const list = Array.isArray(navigator.languages) ? [...navigator.languages] : [];
-    if (navigator.language) list.push(navigator.language);
-    return [...new Set(list.filter(Boolean))];
+  if (typeof navigator === 'undefined') return [];
+  const list = Array.isArray(navigator.languages) ? [...navigator.languages] : [];
+  if (navigator.language) list.push(navigator.language);
+  return [...new Set(list.filter(Boolean))];
 };

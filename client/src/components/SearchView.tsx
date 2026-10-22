@@ -1,11 +1,16 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import type React from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
-import { SearchResultBook, SearchResponse } from '../interfaces/books';
-import { addToBookshelfErrorKey, localizedLanguageName, searchResultToBookEntity } from '../utils/helpers';
-import SearchFilterRail, { DurationFilter, LanguageStat } from './SearchFilterRail';
-import SearchResultList, { SortOption } from './SearchResultList';
+import type { SearchResultBook, SearchResponse } from '../interfaces/books';
+import {
+  addToBookshelfErrorKey,
+  localizedLanguageName,
+  searchResultToBookEntity,
+} from '../utils/helpers';
+import SearchFilterRail, { type DurationFilter, type LanguageStat } from './SearchFilterRail';
+import SearchResultList, { type SortOption } from './SearchResultList';
 import SearchPreviewPane from './SearchPreviewPane';
 
 interface SearchViewProps {
@@ -17,7 +22,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const activeQuery = propQuery !== undefined ? propQuery : (searchParams.get('q') || '');
+  const activeQuery = propQuery !== undefined ? propQuery : searchParams.get('q') || '';
 
   const [rawResults, setRawResults] = useState<SearchResultBook[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -31,7 +36,10 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
   // Book actions state
   const [addedBooks, setAddedBooks] = useState<Record<string, boolean>>({});
   const [addingBookId, setAddingBookId] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [toastMessage, setToastMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -92,7 +100,8 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
     for (const book of rawResults) {
       if (!book.language) continue;
       const iso = book.language.toLowerCase();
-      const name = localizedLanguageName(iso, i18n.language, book.languageName) || iso.toUpperCase();
+      const name =
+        localizedLanguageName(iso, i18n.language, book.languageName) || iso.toUpperCase();
       if (!counts[iso]) {
         counts[iso] = { iso, name, count: 0 };
       }
@@ -115,7 +124,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
       list = list.filter((b) => b.durationMs > 0 && b.durationMs < 5 * 3600 * 1000);
     } else if (selectedDuration === '5to15') {
       list = list.filter(
-        (b) => b.durationMs >= 5 * 3600 * 1000 && b.durationMs <= 15 * 3600 * 1000
+        (b) => b.durationMs >= 5 * 3600 * 1000 && b.durationMs <= 15 * 3600 * 1000,
       );
     } else if (selectedDuration === 'over15') {
       list = list.filter((b) => b.durationMs > 15 * 3600 * 1000);
@@ -155,7 +164,9 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
 
   const handlePlayBook = (e: React.MouseEvent | null, bookId: string) => {
     if (e) e.stopPropagation();
-    const targetBook = rawResults.find((b) => b.id === bookId) || (selectedBook?.id === bookId ? selectedBook : null);
+    const targetBook =
+      rawResults.find((b) => b.id === bookId) ||
+      (selectedBook?.id === bookId ? selectedBook : null);
     const entity = targetBook ? searchResultToBookEntity(targetBook) : null;
     navigate(`/player/${bookId}`, { state: { book: entity, autoPlay: true } });
   };
@@ -198,12 +209,32 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
           }`}
         >
           {toastMessage.type === 'success' ? (
-            <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-green-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
           ) : (
-            <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-4 h-4 text-red-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
           )}
           <span>{toastMessage.text}</span>
@@ -225,16 +256,25 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
       {isLoading && rawResults.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0A0A0A]">
           <div className="w-8 h-8 border-2 border-[#FF5100] border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-sm font-medium text-gray-400">{t('search.searching', 'Searching...')}</p>
+          <p className="text-sm font-medium text-gray-400">
+            {t('search.searching', 'Searching...')}
+          </p>
         </div>
       ) : !activeQuery.trim() ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0A0A0A]">
           <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-gray-500 mb-3">
             <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
           </div>
-          <h3 className="text-base font-bold text-white mb-1">{t('search.title', 'Search Storytel')}</h3>
+          <h3 className="text-base font-bold text-white mb-1">
+            {t('search.title', 'Search Storytel')}
+          </h3>
           <p className="text-xs text-gray-500 max-w-sm">
             {t('search.initialPrompt', "Type to search Storytel's vast catalog of audiobooks")}
           </p>
@@ -242,8 +282,18 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
       ) : rawResults.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0A0A0A]">
           <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-gray-500 mb-3">
-            <svg className="w-7 h-7 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-7 h-7 text-gray-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
           </div>
           <h3 className="text-base font-bold text-white mb-1">
@@ -255,7 +305,9 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
         </div>
       ) : filteredResults.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0A0A0A]">
-          <h3 className="text-sm font-bold text-white mb-2">{t('search.noFilterMatch', 'No matches with the selected filters')}</h3>
+          <h3 className="text-sm font-bold text-white mb-2">
+            {t('search.noFilterMatch', 'No matches with the selected filters')}
+          </h3>
           <button
             type="button"
             onClick={() => {

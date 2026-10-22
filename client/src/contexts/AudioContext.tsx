@@ -1,4 +1,5 @@
-import React, {
+import type React from 'react';
+import {
   createContext,
   useContext,
   useRef,
@@ -6,13 +7,13 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
-  ReactNode,
+  type ReactNode,
 } from 'react';
 import api, { trackAction } from '../utils/api';
 import storage from '../utils/storage';
-import { BookShelfEntity, BookMetaData } from '../interfaces/books';
-import { Chapter } from '../interfaces/chapters';
-import { BookmarkPositional } from '../interfaces/bookmarks';
+import { type BookShelfEntity, BookMetaData } from '../interfaces/books';
+import type { Chapter } from '../interfaces/chapters';
+import type { BookmarkPositional } from '../interfaces/bookmarks';
 import { extractChaptersFromResponse, generateAudioTracks } from '../utils/chapters';
 import i18n from '../i18n';
 
@@ -210,7 +211,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     // Fallback: If duration is known, generate structured audio tracks ("Ljudspår")
     const durationSec =
       knownDurationSeconds ||
-      (audioRef.current?.duration && !isNaN(audioRef.current.duration) ? audioRef.current.duration : 0);
+      (audioRef.current?.duration && !isNaN(audioRef.current.duration)
+        ? audioRef.current.duration
+        : 0);
     if (durationSec > 0) {
       setChapters(generateAudioTracks(durationSec));
     } else {
@@ -226,8 +229,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       const chapter = chapters[i];
       if (currentTime >= chapter.start && currentTime < chapter.end) {
         return {
-          number: chapter.number ?? (i + 1),
-          title: chapter.title || `Kapitel ${chapter.number ?? (i + 1)}`,
+          number: chapter.number ?? i + 1,
+          title: chapter.title || `Kapitel ${chapter.number ?? i + 1}`,
           start: chapter.start,
           end: chapter.end,
           durationInSeconds: chapter.durationInSeconds,
@@ -249,15 +252,12 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     return null;
   }, [chapters, currentTime]);
 
-  const jumpToChapter = useCallback(
-    (startTime: number) => {
-      if (audioRef.current && typeof startTime === 'number' && !isNaN(startTime)) {
-        audioRef.current.currentTime = startTime;
-        setCurrentTime(startTime);
-      }
-    },
-    []
-  );
+  const jumpToChapter = useCallback((startTime: number) => {
+    if (audioRef.current && typeof startTime === 'number' && !isNaN(startTime)) {
+      audioRef.current.currentTime = startTime;
+      setCurrentTime(startTime);
+    }
+  }, []);
 
   // Sleep timer implementation
   const setSleepTimer = useCallback((option: number | 'chapter' | null) => {
@@ -303,8 +303,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       const isMatchingBook =
         book &&
         (String(book.id) === String(bookId) ||
-         String(book.abook?.id) === String(bookId) ||
-         String(book.book?.consumableId) === String(bookId));
+          String(book.abook?.id) === String(bookId) ||
+          String(book.book?.consumableId) === String(bookId));
       const validBook = isMatchingBook ? book : null;
       const consumableId = validBook?.book?.consumableId || bookId;
       shouldAutoPlayRef.current = autoPlay;
@@ -350,10 +350,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
       // Persist session to local storage for quick restore
       storage
-        .set(
-          'last_played_session',
-          JSON.stringify({ book: validBook, bookId, consumableId })
-        )
+        .set('last_played_session', JSON.stringify({ book: validBook, bookId, consumableId }))
         .catch(() => {});
 
       const knownDurationSec = validBook?.abook?.time ? validBook.abook.time / 1000000 : 0;
@@ -389,7 +386,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    [loadChapters]
+    [loadChapters],
   );
 
   // Restore previous session on launch
@@ -447,13 +444,20 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const skipForward = useCallback(
     (seconds: number = 30) => {
       if (audioRef.current) {
-        const nextTime = Math.min(audioRef.current.currentTime + seconds, duration || audioRef.current.duration || Infinity);
+        const nextTime = Math.min(
+          audioRef.current.currentTime + seconds,
+          duration || audioRef.current.duration || Infinity,
+        );
         audioRef.current.currentTime = nextTime;
         setCurrentTime(nextTime);
-        trackAction('skip_forward', { bookId: activeBookId, consumableId: activeConsumableId, seconds });
+        trackAction('skip_forward', {
+          bookId: activeBookId,
+          consumableId: activeConsumableId,
+          seconds,
+        });
       }
     },
-    [duration, activeBookId, activeConsumableId]
+    [duration, activeBookId, activeConsumableId],
   );
 
   const skipBackward = useCallback(
@@ -462,10 +466,14 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         const nextTime = Math.max(audioRef.current.currentTime - seconds, 0);
         audioRef.current.currentTime = nextTime;
         setCurrentTime(nextTime);
-        trackAction('skip_backward', { bookId: activeBookId, consumableId: activeConsumableId, seconds });
+        trackAction('skip_backward', {
+          bookId: activeBookId,
+          consumableId: activeConsumableId,
+          seconds,
+        });
       }
     },
-    [activeBookId, activeConsumableId]
+    [activeBookId, activeConsumableId],
   );
 
   const setRate = useCallback((rate: number) => {

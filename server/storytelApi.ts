@@ -1,6 +1,6 @@
-import axios, { AxiosInstance } from "axios";
-import { encryptPassword } from "./passwordCrypt";
-import { appLogger } from "./logger";
+import axios, { type AxiosInstance } from 'axios';
+import { encryptPassword } from './passwordCrypt';
+import { appLogger } from './logger';
 
 interface AccountInfo {
   jwt: string;
@@ -51,8 +51,8 @@ export interface SearchResultBook {
   languageName?: string;
 }
 
-const FIREBASE_TOKEN_URL = "https://securetoken.googleapis.com";
-const FIREBASE_REFERER = "https://www.storytel.com/";
+const FIREBASE_TOKEN_URL = 'https://securetoken.googleapis.com';
+const FIREBASE_REFERER = 'https://www.storytel.com/';
 const FIREBASE_ID_TOKEN_TTL_BUFFER_SECONDS = 60;
 
 // Base URL of the public web search endpoint, per market country. Storytel's own
@@ -60,12 +60,11 @@ const FIREBASE_ID_TOKEN_TTL_BUFFER_SECONDS = 60;
 // which catalog answers - except Denmark, which Storytel runs under the Mofibo
 // brand on its own host, and which does need the matching language segment.
 const WEB_SEARCH_BASE_URLS: Record<string, string> = {
-  dk: "https://mofibo.com/dk/da",
+  dk: 'https://mofibo.com/dk/da',
 };
 
 const webSearchBaseUrl = (country: string): string =>
-  WEB_SEARCH_BASE_URLS[country] ??
-  `https://www.storytel.com/${country}/${country}`;
+  WEB_SEARCH_BASE_URLS[country] ?? `https://www.storytel.com/${country}/${country}`;
 
 // --- Bookshelf ---------------------------------------------------------------
 
@@ -78,7 +77,7 @@ interface RawBookshelfNamedEntity {
 
 interface RawBookshelfFormat {
   id: string;
-  type: "abook" | "ebook";
+  type: 'abook' | 'ebook';
   durationInMilliseconds?: number;
   durationInCharacters?: number;
   cover?: { url: string; width: number; height: number };
@@ -88,7 +87,7 @@ interface RawBookshelfFormat {
 interface RawBookshelfModel {
   id: string;
   title: string;
-  state: "CONSUMING" | "CONSUMED" | "WILL_CONSUME" | string;
+  state: 'CONSUMING' | 'CONSUMED' | 'WILL_CONSUME' | string;
   stateUpdateTime?: string;
   kidsBook?: boolean;
   authors?: RawBookshelfNamedEntity[];
@@ -142,13 +141,9 @@ class StorytelClient {
   private client: AxiosInstance;
   public loginData: LoginData;
   private ssoSession: SsoSession | null = null;
-  private cachedFirebaseIdToken: { token: string; expiresAt: number } | null =
-    null;
+  private cachedFirebaseIdToken: { token: string; expiresAt: number } | null = null;
 
-  private static firebaseTokenCache = new Map<
-    string,
-    { token: string; expiresAt: number }
-  >();
+  private static firebaseTokenCache = new Map<string, { token: string; expiresAt: number }>();
   private static legacyLoginCache = new Map<
     string,
     { jwt: string; singleSignToken: string; expiresAt: number }
@@ -160,28 +155,26 @@ class StorytelClient {
   constructor() {
     this.client = axios.create({
       headers: {
-        "x-storytel-terminal": "ios",
-        "user-agent": "Storytel/25.38.0 (iOS 26.0; iPhone16,2) Release/924.1",
+        'x-storytel-terminal': 'ios',
+        'user-agent': 'Storytel/25.38.0 (iOS 26.0; iPhone16,2) Release/924.1',
       },
       maxRedirects: 0,
-      validateStatus: function (status) {
-        return status < 400;
-      },
+      validateStatus: (status) => status < 400,
       timeout: 30000,
       params: {
-        version: "25.38.0",
+        version: '25.38.0',
       },
     });
 
     this.client.interceptors.request.use((request) => {
-      const url = request.url || "";
+      const url = request.url || '';
       // Hide sensitive query params like password
       let cleanUrl = url;
-      if (cleanUrl.includes("login.action")) {
-        cleanUrl = cleanUrl.replace(/pwd=[^&]+/, "pwd=***");
+      if (cleanUrl.includes('login.action')) {
+        cleanUrl = cleanUrl.replace(/pwd=[^&]+/, 'pwd=***');
       }
       appLogger.add({
-        type: "http_request",
+        type: 'http_request',
         message: `[${request.method?.toUpperCase()}] ${cleanUrl}`,
         method: request.method?.toUpperCase(),
         url: cleanUrl,
@@ -192,13 +185,13 @@ class StorytelClient {
 
     this.client.interceptors.response.use(
       (response) => {
-        const url = response.config.url || "";
+        const url = response.config.url || '';
         let cleanUrl = url;
-        if (cleanUrl.includes("login.action")) {
-          cleanUrl = cleanUrl.replace(/pwd=[^&]+/, "pwd=***");
+        if (cleanUrl.includes('login.action')) {
+          cleanUrl = cleanUrl.replace(/pwd=[^&]+/, 'pwd=***');
         }
         appLogger.add({
-          type: "http_response",
+          type: 'http_response',
           message: `[${response.status}] ${cleanUrl}`,
           status: response.status,
           method: response.config.method?.toUpperCase(),
@@ -208,15 +201,15 @@ class StorytelClient {
         return response;
       },
       async (error) => {
-        const url = error.config?.url || "";
-        const isLoginRequest = url.includes("login.action");
+        const url = error.config?.url || '';
+        const isLoginRequest = url.includes('login.action');
         let cleanUrl = url;
-        if (cleanUrl.includes("login.action")) {
-          cleanUrl = cleanUrl.replace(/pwd=[^&]+/, "pwd=***");
+        if (cleanUrl.includes('login.action')) {
+          cleanUrl = cleanUrl.replace(/pwd=[^&]+/, 'pwd=***');
         }
         appLogger.add({
-          type: "error",
-          message: `[Error ${error.response?.status || "N/A"}] ${cleanUrl}`,
+          type: 'error',
+          message: `[Error ${error.response?.status || 'N/A'}] ${cleanUrl}`,
           status: error.response?.status,
           method: error.config?.method?.toUpperCase(),
           url: cleanUrl,
@@ -258,9 +251,7 @@ class StorytelClient {
         // can return 401 to the frontend instead of a generic 500.
         if (error.response?.status === 401) {
           const authError: StorytelAuthError = new Error(
-            isLoginRequest
-              ? "Storytel login rejected"
-              : "Storytel session expired",
+            isLoginRequest ? 'Storytel login rejected' : 'Storytel session expired',
           ) as StorytelAuthError;
           authError.isStorytelUnauthorized = true;
           authError.isLoginFailure = isLoginRequest;
@@ -274,8 +265,8 @@ class StorytelClient {
 
     this.loginData = {
       accountInfo: {
-        jwt: "",
-        singleSignToken: "",
+        jwt: '',
+        singleSignToken: '',
       },
     };
   }
@@ -298,7 +289,7 @@ class StorytelClient {
       return;
     }
 
-    const url = "https://www.storytel.com/api/login.action";
+    const url = 'https://www.storytel.com/api/login.action';
     const params = {
       m: 1,
       uid: this.savedEmail,
@@ -310,11 +301,9 @@ class StorytelClient {
       this.loginData = response.data;
       let expiresIn = 1800; // default 30 min
       try {
-        const parts = response.data.accountInfo.jwt.split(".");
+        const parts = response.data.accountInfo.jwt.split('.');
         if (parts.length >= 2) {
-          const payload = JSON.parse(
-            Buffer.from(parts[1], "base64url").toString("utf-8"),
-          );
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
           if (payload.exp && payload.iat) {
             expiresIn = Math.max(300, payload.exp - payload.iat);
           }
@@ -335,7 +324,7 @@ class StorytelClient {
     const trimmedPassword = password.trim();
     const encryptedPassword = encryptPassword(trimmedPassword);
     this.setCredentials(trimmedEmail, encryptedPassword);
-    const url = "https://www.storytel.com/api/login.action";
+    const url = 'https://www.storytel.com/api/login.action';
     const params = {
       m: 1,
       uid: trimmedEmail,
@@ -354,11 +343,9 @@ class StorytelClient {
       const cacheKey = `${trimmedEmail}:${encryptedPassword}`;
       let expiresIn = 1800;
       try {
-        const parts = response.data.accountInfo.jwt.split(".");
+        const parts = response.data.accountInfo.jwt.split('.');
         if (parts.length >= 2) {
-          const payload = JSON.parse(
-            Buffer.from(parts[1], "base64url").toString("utf-8"),
-          );
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
           if (payload.exp && payload.iat) {
             expiresIn = Math.max(300, payload.exp - payload.iat);
           }
@@ -387,7 +374,7 @@ class StorytelClient {
     // Mark legacy credentials as unset so any accidental fallback path errors
     // visibly instead of using stale data.
     this.loginData = {
-      accountInfo: { jwt: "", singleSignToken: "" },
+      accountInfo: { jwt: '', singleSignToken: '' },
     };
   }
 
@@ -405,20 +392,17 @@ class StorytelClient {
 
   private async ensureFirebaseIdToken(): Promise<string> {
     if (!this.ssoSession) {
-      throw new Error("ensureFirebaseIdToken called outside SSO mode");
+      throw new Error('ensureFirebaseIdToken called outside SSO mode');
     }
     const now = Math.floor(Date.now() / 1000);
     const cacheKey = `${this.ssoSession.firebaseApiKey}:${this.ssoSession.firebaseRefreshToken}`;
     const cached = StorytelClient.firebaseTokenCache.get(cacheKey);
-    if (
-      cached &&
-      cached.expiresAt - FIREBASE_ID_TOKEN_TTL_BUFFER_SECONDS > now
-    ) {
+    if (cached && cached.expiresAt - FIREBASE_ID_TOKEN_TTL_BUFFER_SECONDS > now) {
       return cached.token;
     }
     const params = new URLSearchParams();
-    params.set("grant_type", "refresh_token");
-    params.set("refresh_token", this.ssoSession.firebaseRefreshToken);
+    params.set('grant_type', 'refresh_token');
+    params.set('refresh_token', this.ssoSession.firebaseRefreshToken);
     try {
       const response = await axios.post<{
         id_token?: string;
@@ -430,16 +414,16 @@ class StorytelClient {
         params.toString(),
         {
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            'Content-Type': 'application/x-www-form-urlencoded',
             Referer: FIREBASE_REFERER,
-            Origin: "https://www.storytel.com",
+            Origin: 'https://www.storytel.com',
           },
           timeout: 15000,
         },
       );
       const accessToken = response.data.id_token ?? response.data.access_token;
       if (!accessToken) {
-        throw new Error("Firebase token response did not include an ID token");
+        throw new Error('Firebase token response did not include an ID token');
       }
       const expiresIn = parseInt(response.data.expires_in, 10) || 3600;
       StorytelClient.firebaseTokenCache.set(cacheKey, {
@@ -450,7 +434,7 @@ class StorytelClient {
     } catch (error: any) {
       const status = error.response?.status;
       if (status === 400 || status === 401 || status === 403) {
-        const authError: any = new Error("Firebase refresh token rejected");
+        const authError: any = new Error('Firebase refresh token rejected');
         authError.isStorytelUnauthorized = true;
         throw authError;
       }
@@ -467,11 +451,9 @@ class StorytelClient {
     const jwt = this.loginData.accountInfo.jwt;
     if (jwt) {
       try {
-        const parts = jwt.split(".");
+        const parts = jwt.split('.');
         if (parts.length >= 2) {
-          const payload = JSON.parse(
-            Buffer.from(parts[1], "base64url").toString("utf-8"),
-          );
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
           const now = Math.floor(Date.now() / 1000);
           if (payload.exp && payload.exp - 60 <= now) {
             if (this.savedEmail && this.savedEncryptedPassword) {
@@ -491,7 +473,7 @@ class StorytelClient {
       return this.loginData.accountInfo.jwt;
     }
 
-    return "";
+    return '';
   }
 
   // Market country ISO code (e.g. "it", "se", "fi") carried by a Storytel JWT:
@@ -499,19 +481,19 @@ class StorytelClient {
   private countryFromJwt(token?: string | null): string | undefined {
     if (!token) return undefined;
     try {
-      const parts = token.split(".");
+      const parts = token.split('.');
       if (parts.length < 2) return undefined;
-      const payloadJson = Buffer.from(parts[1], "base64url").toString("utf-8");
+      const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf-8');
       const payload = JSON.parse(payloadJson);
-      if (typeof payload.store === "string") {
-        const storeParts = payload.store.split("-");
+      if (typeof payload.store === 'string') {
+        const storeParts = payload.store.split('-');
         const code = storeParts[storeParts.length - 1]?.trim().toLowerCase();
         if (code && /^[a-z]{2}$/.test(code)) {
           return code;
         }
       }
       for (const claim of [payload.country, payload.countryCode]) {
-        if (typeof claim === "string" && /^[a-z]{2}$/i.test(claim.trim())) {
+        if (typeof claim === 'string' && /^[a-z]{2}$/i.test(claim.trim())) {
           return claim.trim().toLowerCase();
         }
       }
@@ -531,10 +513,7 @@ class StorytelClient {
       candidates.push(await this.getApiBearer());
     } catch (error: any) {
       // A failing token refresh must not break search
-      console.warn(
-        "[storytelApi] could not read api bearer for market lookup:",
-        error.message,
-      );
+      console.warn('[storytelApi] could not read api bearer for market lookup:', error.message);
     }
     candidates.push(this.loginData.accountInfo.jwt);
     candidates.push(this.ssoSession?.storytelSession);
@@ -546,9 +525,7 @@ class StorytelClient {
     return undefined;
   }
 
-  async getBookmarkPositional(
-    consumableId: string | null = null,
-  ): Promise<Bookmark[]> {
+  async getBookmarkPositional(consumableId: string | null = null): Promise<Bookmark[]> {
     const url = `https://api.storytel.net/bookmarks/positional?kidsMode=false&orderBy=updated&orderDirection=desc`;
 
     try {
@@ -581,10 +558,10 @@ class StorytelClient {
         url,
         {
           deviceId: deviceId,
-          action: "player_paused",
+          action: 'player_paused',
           secondsSinceCreated: 0,
           position,
-          type: "abook",
+          type: 'abook',
           kidsMode: false,
           consumableId: consumableId,
         },
@@ -608,8 +585,7 @@ class StorytelClient {
   // Its schema is known from the server's own validation error:
   //   expected=map[string]models.ConsumableActionRequest, field=items
   // so `items` is a map keyed by consumable id. An array body is rejected 400.
-  private static readonly BOOKSHELF_URL =
-    "https://api.storytel.net/libraries/bookshelf";
+  private static readonly BOOKSHELF_URL = 'https://api.storytel.net/libraries/bookshelf';
 
   // Read the whole bookshelf. Sends an empty body, which the endpoint reads as
   // "no local state, send me everything". Do not "fix" this into a JSON body
@@ -618,12 +594,12 @@ class StorytelClient {
     const bearer = await this.getApiBearer();
     const response = await this.client.post<RawBookshelfResponse>(
       StorytelClient.BOOKSHELF_URL,
-      "",
+      '',
       {
         headers: {
           Authorization: `Bearer ${bearer}`,
-          "content-type": "application/x-www-form-urlencoded",
-          Accept: "*/*",
+          'content-type': 'application/x-www-form-urlencoded',
+          Accept: '*/*',
         },
       },
     );
@@ -633,9 +609,7 @@ class StorytelClient {
   // Push local changes. Must be real JSON: axios form-encodes plain objects
   // when the request declares x-www-form-urlencoded, and the API discards such
   // a body without ever failing the request.
-  private async postBookshelfDelta(
-    body: Record<string, unknown>,
-  ): Promise<RawBookshelfResponse> {
+  private async postBookshelfDelta(body: Record<string, unknown>): Promise<RawBookshelfResponse> {
     const bearer = await this.getApiBearer();
     const response = await this.client.post<RawBookshelfResponse>(
       StorytelClient.BOOKSHELF_URL,
@@ -643,8 +617,8 @@ class StorytelClient {
       {
         headers: {
           Authorization: `Bearer ${bearer}`,
-          "content-type": "application/json",
-          Accept: "*/*",
+          'content-type': 'application/json',
+          Accept: '*/*',
         },
       },
     );
@@ -660,7 +634,7 @@ class StorytelClient {
       // each `model` onto the legacy BookShelfEntity keys so the existing
       // frontend keeps working unchanged.
       const items = data?.items;
-      if (!items || typeof items !== "object") return { books: [] };
+      if (!items || typeof items !== 'object') return { books: [] };
 
       // Library state -> legacy numeric status (1 = not started, 2 = in progress,
       // 3 = finished). Dashboard filters use {1,2,3}.
@@ -678,20 +652,17 @@ class StorytelClient {
         .map((entry) => entry?.model)
         .filter(Boolean)
         .map((model): BookShelfEntity => {
-          const formats: RawBookshelfFormat[] = Array.isArray(model.formats)
-            ? model.formats
-            : [];
-          const abookFormat = formats.find((f) => f.type === "abook");
-          const ebookFormat = formats.find((f) => f.type === "ebook");
-          const coverUrl =
-            abookFormat?.cover?.url ?? ebookFormat?.cover?.url ?? "";
+          const formats: RawBookshelfFormat[] = Array.isArray(model.formats) ? model.formats : [];
+          const abookFormat = formats.find((f) => f.type === 'abook');
+          const ebookFormat = formats.find((f) => f.type === 'ebook');
+          const coverUrl = abookFormat?.cover?.url ?? ebookFormat?.cover?.url ?? '';
           const join = (arr?: RawBookshelfNamedEntity[]) =>
             (Array.isArray(arr) ? arr : [])
               .map((x) => x?.name)
               .filter(Boolean)
-              .join(", ");
+              .join(', ');
 
-          const normalizedState = (model.state || "").toUpperCase();
+          const normalizedState = (model.state || '').toUpperCase();
           let calculatedStatus = stateToStatus[normalizedState];
           if (!calculatedStatus) {
             if (abookFormat?.position?.position && abookFormat.position.position > 0) {
@@ -712,9 +683,9 @@ class StorytelClient {
               consumableId: String(model.id),
               // Full absolute URL (covers.storytel.com). See note below.
               largeCover: coverUrl,
-              largeCoverE: "",
-              category: { title: model.category?.name ?? "" },
-              language: { localizedName: "" },
+              largeCoverE: '',
+              category: { title: model.category?.name ?? '' },
+              language: { localizedName: '' },
             },
             abook: abookFormat
               ? {
@@ -722,7 +693,7 @@ class StorytelClient {
                   narratorAsString: join(model.narrators),
                   // Legacy frontend expects microseconds; API gives ms.
                   time: (abookFormat.durationInMilliseconds ?? 0) * 1000,
-                  description: "",
+                  description: '',
                 }
               : null,
             abookMark: abookFormat?.position
@@ -743,13 +714,13 @@ class StorytelClient {
   private extractLanguageInfo(
     model: any,
     raw?: any,
-    item?: any
+    item?: any,
   ): { language?: string; languageName?: string } {
     const formats = Array.isArray(model?.formats)
       ? model.formats
       : Array.isArray(raw?.formats)
-      ? raw.formats
-      : [];
+        ? raw.formats
+        : [];
 
     const formatLang = formats.find((f: any) => f?.language)?.language;
 
@@ -762,23 +733,16 @@ class StorytelClient {
       item?.language ||
       item?.book?.language;
 
-    if (typeof langObj === "string") {
+    if (typeof langObj === 'string') {
       const clean = langObj.toLowerCase().trim();
       return { language: clean };
     }
-    if (langObj && typeof langObj === "object") {
-      const iso = (
-        langObj.isoValue ||
-        langObj.iso ||
-        langObj.code ||
-        langObj.id ||
-        ""
-      )
+    if (langObj && typeof langObj === 'object') {
+      const iso = (langObj.isoValue || langObj.iso || langObj.code || langObj.id || '')
         .toString()
         .toLowerCase()
         .trim();
-      const name =
-        langObj.localizedName || langObj.name || langObj.title || undefined;
+      const name = langObj.localizedName || langObj.name || langObj.title || undefined;
       return {
         language: iso || undefined,
         languageName: name,
@@ -801,7 +765,7 @@ class StorytelClient {
       const bearer = await this.getApiBearer();
       const headers = {
         Authorization: `Bearer ${bearer}`,
-        Accept: "*/*",
+        Accept: '*/*',
       };
 
       const endpoints = [
@@ -816,36 +780,40 @@ class StorytelClient {
           const rawItems = Array.isArray(response.data?.items)
             ? response.data.items
             : Array.isArray(response.data?.results)
-            ? response.data.results
-            : [];
+              ? response.data.results
+              : [];
 
           for (const raw of rawItems) {
             const model = raw.model || raw.item || raw.book || raw;
-            const id = String(model.id || model.consumableId || raw.id || raw.consumableId || "");
-            const title = model.title || model.name || raw.title || raw.name || "";
+            const id = String(model.id || model.consumableId || raw.id || raw.consumableId || '');
+            const title = model.title || model.name || raw.title || raw.name || '';
             if (!id || !title || seenIds.has(id)) continue;
 
             const formats: any[] = Array.isArray(model.formats) ? model.formats : [];
-            const abook = formats.find((f: any) => f.type === "abook");
-            const ebook = formats.find((f: any) => f.type === "ebook");
+            const abook = formats.find((f: any) => f.type === 'abook');
+            const ebook = formats.find((f: any) => f.type === 'ebook');
 
             // Exclude ebook-only items since this application is an audiobook player
             if (!abook) continue;
 
             seenIds.add(id);
 
-            const coverUrl = abook?.cover?.url || ebook?.cover?.url || model.cover?.url || "";
+            const coverUrl = abook?.cover?.url || ebook?.cover?.url || model.cover?.url || '';
             const { language, languageName } = this.extractLanguageInfo(model, raw);
 
             results.push({
               id,
               title,
-              authors: Array.isArray(model.authors) ? model.authors.map((a: any) => a?.name || a).join(", ") : "",
-              narrators: Array.isArray(model.narrators) ? model.narrators.map((n: any) => n?.name || n).join(", ") : "",
+              authors: Array.isArray(model.authors)
+                ? model.authors.map((a: any) => a?.name || a).join(', ')
+                : '',
+              narrators: Array.isArray(model.narrators)
+                ? model.narrators.map((n: any) => n?.name || n).join(', ')
+                : '',
               coverUrl,
-              category: model.category?.name || model.category?.title || "",
+              category: model.category?.name || model.category?.title || '',
               durationMs: abook?.durationInMilliseconds || 0,
-              description: model.description || "",
+              description: model.description || '',
               hasAbook: !!abook,
               hasEbook: !!ebook,
               language,
@@ -859,7 +827,7 @@ class StorytelClient {
         }
       }
     } catch (err) {
-      console.warn("[storytelApi] api.storytel.net search failed, trying fallback:", err);
+      console.warn('[storytelApi] api.storytel.net search failed, trying fallback:', err);
     }
 
     // 2. Fallback to storytel.com web search API if authenticated search returned 0 results.
@@ -869,9 +837,7 @@ class StorytelClient {
     // catalog cannot be added to this account's bookshelf anyway.
     const country = await this.getMarketCountryCode();
     if (!country) {
-      console.warn(
-        "[storytelApi] market country unknown, skipping storytel.com fallback search",
-      );
+      console.warn('[storytelApi] market country unknown, skipping storytel.com fallback search');
       return results;
     }
 
@@ -879,7 +845,7 @@ class StorytelClient {
       const searchActionUrl = `${webSearchBaseUrl(country)}/api/search.action?q=${encodeURIComponent(trimmed)}`;
       const response = await this.client.get(searchActionUrl, {
         headers: {
-          Accept: "application/json, text/plain, */*",
+          Accept: 'application/json, text/plain, */*',
         },
         // Redirects stay disabled (see the client config): markets whose public
         // search is gated behind sign-in (us, gb) answer 3xx towards an OAuth page,
@@ -897,8 +863,8 @@ class StorytelClient {
           // Exclude ebook-only items since this application is an audiobook player
           if (!hasAbook) continue;
 
-          const id = String(book.consumableId || book.id || abook.id || item.id || "");
-          const title = book.name || book.title || "";
+          const id = String(book.consumableId || book.id || abook.id || item.id || '');
+          const title = book.name || book.title || '';
           if (!id || !title || seenIds.has(id)) continue;
           seenIds.add(id);
 
@@ -909,33 +875,37 @@ class StorytelClient {
             book.coverE ||
             book.smallCover ||
             abook.cover ||
-            "";
+            '';
 
           const authors =
             book.authorsAsString ||
-            (Array.isArray(book.authors) ? book.authors.map((a: any) => a?.name || a).join(", ") : "");
+            (Array.isArray(book.authors)
+              ? book.authors.map((a: any) => a?.name || a).join(', ')
+              : '');
 
           const narrators =
             abook.narratorAsString ||
-            (Array.isArray(abook.narrators) ? abook.narrators.map((n: any) => n?.name || n).join(", ") : "");
+            (Array.isArray(abook.narrators)
+              ? abook.narrators.map((n: any) => n?.name || n).join(', ')
+              : '');
 
           const durationMs = abook.length
             ? Number(abook.length)
             : abook.time
-            ? Math.floor(Number(abook.time) / 1000000)
-            : 0;
+              ? Math.floor(Number(abook.time) / 1000000)
+              : 0;
 
           const { language, languageName } = this.extractLanguageInfo(book, item, item);
 
           results.push({
             id,
             title,
-            authors: authors || "",
-            narrators: narrators || "",
-            coverUrl: coverUrl || "",
-            category: book.category?.title || book.category?.name || "",
+            authors: authors || '',
+            narrators: narrators || '',
+            coverUrl: coverUrl || '',
+            category: book.category?.title || book.category?.name || '',
             durationMs,
-            description: abook.description || ebook.description || "",
+            description: abook.description || ebook.description || '',
             hasAbook: true,
             hasEbook: !!ebook.id || !!item.ebook,
             language,
@@ -948,7 +918,7 @@ class StorytelClient {
         }
       }
     } catch (err) {
-      console.warn("[storytelApi] storytel.com fallback search failed:", err);
+      console.warn('[storytelApi] storytel.com fallback search failed:', err);
     }
 
     return results;
@@ -959,13 +929,12 @@ class StorytelClient {
   // entry whose model carries the id instead.
   private deltaContainsConsumable(data: any, consumableId: string): boolean {
     const items = data?.items;
-    if (!items || typeof items !== "object" || Array.isArray(items)) {
+    if (!items || typeof items !== 'object' || Array.isArray(items)) {
       return false;
     }
     return Object.entries(items).some(
       ([key, entry]: [string, any]) =>
-        key === consumableId ||
-        String(entry?.model?.id ?? "") === consumableId,
+        key === consumableId || String(entry?.model?.id ?? '') === consumableId,
     );
   }
 
@@ -974,16 +943,11 @@ class StorytelClient {
     try {
       const { books } = await this.getBookshelf();
       return books.some(
-        (entry) =>
-          String(entry.id) === consumableId ||
-          entry.book?.consumableId === consumableId,
+        (entry) => String(entry.id) === consumableId || entry.book?.consumableId === consumableId,
       );
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
-      console.warn(
-        "[storytelApi] bookshelf verification read failed:",
-        error.message,
-      );
+      console.warn('[storytelApi] bookshelf verification read failed:', error.message);
       return false;
     }
   }
@@ -1010,15 +974,15 @@ class StorytelClient {
       state,
       stateUpdateTime,
       deepLink: `storytel://book-details-page/book-details/consumables/${consumableId}`,
-      resultType: "book",
+      resultType: 'book',
     };
 
     try {
       const details = await this.getBookDetails(consumableId);
       return {
         ...base,
-        title: details?.title ?? "",
-        shareUrl: details?.shareUrl ?? "",
+        title: details?.title ?? '',
+        shareUrl: details?.shareUrl ?? '',
         kidsBook: !!details?.kidsBook,
         authors: Array.isArray(details?.authors) ? details.authors : [],
         narrators: Array.isArray(details?.narrators) ? details.narrators : [],
@@ -1030,16 +994,14 @@ class StorytelClient {
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
       console.warn(
-        "[storytelApi] could not enrich bookshelf model, using minimal one:",
+        '[storytelApi] could not enrich bookshelf model, using minimal one:',
         error.message,
       );
       return { ...base, kidsBook: false };
     }
   }
 
-  async addToBookshelf(
-    consumableId: string,
-  ): Promise<{ added: boolean; strategy: string | null }> {
+  async addToBookshelf(consumableId: string): Promise<{ added: boolean; strategy: string | null }> {
     const id = String(consumableId);
     const now = new Date().toISOString();
 
@@ -1050,19 +1012,17 @@ class StorytelClient {
       current = await this.fetchBookshelfSnapshot();
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
-      const customError: any = new Error(
-        `Failed to add book to bookshelf: ${error.message}`,
-      );
+      const customError: any = new Error(`Failed to add book to bookshelf: ${error.message}`);
       customError.status = error.response?.status || 500;
       throw customError;
     }
 
     if (this.deltaContainsConsumable(current, id)) {
-      return { added: true, strategy: "already-on-bookshelf" };
+      return { added: true, strategy: 'already-on-bookshelf' };
     }
 
     const resourceVersion = current.resourceVersion;
-    const model = await this.buildBookshelfModel(id, "WILL_CONSUME", now);
+    const model = await this.buildBookshelfModel(id, 'WILL_CONSUME', now);
 
     // `items` is map[consumableId] -> { action, model }, per the server's own
     // schema validation error.
@@ -1072,20 +1032,15 @@ class StorytelClient {
       // "clear these".
       const data = await this.postBookshelfDelta({
         ...(resourceVersion ? { resourceVersion } : {}),
-        items: { [id]: { action: "SET", model } },
+        items: { [id]: { action: 'SET', model } },
       });
       if (this.deltaContainsConsumable(data, id)) {
-        return { added: true, strategy: "sync-items-map" };
+        return { added: true, strategy: 'sync-items-map' };
       }
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
-      const detail =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        error.message;
-      const customError: any = new Error(
-        `Failed to add book to bookshelf: ${detail}`,
-      );
+      const detail = error.response?.data?.message || error.response?.data?.error || error.message;
+      const customError: any = new Error(`Failed to add book to bookshelf: ${detail}`);
       customError.status = error.response?.status || 500;
       throw customError;
     }
@@ -1093,7 +1048,7 @@ class StorytelClient {
     // The response did not echo the book back; ask the bookshelf itself in case
     // the write was applied asynchronously.
     if (await this.isOnBookshelf(id)) {
-      return { added: true, strategy: "sync-verified" };
+      return { added: true, strategy: 'sync-verified' };
     }
 
     // Every request went through, but the book is still not on the shelf.
@@ -1105,7 +1060,7 @@ class StorytelClient {
   // book off the shelf is not, so try the plausible ones and let the bookshelf
   // itself decide which worked. Nothing is reported as removed until a fresh
   // read of the shelf no longer contains the book.
-  private static readonly REMOVE_ACTIONS = ["DELETE", "REMOVE", "UNSET"];
+  private static readonly REMOVE_ACTIONS = ['DELETE', 'REMOVE', 'UNSET'];
 
   async removeFromBookshelf(
     consumableId: string,
@@ -1117,15 +1072,13 @@ class StorytelClient {
       current = await this.fetchBookshelfSnapshot();
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
-      const customError: any = new Error(
-        `Failed to remove book from bookshelf: ${error.message}`,
-      );
+      const customError: any = new Error(`Failed to remove book from bookshelf: ${error.message}`);
       customError.status = error.response?.status || 500;
       throw customError;
     }
 
     if (!this.deltaContainsConsumable(current, id)) {
-      return { removed: true, strategy: "not-on-bookshelf" };
+      return { removed: true, strategy: 'not-on-bookshelf' };
     }
 
     let resourceVersion = current.resourceVersion;
@@ -1140,16 +1093,12 @@ class StorytelClient {
       }));
 
     attempts.push({
-      strategy: "delete-with-model",
+      strategy: 'delete-with-model',
       build: async () => ({
         items: {
           [id]: {
-            action: "DELETE",
-            model: await this.buildBookshelfModel(
-              id,
-              "WILL_CONSUME",
-              new Date().toISOString(),
-            ),
+            action: 'DELETE',
+            model: await this.buildBookshelfModel(id, 'WILL_CONSUME', new Date().toISOString()),
           },
         },
       }),
@@ -1192,9 +1141,7 @@ class StorytelClient {
 
     if (lastError && !lastError.response) {
       const detail = lastError.message;
-      const customError: any = new Error(
-        `Failed to remove book from bookshelf: ${detail}`,
-      );
+      const customError: any = new Error(`Failed to remove book from bookshelf: ${detail}`);
       customError.status = 500;
       throw customError;
     }
@@ -1211,7 +1158,7 @@ class StorytelClient {
       const response = await this.client.get(url, {
         headers: {
           Authorization: `Bearer ${bearer}`,
-          Accept: "*/*",
+          Accept: '*/*',
         },
       });
       return response.data;
@@ -1223,15 +1170,21 @@ class StorytelClient {
 
   async getPlayBookMetaData(consumableId: string): Promise<any> {
     const hasChapters = (data: any) => {
-      if (!data || typeof data !== "object") return false;
+      if (!data || typeof data !== 'object') return false;
       if (Array.isArray(data.chapters) && data.chapters.length > 0) return true;
       if (Array.isArray(data.tracks) && data.tracks.length > 0) return true;
       if (Array.isArray(data.items) && data.items.length > 0) return true;
-      if (data.abook?.chapters && Array.isArray(data.abook.chapters) && data.abook.chapters.length > 0) return true;
+      if (
+        data.abook?.chapters &&
+        Array.isArray(data.abook.chapters) &&
+        data.abook.chapters.length > 0
+      )
+        return true;
       const abook = Array.isArray(data.formats)
-        ? data.formats.find((f: any) => f.type === "abook")
+        ? data.formats.find((f: any) => f.type === 'abook')
         : null;
-      if (abook?.chapters && Array.isArray(abook.chapters) && abook.chapters.length > 0) return true;
+      if (abook?.chapters && Array.isArray(abook.chapters) && abook.chapters.length > 0)
+        return true;
       if (abook?.tracks && Array.isArray(abook.tracks) && abook.tracks.length > 0) return true;
       return false;
     };
@@ -1255,7 +1208,7 @@ class StorytelClient {
           const response = await this.client.get(url, {
             headers: {
               Authorization: `Bearer ${bearer}`,
-              Accept: "application/json, text/plain, */*",
+              Accept: 'application/json, text/plain, */*',
             },
           });
           if (response.data) {
@@ -1317,7 +1270,7 @@ class StorytelClient {
       return fallbackData;
     }
 
-    throw new Error(`Failed to get bookinfo: ${lastError?.message || "Unknown error"}`);
+    throw new Error(`Failed to get bookinfo: ${lastError?.message || 'Unknown error'}`);
   }
 
   // New api.storytel.net audio endpoint. Returns a 302 redirect to a signed
@@ -1330,15 +1283,12 @@ class StorytelClient {
       const response = await this.client.get(url, {
         headers: {
           Authorization: `Bearer ${bearer}`,
-          Accept: "*/*",
+          Accept: '*/*',
         },
       });
       // maxRedirects is 0 on the client, so a 2xx here is unexpected; prefer
       // the redirect Location captured below in the catch.
-      return (
-        (response.request as any)?.res?.responseUrl ||
-        response.headers.location
-      );
+      return (response.request as any)?.res?.responseUrl || response.headers.location;
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
       const location = error.response?.headers?.location;
@@ -1352,9 +1302,7 @@ class StorytelClient {
 
     try {
       const response = await this.client.get(url);
-      return (
-        (response.request as any).res.responseUrl || response.headers.location
-      );
+      return (response.request as any).res.responseUrl || response.headers.location;
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
       if (error.response && error.response.headers.location) {
@@ -1372,7 +1320,7 @@ class StorytelClient {
       const response = await this.client.get<BookmarkResponse>(url, {
         headers: {
           Authorization: `Bearer ${bearer}`,
-          Accept: "application/vnd.storytel.bookmark+json;v=2.0",
+          Accept: 'application/vnd.storytel.bookmark+json;v=2.0',
         },
       });
       return response.data;
@@ -1382,12 +1330,8 @@ class StorytelClient {
     }
   }
 
-  async setBookmark(
-    consumableId: string,
-    position: number,
-    note: string,
-  ): Promise<void> {
-    const url = "https://api.storytel.net/bookmarks/manual";
+  async setBookmark(consumableId: string, position: number, note: string): Promise<void> {
+    const url = 'https://api.storytel.net/bookmarks/manual';
     try {
       const bearer = await this.getApiBearer();
       await this.client.post(
@@ -1396,12 +1340,12 @@ class StorytelClient {
           position,
           consumableId,
           note,
-          type: "abook",
+          type: 'abook',
         },
         {
           headers: {
             Authorization: `Bearer ${bearer}`,
-            Accept: "application/vnd.storytel.bookmark+json;v=2.0",
+            Accept: 'application/vnd.storytel.bookmark+json;v=2.0',
           },
         },
       );
@@ -1411,17 +1355,10 @@ class StorytelClient {
     }
   }
 
-  async updateBookmark(
-    consumableId: string,
-    bookmarkId: string,
-    bookmarkData: any,
-  ): Promise<void> {
+  async updateBookmark(consumableId: string, bookmarkId: string, bookmarkData: any): Promise<void> {
     const { bookmarks } = await this.getBookmark(consumableId);
 
-    if (
-      !bookmarks ||
-      !bookmarks.some((bookmark) => bookmark.id === bookmarkId)
-    ) {
+    if (!bookmarks || !bookmarks.some((bookmark) => bookmark.id === bookmarkId)) {
       throw new Error(`Failed to remove bookmark: bookmark does not exists!`);
     }
 
@@ -1431,7 +1368,7 @@ class StorytelClient {
       await this.client.put(url, bookmarkData, {
         headers: {
           Authorization: `Bearer ${bearer}`,
-          Accept: "application/vnd.storytel.bookmark+json;v=2.0",
+          Accept: 'application/vnd.storytel.bookmark+json;v=2.0',
         },
       });
     } catch (error: any) {
@@ -1440,16 +1377,10 @@ class StorytelClient {
     }
   }
 
-  async deleteBookmark(
-    consumableId: string,
-    bookmarkId: string,
-  ): Promise<void> {
+  async deleteBookmark(consumableId: string, bookmarkId: string): Promise<void> {
     const { bookmarks } = await this.getBookmark(consumableId);
 
-    if (
-      !bookmarks ||
-      !bookmarks.some((bookmark) => bookmark.id === bookmarkId)
-    ) {
+    if (!bookmarks || !bookmarks.some((bookmark) => bookmark.id === bookmarkId)) {
       throw new Error(`Failed to remove bookmark: bookmark does not exists!`);
     }
 
@@ -1459,7 +1390,7 @@ class StorytelClient {
       await this.client.delete(url, {
         headers: {
           Authorization: `Bearer ${bearer}`,
-          Accept: "application/vnd.storytel.bookmark+json;v=2.0",
+          Accept: 'application/vnd.storytel.bookmark+json;v=2.0',
         },
       });
     } catch (error: any) {

@@ -10,10 +10,7 @@ interface FloatingMenuProps {
   onOpenSettings: () => void;
 }
 
-export function FloatingMenu({
-  onOpenSearch,
-  onOpenSettings,
-}: FloatingMenuProps) {
+export function FloatingMenu({ onOpenSearch, onOpenSettings }: FloatingMenuProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -90,11 +87,16 @@ export function FloatingMenu({
             {/* Unified Circular Cover/Play Button */}
             <button
               onClick={audio.togglePlayPause}
-              title={audio.isPlaying ? t('player.paused', 'Paused') : t('player.playing', 'Playing')}
+              title={
+                audio.isPlaying ? t('player.paused', 'Paused') : t('player.playing', 'Playing')
+              }
               className="relative w-11 h-11 flex-shrink-0 group/cover rounded-full focus:outline-none transition-transform hover:scale-105 active:scale-95 shadow-md"
             >
               {/* Progress Ring SVG */}
-              <svg className="w-11 h-11 -rotate-90 absolute inset-0 pointer-events-none" viewBox={`0 0 ${size} ${size}`}>
+              <svg
+                className="w-11 h-11 -rotate-90 absolute inset-0 pointer-events-none"
+                viewBox={`0 0 ${size} ${size}`}
+              >
                 <circle
                   cx={center}
                   cy={center}
@@ -121,10 +123,24 @@ export function FloatingMenu({
               {/* Cover Thumbnail Image */}
               <div className="absolute inset-[3px] rounded-full overflow-hidden bg-gray-900 shadow-inner flex items-center justify-center">
                 {coverUrl ? (
-                  <img src={buildCoverUrl(coverUrl)} alt={bookTitle} className="w-full h-full object-cover" />
+                  <img
+                    src={buildCoverUrl(coverUrl)}
+                    alt={bookTitle}
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
-                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  <svg
+                    className="w-4 h-4 text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                    />
                   </svg>
                 )}
 
@@ -139,8 +155,19 @@ export function FloatingMenu({
                   {audio.isLoading ? (
                     <div className="animate-spin w-4 h-4 text-[#FF5100]">
                       <svg fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
                       </svg>
                     </div>
                   ) : audio.isPlaying ? (
@@ -166,9 +193,7 @@ export function FloatingMenu({
                 {bookTitle}
               </span>
               {bookAuthor && (
-                <span className="text-[10px] text-gray-400 truncate">
-                  {bookAuthor}
-                </span>
+                <span className="text-[10px] text-gray-400 truncate">{bookAuthor}</span>
               )}
             </div>
           </div>
@@ -183,14 +208,24 @@ export function FloatingMenu({
           title={t('floatingMenu.settings', 'Settings')}
           className="flex items-center justify-center p-2.5 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
         >
-          <svg className="w-5 h-5 transition-transform hover:rotate-45 duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg
+            className="w-5 h-5 transition-transform hover:rotate-45 duration-300"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
               d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
             />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
           </svg>
         </button>
       </nav>

@@ -9,7 +9,6 @@ Based on [debba/storytel-player](https://github.com/debba/storytel-player).
 ## Download
 
 Get the latest build from the [Releases page](https://github.com/sz3ry/bookwave/releases/latest):
-
 - **Linux (x64)**: AppImage or deb
 - **Windows (x64)**: NSIS installer
 
@@ -47,7 +46,6 @@ bun run dist:win       # NSIS installer (x64)
 ```
 
 Project layout:
-
 - `client/` - React renderer (Vite, Tailwind CSS, i18next)
 - `server/` - Fastify server bundled with esbuild, translations in `server/locales/`
 - `src/` - Electron main process (window, tray, IPC, updater)

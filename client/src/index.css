@@ -4,16 +4,15 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
+    "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
 .audio-player {
@@ -26,40 +25,40 @@ code {
 
 /* CSS della scrollbar semitrasparente */
 ::-webkit-scrollbar {
-    width: 2px;
+  width: 2px;
 }
 ::-webkit-scrollbar-track {
-    background: rgba(0,0,0,0.1);
-    border-radius: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.4);
-    border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0,0,0,0.6);
+  background: rgba(0, 0, 0, 0.6);
 }
 
 @keyframes marquee-scroll {
-    0% {
-        transform: translateX(0);
-    }
-    100% {
-        transform: translateX(calc(-100% + 100vw - 120px));
-    }
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-100% + 100vw - 120px));
+  }
 }
 
 @keyframes marquee {
-    0% {
-        transform: translateX(0%);
-    }
-    100% {
-        transform: translateX(-50%);
-    }
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 .animate-marquee {
-    animation: marquee 15s linear infinite;
+  animation: marquee 15s linear infinite;
 }
 .animate-marquee:hover {
-    animation-play-state: paused;
+  animation-play-state: paused;
 }

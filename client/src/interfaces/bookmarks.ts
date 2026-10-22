@@ -6,11 +6,11 @@ export interface Bookmark {
   insertTime: string;
 }
 
-export interface BookmarkPositional{
-    consumableId: string
-    type: string
-    position: number
-    kidsMode: boolean
-    updatedTime: string
-    locator?: string
+export interface BookmarkPositional {
+  consumableId: string;
+  type: string;
+  position: number;
+  kidsMode: boolean;
+  updatedTime: string;
+  locator?: string;
 }

@@ -18,7 +18,10 @@ class Logger {
   private readonly MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
   private readonly MAX_FILES = 5;
   private readonly LOG_DIR = process.env.USER_DATA_PATH || process.cwd();
-  private readonly LOG_FILE_PATH = path.join(process.env.USER_DATA_PATH || process.cwd(), 'app.log');
+  private readonly LOG_FILE_PATH = path.join(
+    process.env.USER_DATA_PATH || process.cwd(),
+    'app.log',
+  );
 
   constructor() {
     this.loadFromFile();
@@ -89,7 +92,7 @@ class Logger {
     const log: LogEntry = {
       ...entry,
       id: this.generateId(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     this.logs.unshift(log);

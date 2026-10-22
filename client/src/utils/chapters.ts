@@ -1,5 +1,5 @@
 import i18n from '../i18n';
-import { Chapter } from '../interfaces/chapters';
+import type { Chapter } from '../interfaces/chapters';
 
 /**
  * Normalizes raw chapter objects from the Storytel API into structured Chapter models
@@ -20,23 +20,33 @@ export function normalizeChapters(rawChapters: any[] = []): Chapter[] {
     let durationSec = 0;
     if (typeof raw.durationInSeconds === 'number' && !isNaN(raw.durationInSeconds)) {
       durationSec = raw.durationInSeconds;
-    } else if (typeof raw.durationInMilliseconds === 'number' && !isNaN(raw.durationInMilliseconds)) {
+    } else if (
+      typeof raw.durationInMilliseconds === 'number' &&
+      !isNaN(raw.durationInMilliseconds)
+    ) {
       durationSec = raw.durationInMilliseconds / 1000;
     } else if (typeof raw.duration === 'number' && !isNaN(raw.duration)) {
       durationSec = raw.duration > 10000 ? raw.duration / 1000 : raw.duration;
     } else if (typeof raw.length === 'number' && !isNaN(raw.length)) {
       durationSec = raw.length > 10000 ? raw.length / 1000 : raw.length;
     } else if (typeof raw.time === 'number' && !isNaN(raw.time)) {
-      durationSec = raw.time > 1000000 ? raw.time / 1000000 : raw.time > 1000 ? raw.time / 1000 : raw.time;
+      durationSec =
+        raw.time > 1000000 ? raw.time / 1000000 : raw.time > 1000 ? raw.time / 1000 : raw.time;
     }
 
     // Start time can be explicitly provided or cumulative
     let start = cumulativeTime;
     if (typeof raw.start === 'number' && !isNaN(raw.start)) {
       start = raw.start;
-    } else if (typeof raw.startPositionInSeconds === 'number' && !isNaN(raw.startPositionInSeconds)) {
+    } else if (
+      typeof raw.startPositionInSeconds === 'number' &&
+      !isNaN(raw.startPositionInSeconds)
+    ) {
       start = raw.startPositionInSeconds;
-    } else if (typeof raw.startPositionInMilliseconds === 'number' && !isNaN(raw.startPositionInMilliseconds)) {
+    } else if (
+      typeof raw.startPositionInMilliseconds === 'number' &&
+      !isNaN(raw.startPositionInMilliseconds)
+    ) {
       start = raw.startPositionInMilliseconds / 1000;
     } else if (typeof raw.startTime === 'number' && !isNaN(raw.startTime)) {
       start = raw.startTime > 1000 ? raw.startTime / 1000 : raw.startTime;
@@ -47,7 +57,10 @@ export function normalizeChapters(rawChapters: any[] = []): Chapter[] {
       end = raw.end;
     } else if (typeof raw.endPositionInSeconds === 'number' && !isNaN(raw.endPositionInSeconds)) {
       end = raw.endPositionInSeconds;
-    } else if (typeof raw.endPositionInMilliseconds === 'number' && !isNaN(raw.endPositionInMilliseconds)) {
+    } else if (
+      typeof raw.endPositionInMilliseconds === 'number' &&
+      !isNaN(raw.endPositionInMilliseconds)
+    ) {
       end = raw.endPositionInMilliseconds / 1000;
     }
 
@@ -58,7 +71,8 @@ export function normalizeChapters(rawChapters: any[] = []): Chapter[] {
 
     cumulativeTime = end;
 
-    const title = (raw.title || raw.name || raw.chapterTitle || '').trim() || `${chapterPrefix} ${number}`;
+    const title =
+      (raw.title || raw.name || raw.chapterTitle || '').trim() || `${chapterPrefix} ${number}`;
 
     return {
       number,
@@ -79,7 +93,11 @@ export function extractChaptersFromResponse(data: any): Chapter[] {
   // 1. Direct formats array (standard Storytel playback-metadata or book-details response)
   const formats = Array.isArray(data.formats) ? data.formats : [];
   const abookFormat = formats.find((f: any) => f.type === 'abook');
-  if (abookFormat?.chapters && Array.isArray(abookFormat.chapters) && abookFormat.chapters.length > 0) {
+  if (
+    abookFormat?.chapters &&
+    Array.isArray(abookFormat.chapters) &&
+    abookFormat.chapters.length > 0
+  ) {
     return normalizeChapters(abookFormat.chapters);
   }
   if (abookFormat?.tracks && Array.isArray(abookFormat.tracks) && abookFormat.tracks.length > 0) {
@@ -97,7 +115,11 @@ export function extractChaptersFromResponse(data: any): Chapter[] {
   }
 
   // 4. abook object containing chapters or tracks
-  if (data.abook?.chapters && Array.isArray(data.abook.chapters) && data.abook.chapters.length > 0) {
+  if (
+    data.abook?.chapters &&
+    Array.isArray(data.abook.chapters) &&
+    data.abook.chapters.length > 0
+  ) {
     return normalizeChapters(data.abook.chapters);
   }
   if (data.abook?.tracks && Array.isArray(data.abook.tracks) && data.abook.tracks.length > 0) {

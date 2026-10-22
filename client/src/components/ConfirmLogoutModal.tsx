@@ -16,9 +16,7 @@ function ConfirmLogoutModal({ isOpen, onConfirm, onCancel }: ConfirmLogoutModalP
   return (
     <Modal isOpen={isOpen} onClose={onCancel} title={t('logout.confirmTitle')}>
       <div className="flex flex-col">
-        <p className="text-gray-300 mb-6">
-          {t('logout.confirmMessage')}
-        </p>
+        <p className="text-gray-300 mb-6">{t('logout.confirmMessage')}</p>
         <div className="flex justify-end space-x-3 mt-4">
           <button
             onClick={onCancel}

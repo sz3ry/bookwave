@@ -5,7 +5,7 @@ import { resolve } from 'path';
 const paths = {
   package: resolve('package.json'),
   appVersion: resolve('src/version.ts'),
-  readme: resolve('README.md')
+  readme: resolve('README.md'),
 };
 
 // 1. Read the new version from package.json (already updated by npm version)
@@ -23,15 +23,12 @@ console.log('✅ Updated src/version.ts');
 let readme = readFileSync(paths.readme, 'utf-8');
 
 // Update download links in README
-readme = readme.replace(
-  /releases\/download\/v.*?\//g,
-  `releases/download/v${newVersion}/`
-);
+readme = readme.replace(/releases\/download\/v.*?\//g, `releases/download/v${newVersion}/`);
 
 // Update Windows installer filename: Storytel-Player-Setup-X.Y.Z.exe
 readme = readme.replace(
   /Storytel-Player-Setup-\d+\.\d+\.\d+/g,
-  `Storytel-Player-Setup-${newVersion}`
+  `Storytel-Player-Setup-${newVersion}`,
 );
 
 // Update macOS and Linux filenames, keeping any arch suffix:
@@ -39,7 +36,7 @@ readme = readme.replace(
 // Storytel-Player-X.Y.Z.AppImage, Storytel-Player-X.Y.Z-arm64.AppImage
 readme = readme.replace(
   /Storytel-Player-\d+\.\d+\.\d+((?:-[a-z0-9]+)*)\.(dmg|AppImage)/g,
-  `Storytel-Player-${newVersion}$1.$2`
+  `Storytel-Player-${newVersion}$1.$2`,
 );
 
 writeFileSync(paths.readme, readme);

@@ -25,7 +25,7 @@ function GotoModal({
   onHoursChange,
   onMinutesChange,
   onSecondsChange,
-  onGoto
+  onGoto,
 }: GotoModalProps) {
   const { t } = useTranslation();
 
@@ -34,7 +34,6 @@ function GotoModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('gotoModal.title')}>
       <div className="flex flex-col gap-4">
-
         <div className="mb-6">
           <p className="text-sm text-gray-400 mb-4">
             {t('gotoModal.description', { speed: playbackRate })}

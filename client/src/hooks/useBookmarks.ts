@@ -1,154 +1,157 @@
-import {useCallback, useState} from 'react';
+import { useCallback, useState } from 'react';
 import api, { trackAction } from '../utils/api';
-import {Bookmark} from '../interfaces/bookmarks';
+import type { Bookmark } from '../interfaces/bookmarks';
 
 interface UseBookmarksProps {
-    consumableId: string;
-    onError: (error: string) => void;
+  consumableId: string;
+  onError: (error: string) => void;
 }
 
-export const useBookmarks = ({consumableId, onError}: UseBookmarksProps) => {
-    const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
-    const [showBookmarksModal, setShowBookmarksModal] = useState(false);
-    const [showCreateBookmarkModal, setShowCreateBookmarkModal] = useState(false);
-    const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-    const [showEditBookmarkModal, setShowEditBookmarkModal] = useState(false);
-    const [bookmarkToDelete, setBookmarkToDelete] = useState<Bookmark | null>(null);
-    const [bookmarkToEdit, setBookmarkToEdit] = useState<Bookmark | null>(null);
-    const [newBookmarkNote, setNewBookmarkNote] = useState('');
-    const [editBookmarkNote, setEditBookmarkNote] = useState('');
+export const useBookmarks = ({ consumableId, onError }: UseBookmarksProps) => {
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [showBookmarksModal, setShowBookmarksModal] = useState(false);
+  const [showCreateBookmarkModal, setShowCreateBookmarkModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [showEditBookmarkModal, setShowEditBookmarkModal] = useState(false);
+  const [bookmarkToDelete, setBookmarkToDelete] = useState<Bookmark | null>(null);
+  const [bookmarkToEdit, setBookmarkToEdit] = useState<Bookmark | null>(null);
+  const [newBookmarkNote, setNewBookmarkNote] = useState('');
+  const [editBookmarkNote, setEditBookmarkNote] = useState('');
 
-    const loadBookmarks = useCallback(async () => {
-        try {
-            const response = await api.get(`/bookmarks/${consumableId}`);
-            const {data} = response;
-            setBookmarks(data.bookmarks);
-        } catch (error) {
-            // Manual bookmarks are not cached locally yet: when the Storytel
-            // API is unreachable we silently degrade to an empty list instead
-            // of blocking the whole PlayerView with an error.
-            console.warn('Failed to load bookmarks, falling back to empty list', error);
-            setBookmarks([]);
-        }
-    }, [consumableId]);
+  const loadBookmarks = useCallback(async () => {
+    try {
+      const response = await api.get(`/bookmarks/${consumableId}`);
+      const { data } = response;
+      setBookmarks(data.bookmarks);
+    } catch (error) {
+      // Manual bookmarks are not cached locally yet: when the Storytel
+      // API is unreachable we silently degrade to an empty list instead
+      // of blocking the whole PlayerView with an error.
+      console.warn('Failed to load bookmarks, falling back to empty list', error);
+      setBookmarks([]);
+    }
+  }, [consumableId]);
 
-    const goToBookmark = useCallback((position: number, audioRef: React.RefObject<HTMLAudioElement | null>) => {
-        if (audioRef.current) {
-            audioRef.current.currentTime = Math.floor(position / 1000);
-            audioRef.current.play();
-            setShowBookmarksModal(false);
-        }
-    }, []);
-
-    const handleShowEditBookmarkModal = (bookmark: Bookmark) => {
-        setBookmarkToEdit(bookmark);
-        setEditBookmarkNote(bookmark.note || '');
-        setShowEditBookmarkModal(true);
+  const goToBookmark = useCallback(
+    (position: number, audioRef: React.RefObject<HTMLAudioElement | null>) => {
+      if (audioRef.current) {
+        audioRef.current.currentTime = Math.floor(position / 1000);
+        audioRef.current.play();
         setShowBookmarksModal(false);
-    };
+      }
+    },
+    [],
+  );
 
-    const handleShowDeleteConfirmModal = (bookmark: Bookmark) => {
-        setBookmarkToDelete(bookmark);
-        setShowDeleteConfirmModal(true);
-        setShowBookmarksModal(false);
-    };
+  const handleShowEditBookmarkModal = (bookmark: Bookmark) => {
+    setBookmarkToEdit(bookmark);
+    setEditBookmarkNote(bookmark.note || '');
+    setShowEditBookmarkModal(true);
+    setShowBookmarksModal(false);
+  };
 
-    const handleShowCreateBookmarkModal = () => {
-        setShowBookmarksModal(false);
-        setShowCreateBookmarkModal(true);
-    };
+  const handleShowDeleteConfirmModal = (bookmark: Bookmark) => {
+    setBookmarkToDelete(bookmark);
+    setShowDeleteConfirmModal(true);
+    setShowBookmarksModal(false);
+  };
 
-    const handleCloseCreateBookmarkModal = () => {
-        setShowCreateBookmarkModal(false);
-        setNewBookmarkNote('');
-    };
+  const handleShowCreateBookmarkModal = () => {
+    setShowBookmarksModal(false);
+    setShowCreateBookmarkModal(true);
+  };
 
-    const handleCloseEditBookmarkModal = () => {
-        setShowEditBookmarkModal(false);
-        setBookmarkToEdit(null);
-        setEditBookmarkNote('');
-    };
+  const handleCloseCreateBookmarkModal = () => {
+    setShowCreateBookmarkModal(false);
+    setNewBookmarkNote('');
+  };
 
-    const handleCloseDeleteConfirmModal = () => {
-        setShowDeleteConfirmModal(false);
-        setBookmarkToDelete(null);
-    };
+  const handleCloseEditBookmarkModal = () => {
+    setShowEditBookmarkModal(false);
+    setBookmarkToEdit(null);
+    setEditBookmarkNote('');
+  };
 
-    const createBookmark = async (currentTime: number) => {
-        try {
-            const positionInMilliseconds = Math.floor(currentTime * 1000);
+  const handleCloseDeleteConfirmModal = () => {
+    setShowDeleteConfirmModal(false);
+    setBookmarkToDelete(null);
+  };
 
-            await api.post(`/bookmarks/${consumableId}`, {
-                position: positionInMilliseconds,
-                note: newBookmarkNote
-            });
+  const createBookmark = async (currentTime: number) => {
+    try {
+      const positionInMilliseconds = Math.floor(currentTime * 1000);
 
-            trackAction('create_bookmark', { consumableId, position: positionInMilliseconds });
-            await loadBookmarks();
-            setNewBookmarkNote('');
-            setShowCreateBookmarkModal(false);
-        } catch (error) {
-            console.error('Failed to create bookmark:', error);
-        }
-    };
+      await api.post(`/bookmarks/${consumableId}`, {
+        position: positionInMilliseconds,
+        note: newBookmarkNote,
+      });
 
-    const deleteBookmark = async () => {
-        if (!bookmarkToDelete) return;
+      trackAction('create_bookmark', { consumableId, position: positionInMilliseconds });
+      await loadBookmarks();
+      setNewBookmarkNote('');
+      setShowCreateBookmarkModal(false);
+    } catch (error) {
+      console.error('Failed to create bookmark:', error);
+    }
+  };
 
-        try {
-            await api.delete(`/bookmarks/${consumableId}/${bookmarkToDelete.id}`, {});
-            trackAction('delete_bookmark', { consumableId, bookmarkId: bookmarkToDelete.id });
-            await loadBookmarks();
-            setShowDeleteConfirmModal(false);
-            setBookmarkToDelete(null);
-        } catch (error) {
-            console.error('Failed to delete bookmark:', error);
-        }
-    };
+  const deleteBookmark = async () => {
+    if (!bookmarkToDelete) return;
 
-    const editBookmark = async () => {
-        if (!bookmarkToEdit) return;
+    try {
+      await api.delete(`/bookmarks/${consumableId}/${bookmarkToDelete.id}`, {});
+      trackAction('delete_bookmark', { consumableId, bookmarkId: bookmarkToDelete.id });
+      await loadBookmarks();
+      setShowDeleteConfirmModal(false);
+      setBookmarkToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete bookmark:', error);
+    }
+  };
 
-        try {
-            await api.put(`/bookmarks/${consumableId}/${bookmarkToEdit.id}`, {
-                position: bookmarkToEdit.position,
-                note: editBookmarkNote,
-                type: 'abook'
-            });
+  const editBookmark = async () => {
+    if (!bookmarkToEdit) return;
 
-            trackAction('edit_bookmark', { consumableId, bookmarkId: bookmarkToEdit.id });
-            await loadBookmarks();
-            setShowEditBookmarkModal(false);
-            setBookmarkToEdit(null);
-            setEditBookmarkNote('');
-        } catch (error) {
-            console.error('Failed to edit bookmark:', error);
-        }
-    };
+    try {
+      await api.put(`/bookmarks/${consumableId}/${bookmarkToEdit.id}`, {
+        position: bookmarkToEdit.position,
+        note: editBookmarkNote,
+        type: 'abook',
+      });
 
-    return {
-        bookmarks,
-        showBookmarksModal,
-        showCreateBookmarkModal,
-        showDeleteConfirmModal,
-        showEditBookmarkModal,
-        bookmarkToDelete,
-        bookmarkToEdit,
-        newBookmarkNote,
-        editBookmarkNote,
-        setShowBookmarksModal,
-        setNewBookmarkNote,
-        setEditBookmarkNote,
-        loadBookmarks,
-        goToBookmark,
-        handleShowEditBookmarkModal,
-        handleShowDeleteConfirmModal,
-        handleShowCreateBookmarkModal,
-        handleCloseCreateBookmarkModal,
-        handleCloseEditBookmarkModal,
-        handleCloseDeleteConfirmModal,
-        createBookmark,
-        deleteBookmark,
-        editBookmark,
-    };
+      trackAction('edit_bookmark', { consumableId, bookmarkId: bookmarkToEdit.id });
+      await loadBookmarks();
+      setShowEditBookmarkModal(false);
+      setBookmarkToEdit(null);
+      setEditBookmarkNote('');
+    } catch (error) {
+      console.error('Failed to edit bookmark:', error);
+    }
+  };
+
+  return {
+    bookmarks,
+    showBookmarksModal,
+    showCreateBookmarkModal,
+    showDeleteConfirmModal,
+    showEditBookmarkModal,
+    bookmarkToDelete,
+    bookmarkToEdit,
+    newBookmarkNote,
+    editBookmarkNote,
+    setShowBookmarksModal,
+    setNewBookmarkNote,
+    setEditBookmarkNote,
+    loadBookmarks,
+    goToBookmark,
+    handleShowEditBookmarkModal,
+    handleShowDeleteConfirmModal,
+    handleShowCreateBookmarkModal,
+    handleCloseCreateBookmarkModal,
+    handleCloseEditBookmarkModal,
+    handleCloseDeleteConfirmModal,
+    createBookmark,
+    deleteBookmark,
+    editBookmark,
+  };
 };

@@ -1,11 +1,11 @@
-import {app, BrowserWindow} from 'electron';
-import {WindowManager} from './modules/window';
-import {TrayManager} from './modules/tray';
-import {ServerManager} from './modules/server';
-import {IpcManager} from './modules/ipc';
-import {UpdaterManager} from './modules/updater';
-import {SsoManager} from './modules/sso';
-import {i18n} from './i18n';
+import { app, BrowserWindow } from 'electron';
+import { WindowManager } from './modules/window';
+import { TrayManager } from './modules/tray';
+import { ServerManager } from './modules/server';
+import { IpcManager } from './modules/ipc';
+import { UpdaterManager } from './modules/updater';
+import { SsoManager } from './modules/sso';
+import { i18n } from './i18n';
 
 const isDev = process.env.NODE_ENV === 'development';
 const isDebug = process.env.IS_DEBUG === 'true';
@@ -18,88 +18,87 @@ let updaterManager: UpdaterManager;
 let ssoManager: SsoManager;
 
 async function initialize(): Promise<void> {
+  process.env.IS_ELECTRON = 'true';
+  process.env.DOWNLOAD_PATH = app.getPath('downloads');
+  process.env.USER_DATA_PATH = app.getPath('userData');
 
-    process.env.IS_ELECTRON = 'true';
-    process.env.DOWNLOAD_PATH = app.getPath('downloads');
-    process.env.USER_DATA_PATH = app.getPath('userData');
+  windowManager = new WindowManager(isDev, isDebug);
+  const mainWindow = windowManager.create();
 
-    windowManager = new WindowManager(isDev, isDebug);
-    const mainWindow = windowManager.create();
+  serverManager = new ServerManager();
+  await serverManager.initialize();
 
-    serverManager = new ServerManager();
-    await serverManager.initialize();
+  // Initialize i18n with the Fastify server
+  const fastifyServer = serverManager.getServer();
+  if (fastifyServer) {
+    // Full ordered OS preference list ('sv-FI', 'en-FI', ...) so a user
+    // whose first language we don't ship still gets their second choice
+    // instead of falling straight through to English.
+    i18n.setSystemLanguages([...app.getPreferredSystemLanguages(), app.getLocale()]);
+    // Where the user is, which the language alone does not tell us.
+    i18n.setRegion(app.getLocaleCountryCode() || null);
+    i18n.detectLanguage();
+    await i18n.initialize(fastifyServer);
+  }
 
-    // Initialize i18n with the Fastify server
-    const fastifyServer = serverManager.getServer();
-    if (fastifyServer) {
-        // Full ordered OS preference list ('sv-FI', 'en-FI', ...) so a user
-        // whose first language we don't ship still gets their second choice
-        // instead of falling straight through to English.
-        i18n.setSystemLanguages([...app.getPreferredSystemLanguages(), app.getLocale()]);
-        // Where the user is, which the language alone does not tell us.
-        i18n.setRegion(app.getLocaleCountryCode() || null);
-        i18n.detectLanguage();
-        await i18n.initialize(fastifyServer);
-    }
+  trayManager = new TrayManager(windowManager);
+  trayManager.create();
 
-    trayManager = new TrayManager(windowManager);
-    trayManager.create();
+  ssoManager = new SsoManager();
 
-    ssoManager = new SsoManager();
+  ipcManager = new IpcManager(serverManager, trayManager, windowManager, ssoManager);
+  ipcManager.setupHandlers();
 
-    ipcManager = new IpcManager(serverManager, trayManager, windowManager, ssoManager);
-    ipcManager.setupHandlers();
-
-    // Initialize auto-updater
-    updaterManager = new UpdaterManager(mainWindow, isDev);
-    updaterManager.initialize();
+  // Initialize auto-updater
+  updaterManager = new UpdaterManager(mainWindow, isDev);
+  updaterManager.initialize();
 }
 
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-    app.quit();
+  app.quit();
 } else {
-    app.on('second-instance', () => {
-        // When someone tries to open a second instance, focus the existing window
-        if (windowManager) {
-            windowManager.show();
-        }
-    });
+  app.on('second-instance', () => {
+    // When someone tries to open a second instance, focus the existing window
+    if (windowManager) {
+      windowManager.show();
+    }
+  });
 
-    app.whenReady().then(initialize);
+  app.whenReady().then(initialize);
 }
 
 app.on('before-quit', () => {
-    // @ts-ignore
-    app.isQuitting = true;
+  // @ts-expect-error
+  app.isQuitting = true;
 });
 
 app.on('window-all-closed', async () => {
-    // @ts-ignore
-    if (app.isQuitting) {
-        const window = windowManager.getWindow();
-        if (window) {
-            await window.webContents.send('tray-play-pause');
-        }
-
-        windowManager.killClientProcess();
-        app.quit();
+  // @ts-expect-error
+  if (app.isQuitting) {
+    const window = windowManager.getWindow();
+    if (window) {
+      await window.webContents.send('tray-play-pause');
     }
+
+    windowManager.killClientProcess();
+    app.quit();
+  }
 });
 
 app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-        windowManager.create();
-    }
+  if (BrowserWindow.getAllWindows().length === 0) {
+    windowManager.create();
+  }
 });
 
 app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
-    if (isDev) {
-        event.preventDefault();
-        callback(true);
-    } else {
-        callback(false);
-    }
+  if (isDev) {
+    event.preventDefault();
+    callback(true);
+  } else {
+    callback(false);
+  }
 });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import {formatTime} from "../utils/helpers";
-import { Bookmark } from "../interfaces/bookmarks";
+import { formatTime } from '../utils/helpers';
+import type { Bookmark } from '../interfaces/bookmarks';
 import Modal from './Modal';
 
 interface BookmarkModalsProps {
@@ -69,7 +69,7 @@ function BookmarkModals({
   showDeleteConfirmModal,
   bookmarkToDelete,
   onCloseDeleteConfirmModal,
-  onDeleteBookmark
+  onDeleteBookmark,
 }: BookmarkModalsProps) {
   const { t } = useTranslation();
 
@@ -81,12 +81,14 @@ function BookmarkModals({
           <div className="bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4 max-h-96 flex flex-col border border-gray-700">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-white">{t('bookmarks.title')}</h3>
-              <button
-                onClick={onCloseBookmarksModal}
-                className="text-gray-400 hover:text-white"
-              >
+              <button onClick={onCloseBookmarksModal} className="text-gray-400 hover:text-white">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -106,9 +108,7 @@ function BookmarkModals({
                             {formatTime(bookmark.position)}
                           </div>
                           {bookmark.note && (
-                            <div className="text-sm text-gray-300 mt-1">
-                              {bookmark.note}
-                            </div>
+                            <div className="text-sm text-gray-300 mt-1">{bookmark.note}</div>
                           )}
                           <div className="text-xs text-gray-400 mt-1">
                             {new Date(bookmark.insertTime).toLocaleDateString()}
@@ -123,8 +123,18 @@ function BookmarkModals({
                             className="p-1 text-gray-400 hover:text-orange-400 transition-colors"
                             title={t('bookmarks.tooltipEdit')}
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
                             </svg>
                           </button>
                           <button
@@ -135,8 +145,18 @@ function BookmarkModals({
                             className="p-1 text-gray-400 hover:text-red-600 transition-colors"
                             title={t('bookmarks.tooltipDelete')}
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
                             </svg>
                           </button>
                         </div>
@@ -146,8 +166,18 @@ function BookmarkModals({
                 </div>
               ) : (
                 <div className="text-center text-gray-500 py-8">
-                  <svg className="w-12 h-12 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                  <svg
+                    className="w-12 h-12 mx-auto mb-4 text-gray-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                    />
                   </svg>
                   <p className="text-gray-400">{t('bookmarks.noBookmarks')}</p>
                 </div>
@@ -177,7 +207,12 @@ function BookmarkModals({
                 className="text-gray-400 hover:text-white"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -222,19 +257,24 @@ function BookmarkModals({
           <div className="bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-700">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-white">{t('bookmarks.editTitle')}</h3>
-              <button
-                onClick={onCloseEditBookmarkModal}
-                className="text-gray-400 hover:text-white"
-              >
+              <button onClick={onCloseEditBookmarkModal} className="text-gray-400 hover:text-white">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
 
             <div className="mb-4">
               <p className="text-sm text-gray-400 mb-4">
-                {t('bookmarks.position')} <span className="font-medium text-orange-400">{formatTime(bookmarkToEdit.position)}</span>
+                {t('bookmarks.position')}{' '}
+                <span className="font-medium text-orange-400">
+                  {formatTime(bookmarkToEdit.position)}
+                </span>
               </p>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 {t('bookmarks.note')}
@@ -271,29 +311,35 @@ function BookmarkModals({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-900 rounded-lg p-6 max-w-sm w-full mx-4 border border-gray-700">
             <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-900 rounded-full">
-              <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z" />
+              <svg
+                className="w-6 h-6 text-red-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z"
+                />
               </svg>
             </div>
 
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-white mb-2">{t('bookmarks.deleteTitle')}</h3>
-              <p className="text-gray-400 mb-2">
-                {t('bookmarks.deleteConfirm')}
-              </p>
+              <h3 className="text-lg font-semibold text-white mb-2">
+                {t('bookmarks.deleteTitle')}
+              </h3>
+              <p className="text-gray-400 mb-2">{t('bookmarks.deleteConfirm')}</p>
               <div className="bg-gray-800 rounded-lg p-3 mb-4 border border-gray-600">
                 <div className="text-sm font-medium text-orange-400">
                   {formatTime(bookmarkToDelete.position)}
                 </div>
                 {bookmarkToDelete.note && (
-                  <div className="text-sm text-gray-300 mt-1">
-                    "{bookmarkToDelete.note}"
-                  </div>
+                  <div className="text-sm text-gray-300 mt-1">"{bookmarkToDelete.note}"</div>
                 )}
               </div>
-              <p className="text-sm text-gray-500 mb-6">
-                {t('bookmarks.deleteWarning')}
-              </p>
+              <p className="text-sm text-gray-500 mb-6">{t('bookmarks.deleteWarning')}</p>
             </div>
 
             <div className="flex space-x-3">

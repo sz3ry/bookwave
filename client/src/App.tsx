@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import type React from 'react';
+import { useState, useEffect } from 'react';
 import {
   Routes,
   Route,
@@ -7,25 +8,24 @@ import {
   BrowserRouter,
   useLocation,
   useSearchParams,
-} from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import LoginForm from "./components/LoginForm";
-import Dashboard from "./components/Dashboard";
-import PlayerView from "./components/PlayerView";
-import api from "./utils/api";
-import storage from "./utils/storage";
-import BookView from "./components/BookView";
-import WelcomeModal from "./components/WelcomeModal";
-import LogsModal from "./components/LogsModal";
-import SettingsModal from "./components/SettingsModal";
-import ConfirmLogoutModal from "./components/ConfirmLogoutModal";
-import TopBar from "./components/TopBar";
-import PlayerBar from "./components/PlayerBar";
-import SearchView from "./components/SearchView";
-import { AudioProvider } from "./contexts/AudioContext";
+} from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import LoginForm from './components/LoginForm';
+import Dashboard from './components/Dashboard';
+import PlayerView from './components/PlayerView';
+import api from './utils/api';
+import storage from './utils/storage';
+import BookView from './components/BookView';
+import WelcomeModal from './components/WelcomeModal';
+import LogsModal from './components/LogsModal';
+import SettingsModal from './components/SettingsModal';
+import ConfirmLogoutModal from './components/ConfirmLogoutModal';
+import TopBar from './components/TopBar';
+import PlayerBar from './components/PlayerBar';
+import SearchView from './components/SearchView';
+import { AudioProvider } from './contexts/AudioContext';
 
-const useMemoryRouter =
-  import.meta.env.VITE_REACT_APP_USE_MEMORY_ROUTER === "true";
+const useMemoryRouter = import.meta.env.VITE_REACT_APP_USE_MEMORY_ROUTER === 'true';
 const Router = useMemoryRouter ? MemoryRouter : BrowserRouter;
 
 function AuthenticatedLayout({
@@ -107,20 +107,20 @@ function App() {
 
   useEffect(() => {
     const handleUnauthorized = async () => {
-      await storage.remove("token");
+      await storage.remove('token');
       setIsAuthenticated(false);
       setSessionExpired(true);
       if (window.trayControls?.updateAuthState) {
         window.trayControls.updateAuthState(false);
       }
     };
-    window.addEventListener("unauthorized", handleUnauthorized);
-    return () => window.removeEventListener("unauthorized", handleUnauthorized);
+    window.addEventListener('unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('unauthorized', handleUnauthorized);
   }, []);
 
   const checkAuthStatus = async () => {
     try {
-      const token = await storage.get("token");
+      const token = await storage.get('token');
       if (!token) {
         setIsAuthenticated(false);
         setIsLoading(false);
@@ -130,7 +130,7 @@ function App() {
         return;
       }
 
-      const response = await api.get("/auth/status");
+      const response = await api.get('/auth/status');
       const authenticated = response.data.authenticated;
       setIsAuthenticated(authenticated);
       if (window.trayControls?.updateAuthState) {
@@ -138,7 +138,7 @@ function App() {
       }
     } catch (error) {
       setIsAuthenticated(false);
-      await storage.remove("token");
+      await storage.remove('token');
       if (window.trayControls?.updateAuthState) {
         window.trayControls.updateAuthState(false);
       }
@@ -150,8 +150,8 @@ function App() {
   useEffect(() => {
     const checkFirstTime = async () => {
       if (isAuthenticated && !isLoading) {
-        const hasSeenWelcome = await storage.get("hasSeenWelcome");
-        if (!hasSeenWelcome || hasSeenWelcome === "false") {
+        const hasSeenWelcome = await storage.get('hasSeenWelcome');
+        if (!hasSeenWelcome || hasSeenWelcome === 'false') {
           setShowWelcomeModal(true);
         }
       }
@@ -168,17 +168,17 @@ function App() {
   };
 
   const handleWelcomeClose = async () => {
-    await storage.set("hasSeenWelcome", "true");
+    await storage.set('hasSeenWelcome', 'true');
     setShowWelcomeModal(false);
   };
 
   const handleLogout = async () => {
     try {
-      await api.post("/logout");
+      await api.post('/logout');
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error('Logout error:', error);
     } finally {
-      await storage.remove("token");
+      await storage.remove('token');
       setIsAuthenticated(false);
       setShowConfirmModal(false);
       setShowSettingsModal(false);
@@ -191,7 +191,7 @@ function App() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
-        <div className="text-sm font-medium text-gray-400">{t("common.loading")}</div>
+        <div className="text-sm font-medium text-gray-400">{t('common.loading')}</div>
       </div>
     );
   }
@@ -235,23 +235,15 @@ function App() {
               onConfirm={handleLogout}
               onCancel={() => setShowConfirmModal(false)}
             />
-            <WelcomeModal
-              isOpen={showWelcomeModal}
-              onClose={handleWelcomeClose}
-            />
-            <LogsModal
-              isOpen={showLogsModal}
-              onClose={() => setShowLogsModal(false)}
-            />
+            <WelcomeModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} />
+            <LogsModal isOpen={showLogsModal} onClose={() => setShowLogsModal(false)} />
           </AuthenticatedLayout>
         ) : (
           <div className="min-h-screen bg-[#0A0A0A]">
             <Routes>
               <Route
                 path="/login"
-                element={
-                  <LoginForm onLogin={handleLogin} sessionExpired={sessionExpired} />
-                }
+                element={<LoginForm onLogin={handleLogin} sessionExpired={sessionExpired} />}
               />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>

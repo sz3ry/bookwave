@@ -9,7 +9,12 @@ interface PlaybackSpeedModalProps {
   onRateChange: (rate: number) => void;
 }
 
-function PlaybackSpeedModal({ isOpen, playbackRate, onClose, onRateChange }: PlaybackSpeedModalProps) {
+function PlaybackSpeedModal({
+  isOpen,
+  playbackRate,
+  onClose,
+  onRateChange,
+}: PlaybackSpeedModalProps) {
   const { t } = useTranslation();
 
   if (!isOpen) return null;
@@ -17,7 +22,6 @@ function PlaybackSpeedModal({ isOpen, playbackRate, onClose, onRateChange }: Pla
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('playbackSpeed.title')}>
       <div className="flex flex-col">
-
         {/* Preset Speeds */}
         <div className="mb-6">
           <h4 className="text-sm font-medium text-gray-300 mb-3">{t('playbackSpeed.presets')}</h4>

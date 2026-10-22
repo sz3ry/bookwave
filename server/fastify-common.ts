@@ -1,14 +1,14 @@
-import Fastify, { FastifyRequest, FastifyReply } from "fastify";
-import StorytelClient from "./storytelApi";
-import crypto from "crypto";
-import dotenv from "dotenv";
-import fastifyJWT from "@fastify/jwt";
-import fs from "fs";
-import path from "path";
-import { pathToFileURL } from "url";
-import axios from "axios";
-import { appLogger } from "./logger";
-import { encryptPassword } from "./passwordCrypt";
+import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
+import StorytelClient from './storytelApi';
+import crypto from 'crypto';
+import dotenv from 'dotenv';
+import fastifyJWT from '@fastify/jwt';
+import fs from 'fs';
+import path from 'path';
+import { pathToFileURL } from 'url';
+import axios from 'axios';
+import { appLogger } from './logger';
+import { encryptPassword } from './passwordCrypt';
 
 // Extend JWT user type. Legacy (email/password) login populates storytelToken,
 // jwt, and encryptedPassword; SSO login populates the sso* fields instead and
@@ -26,23 +26,19 @@ interface JWTUser {
 
 function hydrateStorytelClient(user: JWTUser): StorytelClient {
   const client = new StorytelClient();
-  if (
-    user.ssoStorytelSession &&
-    user.ssoFirebaseRefreshToken &&
-    user.ssoFirebaseApiKey
-  ) {
+  if (user.ssoStorytelSession && user.ssoFirebaseRefreshToken && user.ssoFirebaseApiKey) {
     client.loginViaSso({
       storytelSession: user.ssoStorytelSession,
       firebaseRefreshToken: user.ssoFirebaseRefreshToken,
       firebaseApiKey: user.ssoFirebaseApiKey,
       email: user.email,
-      cid: user.ssoCid ?? "",
+      cid: user.ssoCid ?? '',
     });
   } else {
     client.loginData = {
       accountInfo: {
-        singleSignToken: user.storytelToken ?? "",
-        jwt: user.jwt ?? "",
+        singleSignToken: user.storytelToken ?? '',
+        jwt: user.jwt ?? '',
       },
     };
     if (user.email && user.encryptedPassword) {
@@ -53,19 +49,16 @@ function hydrateStorytelClient(user: JWTUser): StorytelClient {
 }
 
 // Extend FastifyRequest with user property
-declare module "@fastify/jwt" {
+declare module '@fastify/jwt' {
   interface FastifyJWT {
     user: JWTUser;
   }
 }
 
 // Extend Fastify instance with authenticate decorator
-declare module "fastify" {
+declare module 'fastify' {
   interface FastifyInstance {
-    authenticate: (
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) => Promise<void>;
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 
@@ -79,19 +72,14 @@ function replyError(reply: FastifyReply, error: any) {
     return reply.code(401).send({ error: error.message });
   }
   const statusCode =
-    error.status ||
-    error.statusCode ||
-    (error.response && error.response.status) ||
-    500;
+    error.status || error.statusCode || (error.response && error.response.status) || 500;
   return reply.code(statusCode).send({ error: error.message });
 }
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "your-super-secret-jwt-key-change-this-in-production";
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 const DOWNLOADS_DIR = process.env.IS_ELECTRON
-  ? "" + process.env.DOWNLOAD_PATH
-  : path.join(__dirname, "downloads");
+  ? '' + process.env.DOWNLOAD_PATH
+  : path.join(__dirname, 'downloads');
 
 // Ensure downloads directory exists
 if (!fs.existsSync(DOWNLOADS_DIR)) {
@@ -105,23 +93,21 @@ if (!fs.existsSync(DOWNLOADS_DIR)) {
 const MAX_TITLE_LENGTH = 120;
 
 function isValidBookId(bookId: unknown): bookId is string {
-  return typeof bookId === "string" && /^\d+$/.test(bookId);
+  return typeof bookId === 'string' && /^\d+$/.test(bookId);
 }
 
 function sanitizeFileTitle(title: string): string {
   return title
-    .replace(/[<>:"/\\|?*#%\x00-\x1f]/g, "")
-    .replace(/\s+/g, " ")
+    .replace(/[<>:"/\\|?*#%\x00-\x1f]/g, '')
+    .replace(/\s+/g, ' ')
     .trim()
     .slice(0, MAX_TITLE_LENGTH)
-    .replace(/[. ]+$/, ""); // Windows rejects trailing dots and spaces
+    .replace(/[. ]+$/, ''); // Windows rejects trailing dots and spaces
 }
 
 function buildDownloadPath(bookId: string, title?: string): string {
-  const safeTitle = title ? sanitizeFileTitle(title) : "";
-  const fileName = safeTitle
-    ? `${safeTitle} [${bookId}].mp3`
-    : `${bookId}.mp3`;
+  const safeTitle = title ? sanitizeFileTitle(title) : '';
+  const fileName = safeTitle ? `${safeTitle} [${bookId}].mp3` : `${bookId}.mp3`;
   return path.join(DOWNLOADS_DIR, fileName);
 }
 
@@ -132,9 +118,7 @@ function findDownloadedFile(bookId: string): string | null {
   if (fs.existsSync(legacyPath)) return legacyPath;
 
   const suffix = ` [${bookId}].mp3`;
-  const match = fs
-    .readdirSync(DOWNLOADS_DIR)
-    .find((name) => name.endsWith(suffix));
+  const match = fs.readdirSync(DOWNLOADS_DIR).find((name) => name.endsWith(suffix));
   return match ? path.join(DOWNLOADS_DIR, match) : null;
 }
 
@@ -147,33 +131,30 @@ const activeDownloads = new Map<
   }
 >();
 
-const fastify = Fastify({ logger: process.env.NODE_ENV !== "production" });
+const fastify = Fastify({ logger: process.env.NODE_ENV !== 'production' });
 
 // Register plugins
 fastify.register(fastifyJWT, {
   secret: JWT_SECRET,
 });
 // Authentication decorator
-fastify.decorate(
-  "authenticate",
-  async function (request: FastifyRequest, reply: FastifyReply) {
-    try {
-      await request.jwtVerify();
-    } catch (err) {
-      reply.code(401).send({ error: "Not authenticated" });
-    }
-  },
-);
+fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
+  try {
+    await request.jwtVerify();
+  } catch (err) {
+    reply.code(401).send({ error: 'Not authenticated' });
+  }
+});
 
 // Route per login
 fastify.post<{
   Body: { email: string; password: string };
-}>("/api/login", async (request, reply) => {
+}>('/api/login', async (request, reply) => {
   try {
     const { email, password } = request.body;
 
     if (!email || !password) {
-      return reply.code(400).send({ error: "Email and password required" });
+      return reply.code(400).send({ error: 'Email and password required' });
     }
 
     const storytelClient = new StorytelClient();
@@ -188,7 +169,7 @@ fastify.post<{
       encryptedPassword: encPwd,
     });
 
-    reply.send({ success: true, message: "Login successful", token });
+    reply.send({ success: true, message: 'Login successful', token });
   } catch (error: any) {
     replyError(reply, error);
   }
@@ -206,44 +187,38 @@ fastify.post<{
     email?: string;
     cid?: string;
   };
-}>("/api/sso-login", async (request, reply) => {
+}>('/api/sso-login', async (request, reply) => {
   try {
-    const {
-      storytelSession,
-      firebaseRefreshToken,
-      firebaseApiKey,
-      email,
-      cid,
-    } = request.body;
+    const { storytelSession, firebaseRefreshToken, firebaseApiKey, email, cid } = request.body;
 
     if (!storytelSession || !firebaseRefreshToken || !firebaseApiKey) {
-      return reply.code(400).send({ error: "Missing SSO credentials" });
+      return reply.code(400).send({ error: 'Missing SSO credentials' });
     }
 
     const token = fastify.jwt.sign({
-      email: email ?? "",
-      storytelToken: "",
-      jwt: "",
+      email: email ?? '',
+      storytelToken: '',
+      jwt: '',
       ssoStorytelSession: storytelSession,
       ssoFirebaseRefreshToken: firebaseRefreshToken,
       ssoFirebaseApiKey: firebaseApiKey,
-      ssoCid: cid ?? "",
+      ssoCid: cid ?? '',
     });
 
-    reply.send({ success: true, message: "SSO login successful", token });
+    reply.send({ success: true, message: 'SSO login successful', token });
   } catch (error: any) {
     reply.code(401).send({ error: error.message });
   }
 });
 
 // Route per logout
-fastify.post("/api/logout", async (_request, reply) => {
-  reply.send({ success: true, message: "Logged out successfully" });
+fastify.post('/api/logout', async (_request, reply) => {
+  reply.send({ success: true, message: 'Logged out successfully' });
 });
 
 // Route per ottenere bookshelf
 fastify.get(
-  "/api/bookshelf",
+  '/api/bookshelf',
   {
     preHandler: fastify.authenticate,
   },
@@ -263,13 +238,13 @@ fastify.get(
 fastify.get<{
   Querystring: { q?: string; query?: string };
 }>(
-  "/api/search",
+  '/api/search',
   {
     preHandler: fastify.authenticate,
   },
   async (request, reply) => {
     try {
-      const q = request.query.q || request.query.query || "";
+      const q = request.query.q || request.query.query || '';
       if (!q.trim()) {
         return reply.send({ results: [] });
       }
@@ -287,7 +262,7 @@ fastify.get<{
 fastify.post<{
   Body: { consumableId: string };
 }>(
-  "/api/bookshelf/add",
+  '/api/bookshelf/add',
   {
     preHandler: fastify.authenticate,
   },
@@ -295,7 +270,7 @@ fastify.post<{
     try {
       const { consumableId } = request.body;
       if (!consumableId) {
-        return reply.code(400).send({ error: "Missing consumableId" });
+        return reply.code(400).send({ error: 'Missing consumableId' });
       }
 
       const storytelClient = hydrateStorytelClient(request.user);
@@ -305,8 +280,8 @@ fastify.post<{
       // only report success once the book was seen on the bookshelf.
       if (!result.added) {
         return reply.code(502).send({
-          code: "ADD_TO_BOOKSHELF_NOT_CONFIRMED",
-          error: "Storytel accepted the request but the book is not on the bookshelf",
+          code: 'ADD_TO_BOOKSHELF_NOT_CONFIRMED',
+          error: 'Storytel accepted the request but the book is not on the bookshelf',
         });
       }
 
@@ -321,7 +296,7 @@ fastify.post<{
 fastify.post<{
   Body: { consumableId: string };
 }>(
-  "/api/bookshelf/remove",
+  '/api/bookshelf/remove',
   {
     preHandler: fastify.authenticate,
   },
@@ -329,7 +304,7 @@ fastify.post<{
     try {
       const { consumableId } = request.body;
       if (!consumableId) {
-        return reply.code(400).send({ error: "Missing consumableId" });
+        return reply.code(400).send({ error: 'Missing consumableId' });
       }
 
       const storytelClient = hydrateStorytelClient(request.user);
@@ -339,9 +314,8 @@ fastify.post<{
       // ignores the write, so only report success once the book is really gone.
       if (!result.removed) {
         return reply.code(502).send({
-          code: "REMOVE_FROM_BOOKSHELF_NOT_CONFIRMED",
-          error:
-            "Storytel accepted the request but the book is still on the bookshelf",
+          code: 'REMOVE_FROM_BOOKSHELF_NOT_CONFIRMED',
+          error: 'Storytel accepted the request but the book is still on the bookshelf',
         });
       }
 
@@ -356,7 +330,7 @@ fastify.post<{
 fastify.post<{
   Body: { bookId: string; consumableId?: string };
 }>(
-  "/api/stream",
+  '/api/stream',
   {
     preHandler: fastify.authenticate,
   },
@@ -392,7 +366,7 @@ fastify.post<{
   Params: { consumableId: string };
   Body: { position: number; note: string };
 }>(
-  "/api/bookmarks/:consumableId",
+  '/api/bookmarks/:consumableId',
   {
     preHandler: fastify.authenticate,
   },
@@ -405,7 +379,7 @@ fastify.post<{
 
       await storytelClient.setBookmark(consumableId, position, note);
 
-      reply.send({ success: true, message: "Bookmark saved" });
+      reply.send({ success: true, message: 'Bookmark saved' });
     } catch (error: any) {
       replyError(reply, error);
     }
@@ -415,7 +389,7 @@ fastify.post<{
 fastify.delete<{
   Params: { consumableId: string; bookmarkId: string };
 }>(
-  "/api/bookmarks/:consumableId/:bookmarkId",
+  '/api/bookmarks/:consumableId/:bookmarkId',
   {
     preHandler: fastify.authenticate,
   },
@@ -426,7 +400,7 @@ fastify.delete<{
 
       await storytelClient.deleteBookmark(consumableId, bookmarkId);
 
-      reply.send({ success: true, message: "Bookmark removed" });
+      reply.send({ success: true, message: 'Bookmark removed' });
     } catch (error: any) {
       replyError(reply, error);
     }
@@ -437,7 +411,7 @@ fastify.put<{
   Params: { consumableId: string; bookmarkId: string };
   Body: any;
 }>(
-  "/api/bookmarks/:consumableId/:bookmarkId",
+  '/api/bookmarks/:consumableId/:bookmarkId',
   {
     preHandler: fastify.authenticate,
   },
@@ -446,13 +420,9 @@ fastify.put<{
       const { consumableId, bookmarkId } = request.params;
       const storytelClient = hydrateStorytelClient(request.user);
 
-      await storytelClient.updateBookmark(
-        consumableId,
-        bookmarkId,
-        request.body,
-      );
+      await storytelClient.updateBookmark(consumableId, bookmarkId, request.body);
 
-      reply.send({ success: true, message: "Bookmark removed" });
+      reply.send({ success: true, message: 'Bookmark removed' });
     } catch (error: any) {
       replyError(reply, error);
     }
@@ -460,7 +430,7 @@ fastify.put<{
 );
 
 fastify.get(
-  "/api/bookmark-positional",
+  '/api/bookmark-positional',
   {
     preHandler: fastify.authenticate,
   },
@@ -479,7 +449,7 @@ fastify.get(
 fastify.get<{
   Params: { consumableId: string };
 }>(
-  "/api/bookmark-positional/:consumableId",
+  '/api/bookmark-positional/:consumableId',
   {
     preHandler: fastify.authenticate,
   },
@@ -489,8 +459,7 @@ fastify.get<{
 
       const storytelClient = hydrateStorytelClient(request.user);
 
-      const bookmarks =
-        await storytelClient.getBookmarkPositional(consumableId);
+      const bookmarks = await storytelClient.getBookmarkPositional(consumableId);
       reply.send(bookmarks);
     } catch (error: any) {
       replyError(reply, error);
@@ -502,7 +471,7 @@ fastify.put<{
   Params: { consumableId: string };
   Body: { position: number };
 }>(
-  "/api/bookmark-positional/:consumableId",
+  '/api/bookmark-positional/:consumableId',
   {
     preHandler: fastify.authenticate,
   },
@@ -513,8 +482,7 @@ fastify.put<{
 
       const storytelClient = hydrateStorytelClient(request.user);
 
-      const deviceId =
-        process.env.DEVICE_ID || crypto.randomUUID().toUpperCase();
+      const deviceId = process.env.DEVICE_ID || crypto.randomUUID().toUpperCase();
       const updated = await storytelClient.updateBookmarkPositional(
         consumableId,
         position,
@@ -530,7 +498,7 @@ fastify.put<{
 fastify.get<{
   Params: { consumableId: string };
 }>(
-  "/api/bookmarks/:consumableId",
+  '/api/bookmarks/:consumableId',
   {
     preHandler: fastify.authenticate,
   },
@@ -550,7 +518,7 @@ fastify.get<{
 fastify.get<{
   Params: { consumableId: string };
 }>(
-  "/api/bookmetadata/:consumableId",
+  '/api/bookmetadata/:consumableId',
   {
     preHandler: fastify.authenticate,
   },
@@ -558,8 +526,7 @@ fastify.get<{
     try {
       const { consumableId } = request.params;
       const storytelClient = hydrateStorytelClient(request.user);
-      const bookInfoContent =
-        await storytelClient.getPlayBookMetaData(consumableId);
+      const bookInfoContent = await storytelClient.getPlayBookMetaData(consumableId);
       reply.send(bookInfoContent);
     } catch (error: any) {
       replyError(reply, error);
@@ -567,12 +534,10 @@ fastify.get<{
   },
 );
 
-
-
 fastify.get<{
   Params: { consumableId: string };
 }>(
-  "/api/book-details/:consumableId",
+  '/api/book-details/:consumableId',
   {
     preHandler: fastify.authenticate,
   },
@@ -589,7 +554,7 @@ fastify.get<{
 );
 
 // Route per controllare stato autenticazione
-fastify.get("/api/auth/status", async (request, reply) => {
+fastify.get('/api/auth/status', async (request, reply) => {
   try {
     await request.jwtVerify();
     reply.send({ authenticated: true });
@@ -600,7 +565,7 @@ fastify.get("/api/auth/status", async (request, reply) => {
 
 // Route per ottenere informazioni account
 fastify.get(
-  "/api/account",
+  '/api/account',
   {
     preHandler: fastify.authenticate,
   },
@@ -620,40 +585,37 @@ fastify.get(
 // Adding a language? Add the JSON file here and mirror it in
 // `client/src/config/languages.ts` and `src/i18n/languages.ts`.
 const LOCALE_LOADERS = {
-  de: () => import("./locales/de.json"),
-  en: () => import("./locales/en.json"),
-  es: () => import("./locales/es.json"),
-  fr: () => import("./locales/fr.json"),
-  it: () => import("./locales/it.json"),
-  fi: () => import("./locales/fi.json"),
-  sv: () => import("./locales/sv.json"),
+  de: () => import('./locales/de.json'),
+  en: () => import('./locales/en.json'),
+  es: () => import('./locales/es.json'),
+  fr: () => import('./locales/fr.json'),
+  it: () => import('./locales/it.json'),
+  fi: () => import('./locales/fi.json'),
+  sv: () => import('./locales/sv.json'),
 } as const;
 
 type SupportedLanguage = keyof typeof LOCALE_LOADERS;
 
 const SUPPORTED_LANGUAGES = Object.keys(LOCALE_LOADERS) as SupportedLanguage[];
 
-const loadLocale = async (code: SupportedLanguage) =>
-  (await LOCALE_LOADERS[code]()).default;
+const loadLocale = async (code: SupportedLanguage) => (await LOCALE_LOADERS[code]()).default;
 
 fastify.get<{
   Querystring: { lang?: string };
-}>("/api/translations", async (request, reply) => {
+}>('/api/translations', async (request, reply) => {
   try {
     const { lang } = request.query;
 
     // Accept region variants and odd casing ("sv-FI", "SV", "sv_FI" -> "sv").
     // Without this a locale like sv-FI fell through to the "every language"
     // branch below, which i18next then loaded as a single unusable bundle.
-    const requested = (lang ?? "").trim().toLowerCase().replace(/_/g, "-");
-    const base = requested.split("-")[0];
-    const match = SUPPORTED_LANGUAGES.find(
-      (code) => code === requested || code === base,
-    );
+    const requested = (lang ?? '').trim().toLowerCase().replace(/_/g, '-');
+    const base = requested.split('-')[0];
+    const match = SUPPORTED_LANGUAGES.find((code) => code === requested || code === base);
 
     if (match) {
       const translations = await loadLocale(match);
-      reply.header("Content-Language", match);
+      reply.header('Content-Language', match);
       reply.send(translations);
     } else {
       // No usable `lang`: hand back every bundle, keyed by language code.
@@ -663,7 +625,7 @@ fastify.get<{
       reply.send(Object.fromEntries(bundles));
     }
   } catch (error: any) {
-    reply.code(500).send({ error: "Failed to load translations" });
+    reply.code(500).send({ error: 'Failed to load translations' });
   }
 });
 
@@ -675,7 +637,7 @@ fastify.post<{
     book?: { book?: { name?: string } };
   };
 }>(
-  "/api/download",
+  '/api/download',
   {
     preHandler: fastify.authenticate,
   },
@@ -684,20 +646,20 @@ fastify.post<{
       const { bookId, consumableId, book } = request.body;
 
       if (!isValidBookId(bookId)) {
-        return reply.code(400).send({ error: "Invalid bookId" });
+        return reply.code(400).send({ error: 'Invalid bookId' });
       }
 
       // Check if already exists
       if (findDownloadedFile(bookId)) {
         return reply.send({
           success: true,
-          message: "File already downloaded",
+          message: 'File already downloaded',
           percentage: 100,
         });
       }
 
       if (activeDownloads.has(bookId)) {
-        return reply.code(409).send({ error: "Download already in progress" });
+        return reply.code(409).send({ error: 'Download already in progress' });
       }
 
       // Get stream URL
@@ -727,24 +689,19 @@ fastify.post<{
       try {
         // Download the file
         const response = await axios({
-          method: "GET",
+          method: 'GET',
           url: streamUrl,
-          responseType: "stream",
+          responseType: 'stream',
           signal: controller.signal as any,
         });
 
-        const totalLength = parseInt(
-          response.headers["content-length"] || "0",
-          10,
-        );
+        const totalLength = parseInt(response.headers['content-length'] || '0', 10);
         let downloadedLength = 0;
 
-        response.data.on("data", (chunk: Buffer) => {
+        response.data.on('data', (chunk: Buffer) => {
           downloadedLength += chunk.length;
           const percentage =
-            totalLength > 0
-              ? Math.round((downloadedLength / totalLength) * 100)
-              : 0;
+            totalLength > 0 ? Math.round((downloadedLength / totalLength) * 100) : 0;
 
           if (percentage % 10 === 0) {
             fastify.log.info(`Download progress for ${bookId}: ${percentage}%`);
@@ -754,10 +711,10 @@ fastify.post<{
         response.data.pipe(writer);
 
         await new Promise<void>((resolve, reject) => {
-          writer.on("finish", () => resolve());
-          writer.on("error", reject);
-          controller.signal.addEventListener("abort", () => {
-            reject(new Error("Download cancelled"));
+          writer.on('finish', () => resolve());
+          writer.on('error', reject);
+          controller.signal.addEventListener('abort', () => {
+            reject(new Error('Download cancelled'));
           });
         });
 
@@ -768,7 +725,7 @@ fastify.post<{
 
         reply.send({
           success: true,
-          message: "Download completed",
+          message: 'Download completed',
           percentage: 100,
         });
       } catch (error: any) {
@@ -780,8 +737,8 @@ fastify.post<{
           fs.unlinkSync(partFilePath);
         }
 
-        if (error.message === "Download cancelled") {
-          reply.code(499).send({ error: "Download cancelled" });
+        if (error.message === 'Download cancelled') {
+          reply.code(499).send({ error: 'Download cancelled' });
         } else {
           throw error;
         }
@@ -796,7 +753,7 @@ fastify.post<{
 fastify.delete<{
   Params: { bookId: string };
 }>(
-  "/api/download/:bookId",
+  '/api/download/:bookId',
   {
     preHandler: fastify.authenticate,
   },
@@ -806,7 +763,7 @@ fastify.delete<{
 
       const download = activeDownloads.get(bookId);
       if (!download) {
-        return reply.send({ error: "No active download found" });
+        return reply.send({ error: 'No active download found' });
       }
 
       // Abort the download
@@ -826,15 +783,15 @@ fastify.delete<{
         }
       } catch (err) {
         // File might be locked, ignore
-        console.error("Could not delete partial file:", err);
+        console.error('Could not delete partial file:', err);
       }
 
       // Clean up
       activeDownloads.delete(bookId);
 
-      reply.send({ success: true, message: "Download cancelled" });
+      reply.send({ success: true, message: 'Download cancelled' });
     } catch (error: any) {
-      console.error("Error cancelling download:", error);
+      console.error('Error cancelling download:', error);
       replyError(reply, error);
     }
   },
@@ -843,7 +800,7 @@ fastify.delete<{
 fastify.get<{
   Params: { bookId: string };
 }>(
-  "/api/download/:bookId",
+  '/api/download/:bookId',
   {
     preHandler: fastify.authenticate,
   },
@@ -853,11 +810,11 @@ fastify.get<{
       const localFilePath = findDownloadedFile(bookId);
 
       if (!localFilePath) {
-        return reply.code(404).send({ error: "File not found" });
+        return reply.code(404).send({ error: 'File not found' });
       }
 
       const stream = fs.createReadStream(localFilePath);
-      reply.type("audio/mpeg").send(stream);
+      reply.type('audio/mpeg').send(stream);
     } catch (error: any) {
       replyError(reply, error);
     }
@@ -868,7 +825,7 @@ fastify.get<{
 fastify.get<{
   Params: { bookId: string };
 }>(
-  "/api/download-status/:bookId",
+  '/api/download-status/:bookId',
   {
     preHandler: fastify.authenticate,
   },
@@ -886,7 +843,7 @@ fastify.get<{
 fastify.delete<{
   Params: { bookId: string };
 }>(
-  "/api/downloaded-file/:bookId",
+  '/api/downloaded-file/:bookId',
   {
     preHandler: fastify.authenticate,
   },
@@ -896,13 +853,13 @@ fastify.delete<{
       const localFilePath = findDownloadedFile(bookId);
 
       if (!localFilePath) {
-        return reply.code(404).send({ error: "File not found" });
+        return reply.code(404).send({ error: 'File not found' });
       }
 
       // Delete the file
       fs.unlinkSync(localFilePath);
 
-      reply.send({ success: true, message: "File deleted successfully" });
+      reply.send({ success: true, message: 'File deleted successfully' });
     } catch (error: any) {
       replyError(reply, error);
     }
@@ -910,7 +867,7 @@ fastify.delete<{
 );
 
 fastify.get(
-  "/api/logs",
+  '/api/logs',
   {
     preHandler: fastify.authenticate,
   },
@@ -920,7 +877,7 @@ fastify.get(
 );
 
 fastify.delete(
-  "/api/logs",
+  '/api/logs',
   {
     preHandler: fastify.authenticate,
   },
@@ -931,13 +888,13 @@ fastify.delete(
 );
 
 fastify.post<{ Body: { message: string; data?: any } }>(
-  "/api/logs/action",
+  '/api/logs/action',
   {
     preHandler: fastify.authenticate,
   },
   async (request, reply) => {
     appLogger.add({
-      type: "action",
+      type: 'action',
       message: request.body.message,
       data: request.body.data,
     });
@@ -946,17 +903,14 @@ fastify.post<{ Body: { message: string; data?: any } }>(
 );
 
 fastify.get(
-  "/api/logs/export",
+  '/api/logs/export',
   {
     preHandler: fastify.authenticate,
   },
   async (_request, reply) => {
     const logs = appLogger.getLogs();
-    reply.header(
-      "Content-Disposition",
-      'attachment; filename="storytel-logs.json"',
-    );
-    reply.header("Content-Type", "application/json");
+    reply.header('Content-Disposition', 'attachment; filename="storytel-logs.json"');
+    reply.header('Content-Type', 'application/json');
     reply.send(JSON.stringify(logs, null, 2));
   },
 );

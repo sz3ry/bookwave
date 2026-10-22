@@ -1,5 +1,5 @@
 import React from 'react';
-import { Chapter } from '../interfaces/chapters';
+import type { Chapter } from '../interfaces/chapters';
 import { useTranslation } from 'react-i18next';
 import { formatTime } from '../utils/helpers';
 
@@ -36,7 +36,12 @@ function ChaptersModal({
             className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -44,18 +49,24 @@ function ChaptersModal({
         <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-1">
           {chapters && chapters.length > 0 ? (
             chapters.map((chapter, index) => {
-              const chapterStartTime = typeof chapter.start === 'number' && !isNaN(chapter.start)
-                ? chapter.start
-                : chapters.slice(0, index).reduce((total, ch) => total + (ch.durationInSeconds || 0), 0);
+              const chapterStartTime =
+                typeof chapter.start === 'number' && !isNaN(chapter.start)
+                  ? chapter.start
+                  : chapters
+                      .slice(0, index)
+                      .reduce((total, ch) => total + (ch.durationInSeconds || 0), 0);
               const chapterDuration = chapter.durationInSeconds || 0;
-              const chapterEndTime = typeof chapter.end === 'number' && !isNaN(chapter.end)
-                ? chapter.end
-                : chapterStartTime + chapterDuration;
+              const chapterEndTime =
+                typeof chapter.end === 'number' && !isNaN(chapter.end)
+                  ? chapter.end
+                  : chapterStartTime + chapterDuration;
 
-              const isCurrentChapter = currentTime >= chapterStartTime && currentTime < chapterEndTime;
-              const chapterProgress = isCurrentChapter && chapterDuration > 0
-                ? ((currentTime - chapterStartTime) / chapterDuration) * 100
-                : 0;
+              const isCurrentChapter =
+                currentTime >= chapterStartTime && currentTime < chapterEndTime;
+              const chapterProgress =
+                isCurrentChapter && chapterDuration > 0
+                  ? ((currentTime - chapterStartTime) / chapterDuration) * 100
+                  : 0;
 
               return (
                 <div
@@ -81,12 +92,17 @@ function ChaptersModal({
                             {formatTime((currentTime - chapterStartTime) / playbackRate)}
                           </p>
                           <p className="text-xs text-gray-400 font-mono">
-                            -{formatTime(Math.max(0, chapterDuration - (currentTime - chapterStartTime)) / playbackRate)}
+                            -
+                            {formatTime(
+                              Math.max(0, chapterDuration - (currentTime - chapterStartTime)) /
+                                playbackRate,
+                            )}
                           </p>
                         </div>
                       ) : (
                         <p className="text-xs text-gray-400 font-mono mt-0.5">
-                          {formatTime(chapterStartTime / playbackRate)} • {formatTime(chapterDuration / playbackRate)}
+                          {formatTime(chapterStartTime / playbackRate)} •{' '}
+                          {formatTime(chapterDuration / playbackRate)}
                         </p>
                       )}
                     </div>
@@ -112,10 +128,22 @@ function ChaptersModal({
             })
           ) : (
             <div className="text-center text-gray-500 py-12">
-              <svg className="w-10 h-10 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              <svg
+                className="w-10 h-10 mx-auto mb-3 text-gray-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                />
               </svg>
-              <p className="text-sm text-gray-400">{t('chapters.noChapters', 'No chapters available')}</p>
+              <p className="text-sm text-gray-400">
+                {t('chapters.noChapters', 'No chapters available')}
+              </p>
             </div>
           )}
         </div>

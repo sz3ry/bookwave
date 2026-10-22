@@ -1,12 +1,11 @@
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { LanguageState } from './i18n';
 
 // Store API
 contextBridge.exposeInMainWorld('electronStore', {
   get: (key: string): Promise<any> => ipcRenderer.invoke('store-get', key),
   remove: (key: string): Promise<void> => ipcRenderer.invoke('store-remove', key),
-  set: (key: string, value: any): Promise<void> =>
-    ipcRenderer.invoke('store-set', key, value),
+  set: (key: string, value: any): Promise<void> => ipcRenderer.invoke('store-set', key, value),
 });
 
 // Locale API
@@ -16,16 +15,14 @@ contextBridge.exposeInMainWorld('electronLocale', {
   // preference list - everything the language picker needs in one round trip.
   getState: (): Promise<LanguageState> => ipcRenderer.invoke('get-locale-state'),
   // Resolves with the new state so the renderer can follow 'auto' immediately.
-  setLocale: (locale: string): Promise<LanguageState> =>
-    ipcRenderer.invoke('set-locale', locale),
+  setLocale: (locale: string): Promise<LanguageState> => ipcRenderer.invoke('set-locale', locale),
 });
 
 // Window API
 contextBridge.exposeInMainWorld('electronWindow', {
   setAlwaysOnTop: (alwaysOnTop: boolean): Promise<void> =>
     ipcRenderer.invoke('window-set-always-on-top', alwaysOnTop),
-  isAlwaysOnTop: (): Promise<boolean> =>
-    ipcRenderer.invoke('window-is-always-on-top'),
+  isAlwaysOnTop: (): Promise<boolean> => ipcRenderer.invoke('window-is-always-on-top'),
 });
 
 // Tray Controls API
@@ -61,7 +58,8 @@ interface ApiConfig {
 }
 
 contextBridge.exposeInMainWorld('electronApi', {
-  get: (url: string, _: any, config?: ApiConfig): Promise<any> => ipcRenderer.invoke('api:get', url, config),
+  get: (url: string, _: any, config?: ApiConfig): Promise<any> =>
+    ipcRenderer.invoke('api:get', url, config),
   post: (url: string, data: any, config?: ApiConfig): Promise<any> =>
     ipcRenderer.invoke('api:post', url, data, config),
   put: (url: string, data: any, config?: ApiConfig): Promise<any> =>

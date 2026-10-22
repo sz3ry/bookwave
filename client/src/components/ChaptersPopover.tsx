@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Chapter } from '../interfaces/chapters';
-import { CurrentChapterInfo } from '../contexts/AudioContext';
+import type { Chapter } from '../interfaces/chapters';
+import type { CurrentChapterInfo } from '../contexts/AudioContext';
 import { formatTime } from '../utils/helpers';
 
 interface ChaptersPopoverProps {
@@ -58,9 +58,12 @@ export function ChaptersPopover({
             const chNum = ch.number ?? idx + 1;
             const isCurrent = currentChapter?.number === chNum;
             const isPlayed = currentChapter ? chNum < currentNumber : false;
-            const startTime = typeof ch.start === 'number' && !isNaN(ch.start)
-              ? ch.start
-              : chapters.slice(0, idx).reduce((total, c) => total + (c.durationInSeconds || 0), 0);
+            const startTime =
+              typeof ch.start === 'number' && !isNaN(ch.start)
+                ? ch.start
+                : chapters
+                    .slice(0, idx)
+                    .reduce((total, c) => total + (c.durationInSeconds || 0), 0);
 
             return (
               <button
@@ -75,13 +78,16 @@ export function ChaptersPopover({
                   isCurrent
                     ? 'bg-[#FF5100]/15 text-white font-semibold border border-[#FF5100]/40 shadow-sm'
                     : isPlayed
-                    ? 'text-[#6b7280] hover:bg-white/5 hover:text-gray-300'
-                    : 'text-[#d1d5db] hover:bg-white/5 hover:text-white'
+                      ? 'text-[#6b7280] hover:bg-white/5 hover:text-gray-300'
+                      : 'text-[#d1d5db] hover:bg-white/5 hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
                   {isCurrent ? (
-                    <svg className="w-3.5 h-3.5 text-[#FF5100] flex-shrink-0 fill-current" viewBox="0 0 24 24">
+                    <svg
+                      className="w-3.5 h-3.5 text-[#FF5100] flex-shrink-0 fill-current"
+                      viewBox="0 0 24 24"
+                    >
                       <path d="M8 5v14l11-7z" />
                     </svg>
                   ) : (

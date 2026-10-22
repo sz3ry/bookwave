@@ -1,9 +1,16 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import type React from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { SearchResultBook, SearchResponse } from '../interfaces/books';
-import { addToBookshelfErrorKey, buildCoverUrl, formatMicrosecondsTime, localizedLanguageName, searchResultToBookEntity } from '../utils/helpers';
+import type { SearchResultBook, SearchResponse } from '../interfaces/books';
+import {
+  addToBookshelfErrorKey,
+  buildCoverUrl,
+  formatMicrosecondsTime,
+  localizedLanguageName,
+  searchResultToBookEntity,
+} from '../utils/helpers';
 import { FALLBACK_LANGUAGE } from '../config/languages';
 import { preferredCatalogLanguages } from '../config/regions';
 import { getLanguageState } from '../i18n';
@@ -84,10 +91,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     return Object.values(counts);
   }, [results, i18n.language]);
 
-  const availableLanguages = useMemo(
-    () => languageStats.map((stat) => stat.iso),
-    [languageStats]
-  );
+  const availableLanguages = useMemo(() => languageStats.map((stat) => stat.iso), [languageStats]);
 
   // Load the remembered filter, and work out which languages to suggest from
   // the user's OS languages and the country they are in. Storytel gives us no
@@ -109,7 +113,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
             region: languageState.region,
             systemLanguages: languageState.systemLanguages,
             uiLanguage: languageState.resolved,
-          })
+          }),
         );
 
         const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored;
@@ -131,9 +135,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const activeLanguages = useMemo(() => {
     if (manualLanguages) return manualLanguages;
     const suggested = suggestedLanguages.filter((iso) => availableLanguages.includes(iso));
-    return suggested.length > 0 && suggested.length < availableLanguages.length
-      ? suggested
-      : [];
+    return suggested.length > 0 && suggested.length < availableLanguages.length ? suggested : [];
   }, [manualLanguages, suggestedLanguages, availableLanguages]);
 
   // Always render a pill for a selected language, even when this search
@@ -169,7 +171,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     persistLanguages(
       activeLanguages.includes(iso)
         ? activeLanguages.filter((code) => code !== iso)
-        : [...activeLanguages, iso]
+        : [...activeLanguages, iso],
     );
   };
 
@@ -314,7 +316,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           {isLoading && (
             <div className="animate-spin text-[#FF5100] pr-2">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
                 <path
                   className="opacity-75"
                   fill="currentColor"
@@ -334,7 +343,12 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
               className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           )}
@@ -352,7 +366,12 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           <div className="px-4 py-3 border-b border-white/10 bg-[#161618]">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500 mr-1">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -384,8 +403,18 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     className={pillClass(isSelected)}
                   >
                     {isSelected && (
-                      <svg className="w-4 h-4 -ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      <svg
+                        className="w-4 h-4 -ml-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
                     )}
                     <span>{stat.name}</span>
@@ -396,9 +425,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
             </div>
 
             {isAutoFiltered && (
-              <p className="mt-2.5 text-xs text-gray-500">
-                {t('search.autoFilterHint')}
-              </p>
+              <p className="mt-2.5 text-xs text-gray-500">{t('search.autoFilterHint')}</p>
             )}
           </div>
         )}
@@ -416,12 +443,32 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
             >
               <div className="flex items-center gap-2">
                 {toastMessage.type === 'success' ? (
-                  <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-4 h-4 text-green-400 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 ) : (
-                  <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="w-4 h-4 text-red-400 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                 )}
                 <span>{toastMessage.text}</span>
@@ -431,7 +478,12 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 className="text-gray-400 hover:text-white p-0.5 rounded"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -441,7 +493,12 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           {!query && (
             <div className="text-center py-16 text-gray-500 space-y-3">
               <div className="w-14 h-14 mx-auto rounded-2xl bg-[#1A1A1A] border border-white/5 flex items-center justify-center text-gray-400 shadow-inner">
-                <svg className="w-7 h-7 text-[#FF5100]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-7 h-7 text-[#FF5100]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -463,7 +520,8 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           {searchedQuery && !isLoading && results.length === 0 && (
             <div className="text-center py-16 text-gray-400 space-y-2">
               <p className="text-base">
-                {t('search.noResults', 'No books found for')} &quot;<span className="text-white font-medium">{searchedQuery}</span>&quot;
+                {t('search.noResults', 'No books found for')} &quot;
+                <span className="text-white font-medium">{searchedQuery}</span>&quot;
               </p>
               <p className="text-xs text-gray-500">{t('search.noResultsHint')}</p>
             </div>
@@ -516,8 +574,18 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-600">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      <svg
+                        className="w-6 h-6"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                        />
                       </svg>
                     </div>
                   )}
@@ -562,23 +630,32 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
                   {book.authors && (
                     <p className="text-xs sm:text-sm text-gray-400 truncate mt-0.5">
-                      <span className="text-gray-500">{t('bookCard.author', 'Author:')}</span> {book.authors}
+                      <span className="text-gray-500">{t('bookCard.author', 'Author:')}</span>{' '}
+                      {book.authors}
                     </p>
                   )}
 
                   {book.narrators && (
                     <p className="text-xs text-gray-400 truncate mt-0.5 hidden sm:block">
-                      <span className="text-gray-500">{t('bookCard.narrator', 'Narrator:')}</span> {book.narrators}
+                      <span className="text-gray-500">{t('bookCard.narrator', 'Narrator:')}</span>{' '}
+                      {book.narrators}
                     </p>
                   )}
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="flex items-center gap-2 flex-shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {/* Add to Library Button */}
                   <button
                     onClick={(e) => handleAddToBookshelf(e, book.id)}
-                    title={isAdded ? t('search.addedToBookshelf', 'Added to Library') : t('search.addToBookshelf', 'Add to Library')}
+                    title={
+                      isAdded
+                        ? t('search.addedToBookshelf', 'Added to Library')
+                        : t('search.addToBookshelf', 'Add to Library')
+                    }
                     disabled={isAdded || isAdding}
                     className={`p-2.5 rounded-xl text-xs font-medium transition-all ${
                       isAdded
@@ -589,17 +666,48 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     {isAdding ? (
                       <div className="animate-spin w-4 h-4 text-[#FF5100]">
                         <svg fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
                         </svg>
                       </div>
                     ) : isAdded ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
                     ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4v16m8-8H4"
+                        />
                       </svg>
                     )}
                   </button>
