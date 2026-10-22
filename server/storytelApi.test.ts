@@ -465,11 +465,11 @@ describe('StorytelClient explore', () => {
         json({
           chips: [
             { id: 'c1', label: 'Home', pageSlug: 'home' },
-            { id: 'c2', label: 'Ebooks', pageSlug: 'ebooks' },
+            { id: 'c2', label: 'Books', pageSlug: 'books-only' },
           ],
         }),
       '/explore/pages/home': () => json(homePage),
-      '/explore/pages/ebooks': () =>
+      '/explore/pages/books-only': () =>
         json({
           title: 'E',
           contentBlocks: [{ id: 'r', title: 'Row', items: [rawBook('9', 'ebook')] }],
@@ -482,7 +482,7 @@ describe('StorytelClient explore', () => {
 
     await client.getExploreChips();
     expect(callsTo('/explore/pages/home')).toHaveLength(1);
-    expect(callsTo('/explore/pages/ebooks')).toHaveLength(1);
+    expect(callsTo('/explore/pages/books-only')).toHaveLength(1);
   });
 
   test('getExploreList forces kidsMode=false and drops store', async () => {
