@@ -714,9 +714,11 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
                   {/* Play Button */}
                   <button
+                    type="button"
                     onClick={(e) => handlePlayBook(e, book.id)}
+                    disabled={book.comingSoon}
                     title={t('search.play', 'Play')}
-                    className="px-3.5 py-2 rounded-xl bg-[#FF5100] hover:bg-[#ff641a] text-white font-medium text-xs sm:text-sm flex items-center gap-1.5 shadow-lg shadow-[#FF5100]/25 transition-all hover:scale-105 active:scale-95"
+                    className="disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 px-3.5 py-2 rounded-xl bg-[#FF5100] hover:bg-[#ff641a] text-white font-medium text-xs sm:text-sm flex items-center gap-1.5 shadow-lg shadow-[#FF5100]/25 transition-all hover:scale-105 active:scale-95"
                   >
                     <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z" />

@@ -685,6 +685,8 @@ class StorytelClient {
               durationMs: abook?.durationInMilliseconds || 0,
               description: model.description || '',
               hasAbook: !!abook,
+              comingSoon: abook.isReleased === false,
+              releaseDate: typeof abook.releaseDate === 'string' ? abook.releaseDate : null,
               hasEbook: !!ebook,
               language,
               languageName,

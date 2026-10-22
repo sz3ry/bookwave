@@ -55,7 +55,11 @@ export function SearchPreviewPane({
   const releaseDateText =
     releaseDate && !Number.isNaN(releaseDate.getTime())
       ? t('discover.releaseDate', {
-          date: new Intl.DateTimeFormat(i18n.language, { dateStyle: 'long' }).format(releaseDate),
+          // Storytel sends midnight UTC; format in UTC so the day never shifts back.
+          date: new Intl.DateTimeFormat(i18n.language, {
+            dateStyle: 'long',
+            timeZone: 'UTC',
+          }).format(releaseDate),
         })
       : null;
   const languageLabel = book.language

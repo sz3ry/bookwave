@@ -538,4 +538,23 @@ describe('discovery routes', () => {
       orderInSeries: 3,
     });
   });
+
+  test('search marks unreleased audiobooks as coming soon', async () => {
+    const upcoming = rawBook('6', 2);
+    upcoming.formats = [
+      { ...abook('6'), isReleased: false, releaseDate: '2026-12-14T00:00:00Z' } as any,
+    ];
+    useFetch({
+      [LOGIN_PATH]: loginRoute,
+      '/search/v2': () => json({ items: [rawBook('5', 1), upcoming] }),
+    });
+    auth.restore(creds);
+
+    const [released, unreleased] = (
+      await fastify.inject({ method: 'GET', url: '/api/search?q=book' })
+    ).json().results;
+    expect(released.comingSoon).toBe(false);
+    expect(unreleased.comingSoon).toBe(true);
+    expect(unreleased.releaseDate).toBe('2026-12-14T00:00:00Z');
+  });
 });
