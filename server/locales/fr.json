@@ -6,10 +6,6 @@
     "password": "Mot de passe",
     "signIn": "Se connecter",
     "signingIn": "Connexion en cours...",
-    "ssoDivider": "ou",
-    "ssoGoogle": "Continuer avec Google",
-    "ssoApple": "Continuer avec Apple",
-    "ssoOpening": "Ouverture de la connexion Storytel...",
     "errors": {
       "required": "Veuillez entrer votre e-mail et votre mot de passe",
       "failed": "Échec de la connexion",

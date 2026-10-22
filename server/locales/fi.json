@@ -6,10 +6,6 @@
     "password": "Salasana",
     "signIn": "Kirjaudu sisään",
     "signingIn": "Kirjaudutaan sisään...",
-    "ssoDivider": "tai",
-    "ssoGoogle": "Jatka Googlella",
-    "ssoApple": "Jatka Applella",
-    "ssoOpening": "Avataan Storytel-kirjautumista...",
     "errors": {
       "required": "Anna sekä sähköpostiosoite että salasana",
       "failed": "Kirjautuminen epäonnistui",

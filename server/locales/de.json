@@ -6,10 +6,6 @@
     "password": "Passwort",
     "signIn": "Anmelden",
     "signingIn": "Anmeldung läuft...",
-    "ssoDivider": "oder",
-    "ssoGoogle": "Mit Google fortfahren",
-    "ssoApple": "Mit Apple fortfahren",
-    "ssoOpening": "Storytel-Anmeldung wird geöffnet...",
     "errors": {
       "required": "Bitte geben Sie sowohl E-Mail als auch Passwort ein",
       "failed": "Anmeldung fehlgeschlagen",

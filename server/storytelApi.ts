@@ -28,14 +28,6 @@ interface StorytelAuthError extends Error {
   isLoginFailure?: boolean;
 }
 
-export interface SsoSession {
-  storytelSession: string;
-  firebaseRefreshToken: string;
-  firebaseApiKey: string;
-  email: string;
-  cid: string;
-}
-
 export interface SearchResultBook {
   id: string;
   title: string;
@@ -50,10 +42,6 @@ export interface SearchResultBook {
   language?: string;
   languageName?: string;
 }
-
-const FIREBASE_TOKEN_URL = 'https://securetoken.googleapis.com';
-const FIREBASE_REFERER = 'https://www.storytel.com/';
-const FIREBASE_ID_TOKEN_TTL_BUFFER_SECONDS = 60;
 
 // Base URL of the public web search endpoint, per market country. Storytel's own
 // site is scoped by `/{country}/{lang}/`, where only the country segment decides
@@ -140,10 +128,7 @@ interface BookShelfResponse {
 class StorytelClient {
   private client: AxiosInstance;
   public loginData: LoginData;
-  private ssoSession: SsoSession | null = null;
-  private cachedFirebaseIdToken: { token: string; expiresAt: number } | null = null;
 
-  private static firebaseTokenCache = new Map<string, { token: string; expiresAt: number }>();
   private static legacyLoginCache = new Map<
     string,
     { jwt: string; singleSignToken: string; expiresAt: number }
@@ -226,14 +211,7 @@ class StorytelClient {
         ) {
           error.config._isRetry = true;
           try {
-            if (this.ssoSession) {
-              const cacheKey = `${this.ssoSession.firebaseApiKey}:${this.ssoSession.firebaseRefreshToken}`;
-              StorytelClient.firebaseTokenCache.delete(cacheKey);
-              const freshBearer = await this.ensureFirebaseIdToken();
-              error.config.headers = error.config.headers || {};
-              error.config.headers.Authorization = `Bearer ${freshBearer}`;
-              return await this.client.request(error.config);
-            } else if (this.savedEmail && this.savedEncryptedPassword) {
+            if (this.savedEmail && this.savedEncryptedPassword) {
               const cacheKey = `${this.savedEmail}:${this.savedEncryptedPassword}`;
               StorytelClient.legacyLoginCache.delete(cacheKey);
               await this.refreshLegacyLogin();
@@ -336,8 +314,6 @@ class StorytelClient {
         params,
       });
       this.loginData = response.data;
-      this.ssoSession = null;
-      this.cachedFirebaseIdToken = null;
 
       const now = Math.floor(Date.now() / 1000);
       const cacheKey = `${trimmedEmail}:${encryptedPassword}`;
@@ -368,86 +344,9 @@ class StorytelClient {
     }
   }
 
-  loginViaSso(session: SsoSession): void {
-    this.ssoSession = session;
-    this.cachedFirebaseIdToken = null;
-    // Mark legacy credentials as unset so any accidental fallback path errors
-    // visibly instead of using stale data.
-    this.loginData = {
-      accountInfo: { jwt: '', singleSignToken: '' },
-    };
-  }
-
-  getSsoSession(): SsoSession | null {
-    return this.ssoSession;
-  }
-
-  // Token to send as ?token=... on the legacy *.action endpoints. In SSO mode
-  // we substitute the Firebase Session Cookie, which the Storytel API treats
-  // interchangeably with the singleSignToken returned by login.action.
-  private getLegacyActionToken(): string {
-    if (this.ssoSession) return this.ssoSession.storytelSession;
-    return this.loginData.accountInfo.singleSignToken;
-  }
-
-  private async ensureFirebaseIdToken(): Promise<string> {
-    if (!this.ssoSession) {
-      throw new Error('ensureFirebaseIdToken called outside SSO mode');
-    }
-    const now = Math.floor(Date.now() / 1000);
-    const cacheKey = `${this.ssoSession.firebaseApiKey}:${this.ssoSession.firebaseRefreshToken}`;
-    const cached = StorytelClient.firebaseTokenCache.get(cacheKey);
-    if (cached && cached.expiresAt - FIREBASE_ID_TOKEN_TTL_BUFFER_SECONDS > now) {
-      return cached.token;
-    }
-    const params = new URLSearchParams();
-    params.set('grant_type', 'refresh_token');
-    params.set('refresh_token', this.ssoSession.firebaseRefreshToken);
-    try {
-      const response = await axios.post<{
-        id_token?: string;
-        access_token?: string;
-        expires_in: string;
-        refresh_token?: string;
-      }>(
-        `${FIREBASE_TOKEN_URL}/v1/token?key=${this.ssoSession.firebaseApiKey}`,
-        params.toString(),
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Referer: FIREBASE_REFERER,
-            Origin: 'https://www.storytel.com',
-          },
-          timeout: 15000,
-        },
-      );
-      const accessToken = response.data.id_token ?? response.data.access_token;
-      if (!accessToken) {
-        throw new Error('Firebase token response did not include an ID token');
-      }
-      const expiresIn = parseInt(response.data.expires_in, 10) || 3600;
-      StorytelClient.firebaseTokenCache.set(cacheKey, {
-        token: accessToken,
-        expiresAt: now + expiresIn,
-      });
-      return accessToken;
-    } catch (error: any) {
-      const status = error.response?.status;
-      if (status === 400 || status === 401 || status === 403) {
-        const authError: any = new Error('Firebase refresh token rejected');
-        authError.isStorytelUnauthorized = true;
-        throw authError;
-      }
-      throw new Error(`Firebase token refresh failed: ${error.message}`);
-    }
-  }
-
-  // Bearer to send on api.storytel.net/* endpoints. SSO mode: fresh Firebase
-  // ID token (auto-refreshed via the long-lived refresh token). Legacy mode:
-  // the JWT returned by login.action with automatic renewal.
+  // Bearer to send on api.storytel.net/* endpoints: the JWT returned by
+  // login.action, renewed automatically.
   private async getApiBearer(): Promise<string> {
-    if (this.ssoSession) return this.ensureFirebaseIdToken();
-
     const jwt = this.loginData.accountInfo.jwt;
     if (jwt) {
       try {
@@ -504,9 +403,7 @@ class StorytelClient {
   }
 
   // Derive the account's market country from whichever token carries the claim.
-  // Legacy logins put it on the login.action JWT; SSO logins send a Firebase ID
-  // token as the bearer, which need not carry it at all, so the Firebase session
-  // cookie is tried as well. Returns undefined when no token names a market.
+  // Taken from the login.action JWT. Returns undefined when no token names a market.
   private async getMarketCountryCode(): Promise<string | undefined> {
     const candidates: (string | null | undefined)[] = [];
     try {
@@ -516,7 +413,6 @@ class StorytelClient {
       console.warn('[storytelApi] could not read api bearer for market lookup:', error.message);
     }
     candidates.push(this.loginData.accountInfo.jwt);
-    candidates.push(this.ssoSession?.storytelSession);
 
     for (const token of candidates) {
       const code = this.countryFromJwt(token);
@@ -1230,7 +1126,7 @@ class StorytelClient {
     }
 
     try {
-      const legacyToken = this.getLegacyActionToken();
+      const legacyToken = this.loginData.accountInfo.singleSignToken;
       if (legacyToken) {
         const legacyUrls = [
           `https://www.storytel.com/api/getBookInfo.action?token=${encodeURIComponent(legacyToken)}&programId=${encodeURIComponent(consumableId)}`,
@@ -1298,7 +1194,7 @@ class StorytelClient {
   }
 
   async getStreamUrl(bookId: string): Promise<string> {
-    const url = `https://www.storytel.com/mp3streamRangeReq?startposition=0&programId=${bookId}&token=${encodeURIComponent(this.getLegacyActionToken())}`;
+    const url = `https://www.storytel.com/mp3streamRangeReq?startposition=0&programId=${bookId}&token=${encodeURIComponent(this.loginData.accountInfo.singleSignToken)}`;
 
     try {
       const response = await this.client.get(url);

@@ -10,40 +10,25 @@ import axios from 'axios';
 import { appLogger } from './logger';
 import { encryptPassword } from './passwordCrypt';
 
-// Extend JWT user type. Legacy (email/password) login populates storytelToken,
-// jwt, and encryptedPassword; SSO login populates the sso* fields instead and
-// leaves the legacy ones empty. Email is set in both cases.
+// Extend JWT user type. Email/password login populates storytelToken, jwt, and
+// encryptedPassword.
 interface JWTUser {
   email: string;
   storytelToken: string;
   jwt: string;
   encryptedPassword?: string;
-  ssoStorytelSession?: string;
-  ssoFirebaseRefreshToken?: string;
-  ssoFirebaseApiKey?: string;
-  ssoCid?: string;
 }
 
 function hydrateStorytelClient(user: JWTUser): StorytelClient {
   const client = new StorytelClient();
-  if (user.ssoStorytelSession && user.ssoFirebaseRefreshToken && user.ssoFirebaseApiKey) {
-    client.loginViaSso({
-      storytelSession: user.ssoStorytelSession,
-      firebaseRefreshToken: user.ssoFirebaseRefreshToken,
-      firebaseApiKey: user.ssoFirebaseApiKey,
-      email: user.email,
-      cid: user.ssoCid ?? '',
-    });
-  } else {
-    client.loginData = {
-      accountInfo: {
-        singleSignToken: user.storytelToken ?? '',
-        jwt: user.jwt ?? '',
-      },
-    };
-    if (user.email && user.encryptedPassword) {
-      client.setCredentials(user.email, user.encryptedPassword);
-    }
+  client.loginData = {
+    accountInfo: {
+      singleSignToken: user.storytelToken ?? '',
+      jwt: user.jwt ?? '',
+    },
+  };
+  if (user.email && user.encryptedPassword) {
+    client.setCredentials(user.email, user.encryptedPassword);
   }
   return client;
 }
@@ -172,42 +157,6 @@ fastify.post<{
     reply.send({ success: true, message: 'Login successful', token });
   } catch (error: any) {
     replyError(reply, error);
-  }
-});
-
-// Route per SSO login (Google / Apple via Storytel web flow). The Electron
-// SsoManager captures the storytel_session cookie and the Firebase refresh
-// token from the in-app webview after the user completes Storytel's web
-// login, then POSTs them here so we mint our own JWT just like /api/login.
-fastify.post<{
-  Body: {
-    storytelSession: string;
-    firebaseRefreshToken: string;
-    firebaseApiKey: string;
-    email?: string;
-    cid?: string;
-  };
-}>('/api/sso-login', async (request, reply) => {
-  try {
-    const { storytelSession, firebaseRefreshToken, firebaseApiKey, email, cid } = request.body;
-
-    if (!storytelSession || !firebaseRefreshToken || !firebaseApiKey) {
-      return reply.code(400).send({ error: 'Missing SSO credentials' });
-    }
-
-    const token = fastify.jwt.sign({
-      email: email ?? '',
-      storytelToken: '',
-      jwt: '',
-      ssoStorytelSession: storytelSession,
-      ssoFirebaseRefreshToken: firebaseRefreshToken,
-      ssoFirebaseApiKey: firebaseApiKey,
-      ssoCid: cid ?? '',
-    });
-
-    reply.send({ success: true, message: 'SSO login successful', token });
-  } catch (error: any) {
-    reply.code(401).send({ error: error.message });
   }
 });
 

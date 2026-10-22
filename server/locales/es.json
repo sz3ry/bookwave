@@ -6,10 +6,6 @@
     "password": "Contraseña",
     "signIn": "Iniciar sesión",
     "signingIn": "Iniciando sesión...",
-    "ssoDivider": "o",
-    "ssoGoogle": "Continuar con Google",
-    "ssoApple": "Continuar con Apple",
-    "ssoOpening": "Abriendo inicio de sesión de Storytel...",
     "errors": {
       "required": "Por favor, introduce tanto el correo electrónico como la contraseña",
       "failed": "Error al iniciar sesión",

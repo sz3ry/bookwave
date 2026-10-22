@@ -6,10 +6,6 @@
     "password": "Lösenord",
     "signIn": "Logga in",
     "signingIn": "Loggar in...",
-    "ssoDivider": "eller",
-    "ssoGoogle": "Fortsätt med Google",
-    "ssoApple": "Fortsätt med Apple",
-    "ssoOpening": "Öppnar Storytel-inloggning...",
     "errors": {
       "required": "Vänligen ange både e-post och lösenord",
       "failed": "Inloggningen misslyckades",

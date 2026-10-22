@@ -4,7 +4,6 @@ import { storeManager } from './store';
 import type { ServerManager } from './server';
 import type { TrayManager } from './tray';
 import type { WindowManager } from './window';
-import type { SsoManager } from './sso';
 import type { ApiConfig } from '../types';
 import { i18n } from '../i18n';
 
@@ -12,18 +11,15 @@ export class IpcManager {
   private serverManager: ServerManager;
   private trayManager: TrayManager;
   private windowManager: WindowManager;
-  private ssoManager: SsoManager;
 
   constructor(
     serverManager: ServerManager,
     trayManager: TrayManager,
     windowManager: WindowManager,
-    ssoManager: SsoManager,
   ) {
     this.serverManager = serverManager;
     this.trayManager = trayManager;
     this.windowManager = windowManager;
-    this.ssoManager = ssoManager;
   }
 
   setupHandlers(): void {
@@ -33,7 +29,6 @@ export class IpcManager {
     this.setupLocaleHandlers();
     this.setupWindowHandlers();
     this.setupLogsHandlers();
-    this.setupAuthHandlers();
   }
 
   private setupStoreHandlers(): void {
@@ -146,15 +141,5 @@ export class IpcManager {
     ipcMain.handle('window-is-always-on-top', () => {
       return this.windowManager.isAlwaysOnTop();
     });
-  }
-
-  private setupAuthHandlers(): void {
-    ipcMain.handle(
-      'auth:open-sso-window',
-      async (_event: IpcMainInvokeEvent, provider?: 'google' | 'apple') => {
-        const parent = this.windowManager.getWindow();
-        return this.ssoManager.openSsoWindow(parent, provider);
-      },
-    );
   }
 }
