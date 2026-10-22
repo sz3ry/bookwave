@@ -30,6 +30,7 @@
     "loading": "Caricamento della tua libreria...",
     "loadError": "Impossibile caricare la libreria",
     "offlineNotice": "Sei offline: vengono mostrati i libri scaricati su questo computer.",
+    "continueSeries": "Continua la serie",
     "filters": {
       "all": "Tutti",
       "notStarted": "Non iniziati",

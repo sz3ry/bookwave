@@ -30,6 +30,7 @@
     "loading": "Laddar ditt bibliotek...",
     "loadError": "Kunde inte ladda bokhyllan",
     "offlineNotice": "Du är offline – visar böcker som har laddats ned till den här datorn.",
+    "continueSeries": "Fortsätt serien",
     "filters": {
       "all": "Alla",
       "notStarted": "Ej påbörjad",

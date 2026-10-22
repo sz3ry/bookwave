@@ -30,6 +30,7 @@
     "loading": "Bibliothek wird geladen...",
     "loadError": "Bücherregal konnte nicht geladen werden",
     "offlineNotice": "Du bist offline – es werden die auf diesen Computer heruntergeladenen Bücher angezeigt.",
+    "continueSeries": "Serie fortsetzen",
     "filters": {
       "all": "Alle",
       "notStarted": "Nicht begonnen",

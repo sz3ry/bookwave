@@ -32,6 +32,7 @@
     "loading": "Wczytywanie biblioteki...",
     "loadError": "Nie udało się wczytać biblioteki",
     "offlineNotice": "Jesteś offline — widzisz książki pobrane na ten komputer.",
+    "continueSeries": "Kontynuuj serię",
     "filters": {
       "all": "Wszystkie",
       "notStarted": "Nierozpoczęte",

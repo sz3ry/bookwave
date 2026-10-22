@@ -6,6 +6,7 @@ import api from '../utils/api';
 import BookCard from './BookCard';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
+import ContinueSeriesRow from './ContinueSeriesRow';
 import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
 import type { BookShelfEntity, BookShelfResponse } from '../interfaces/books';
 import { isOfflineError, removeFromBookshelfErrorKey } from '../utils/helpers';
@@ -357,6 +358,8 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
             );
           })}
         </div>
+
+        <ContinueSeriesRow books={books} offline={isOffline} />
 
         {/* Book Grid */}
         {books.length === 0 ? (

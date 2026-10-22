@@ -30,6 +30,7 @@
     "loading": "Ladataan kirjastoasi...",
     "loadError": "Kirjahyllyn lataaminen epäonnistui",
     "offlineNotice": "Olet offline-tilassa – näytetään tälle tietokoneelle ladatut kirjat.",
+    "continueSeries": "Jatka sarjaa",
     "filters": {
       "all": "Kaikki",
       "notStarted": "Ei aloitettu",
