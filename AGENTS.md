@@ -24,7 +24,6 @@ storytel-player/
 │   │   └── i18n.ts      # i18next configuration
 │   └── package.json
 ├── server/          # Fastify backend server
-│   ├── server.ts        # Main server file
 │   ├── storytelApi.ts   # Storytel API integration
 │   ├── locales/         # Translation files
 │   └── package.json

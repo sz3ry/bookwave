@@ -23,12 +23,17 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v4
 
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
       - name: Resolve release tag from package.json
         id: meta
         run: |
           # electron-builder derives its release tag from the package.json version
           # (v<version>); resolve the same value so we can create the release up front.
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(bun -e 'console.log(require("./package.json").version)')
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create the draft release up front
@@ -58,17 +63,22 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v4
 
-      - name: Install Node.js and NPM
-        uses: actions/setup-node@v4
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Build
-        run: npm run install-all
+        run: bun run build:all
 
       - name: Release
         if: contains(github.ref, 'master')
-        run: npm run dist:linux -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bunx electron-builder --linux --publish always
 
   exe:
     needs: prepare
@@ -78,14 +88,19 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v4
 
-      - name: Install Node.js and NPM
-        uses: actions/setup-node@v4
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Build
-        run: npm run install-all
+        run: bun run build:all
 
       - name: Release
         if: contains(github.ref, 'master')
-        run: npm run dist:win -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bunx electron-builder --win --publish always

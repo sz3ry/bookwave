@@ -367,7 +367,6 @@ fastify.post<{
 
       // Check if file exists locally
       if (localFilePath) {
-        console.log(localFilePath);
         reply.send({
           // pathToFileURL escapes spaces and other characters in titles
           streamUrl: pathToFileURL(localFilePath).href,
