@@ -1265,15 +1265,29 @@ class StorytelClient {
         label: String(chip.label ?? ''),
         pageSlug: String(chip.pageSlug),
       }));
-    const playable = await Promise.all(chips.map((chip) => this.chipHasAudiobooks(chip)));
+    const playable = await Promise.all(
+      chips.map(async (chip, index) => {
+        try {
+          return await this.chipHasAudiobooks(chip);
+        } catch (error) {
+          // The first chip is the home page: without it there is no front
+          // page, so its errors surface. Any other chip that fails is dropped
+          // (a dead tab must not hide the rest), except an expired session.
+          if (index === 0 || error instanceof StorytelAuthError) {
+            throw error;
+          }
+          return false;
+        }
+      }),
+    );
     return chips.filter((_, index) => playable[index]);
   }
 
   // A chip is kept when its page shows audiobooks. Inline rows are checked
   // directly; a page made only of lazy rows is judged by its first few rows.
   private async chipHasAudiobooks(chip: DiscoveryChip): Promise<boolean> {
-    // Errors (offline, 5xx, 401) propagate: a chip is dropped only after its
-    // page loaded and showed no audiobooks.
+    // Errors propagate to getExploreChips, which decides whether the chip is
+    // dropped or the whole call fails.
     const page = await this.getExplorePage(chip.pageSlug);
     if (page.rows.some((row) => row.items.length > 0)) return true;
     const lazyUrls = page.rows.flatMap((row) => (row.itemsUrl ? [row.itemsUrl] : []));

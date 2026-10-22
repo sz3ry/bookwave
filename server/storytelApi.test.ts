@@ -506,6 +506,38 @@ describe('StorytelClient explore', () => {
     await expect(clientWithSession(fetchImpl).getExploreChips()).rejects.toThrow();
   });
 
+  test('getExploreChips drops a non-home chip whose page fails and keeps home', async () => {
+    const { fetchImpl } = router({
+      [CHIPS_PATH]: () =>
+        json({
+          chips: [
+            { id: 'c1', label: 'Home', pageSlug: 'home' },
+            { id: 'c2', label: 'Broken', pageSlug: 'broken' },
+          ],
+        }),
+      '/explore/pages/home': () => json(homePage),
+      '/explore/pages/broken': () => json({}, 503),
+    });
+    const chips = await clientWithSession(fetchImpl).getExploreChips();
+    expect(chips.map((c) => c.id)).toEqual(['c1']);
+  });
+
+  test('getExploreChips rejects on 401 from a non-home chip', async () => {
+    const { fetchImpl } = router({
+      [CHIPS_PATH]: () =>
+        json({
+          chips: [
+            { id: 'c1', label: 'Home', pageSlug: 'home' },
+            { id: 'c2', label: 'Other', pageSlug: 'other' },
+          ],
+        }),
+      '/explore/pages/home': () => json(homePage),
+      '/explore/pages/other': () => json({}, 401),
+      [LOGIN_PATH]: () => json({}, 401),
+    });
+    await expect(clientWithSession(fetchImpl).getExploreChips()).rejects.toThrow();
+  });
+
   test('getExploreChips rejects on 401 during probing', async () => {
     const { fetchImpl } = router({
       [CHIPS_PATH]: () => json({ chips: [{ id: 'c1', label: 'Home', pageSlug: 'home' }] }),
