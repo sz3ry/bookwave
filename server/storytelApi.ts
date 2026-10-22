@@ -97,7 +97,7 @@ interface RawBookshelfResponse {
 // Subset of the legacy BookShelfEntity (client/src/interfaces/books.ts) that
 // the frontend actually reads. Keep the keys aligned with that interface so
 // the React app keeps working unchanged.
-interface BookShelfEntity {
+export interface BookShelfEntity {
   id: string;
   status: number;
   // Used by the frontend to sort the library by most recent activity.

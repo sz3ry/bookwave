@@ -1,10 +1,11 @@
 import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
-import StorytelClient from './storytelApi';
+import StorytelClient, { type BookShelfEntity } from './storytelApi';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { downloadToFile } from './download';
+import { createDownloadsIndex } from './downloadsIndex';
 import type { FetchLike } from './http/storytelFetch';
 import { appLogger } from './logger';
 import { type AuthApi, createSession } from './session';
@@ -81,6 +82,41 @@ export function resolveDownloadedFile(bookId: string): string | null {
   return findDownloadedFile(bookId);
 }
 
+// Bookshelf entries of downloaded books, so the library can be listed offline.
+// Entries come from Storytel's bookshelf or from the client at download time.
+const downloadsIndex = createDownloadsIndex<BookShelfEntity>(
+  path.join(process.env.USER_DATA_PATH || process.cwd(), 'downloads-index.json'),
+);
+
+// The id the client routes and downloads by: the audiobook format id, falling
+// back to the bookshelf entry id (see Dashboard's handleQuickPlay).
+function downloadKeyOf(entry: BookShelfEntity): string {
+  return String(entry.abook?.id || entry.id);
+}
+
+function isShelfEntry(value: unknown): value is BookShelfEntity {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    !!(value as BookShelfEntity).book &&
+    typeof (value as BookShelfEntity).book === 'object'
+  );
+}
+
+// Refreshes the index from a fresh bookshelf: keeps status and position of
+// downloaded books current, and indexes books downloaded before the index
+// existed. Never fails the bookshelf request.
+function backfillDownloadsIndex(books: BookShelfEntity[]) {
+  try {
+    for (const entry of books) {
+      const bookId = downloadKeyOf(entry);
+      if (findDownloadedFile(bookId)) downloadsIndex.upsert(bookId, entry);
+    }
+  } catch (error) {
+    fastify.log.warn(`Could not update the downloads index: ${(error as Error).message}`);
+  }
+}
+
 const activeDownloads = new Map<
   string,
   {
@@ -128,8 +164,29 @@ fastify.get(
       const storytelClient = request.storytel;
 
       const bookshelf = await storytelClient.getBookshelf();
+      backfillDownloadsIndex(bookshelf.books);
       reply.send(bookshelf);
     } catch (error: any) {
+      replyError(reply, error);
+    }
+  },
+);
+
+// Books downloaded to this computer, for the library while Storytel is
+// unreachable. Same shape as /api/bookshelf; makes no Storytel call.
+fastify.get(
+  '/api/offline/bookshelf',
+  {
+    preHandler: requireSession,
+  },
+  async (_request, reply) => {
+    try {
+      const books = downloadsIndex
+        .list()
+        .filter(({ bookId, entry }) => isShelfEntry(entry) && findDownloadedFile(bookId))
+        .map(({ entry }) => entry);
+      reply.send({ books });
+    } catch (error) {
       replyError(reply, error);
     }
   },
@@ -508,7 +565,8 @@ fastify.post<{
   Body: {
     bookId: string;
     consumableId?: string;
-    book?: { book?: { name?: string } };
+    // The bookshelf entry the player shows; indexed for the offline library.
+    book?: BookShelfEntity;
   };
 }>(
   '/api/download',
@@ -523,8 +581,18 @@ fastify.post<{
         return reply.code(400).send({ error: 'Invalid bookId' });
       }
 
+      const indexDownload = () => {
+        if (!isShelfEntry(book)) return;
+        try {
+          downloadsIndex.upsert(bookId, book);
+        } catch (error) {
+          fastify.log.warn(`Could not index download ${bookId}: ${(error as Error).message}`);
+        }
+      };
+
       // Check if already exists
       if (findDownloadedFile(bookId)) {
+        indexDownload();
         return reply.send({
           success: true,
           message: 'File already downloaded',
@@ -578,6 +646,7 @@ fastify.post<{
         });
 
         untrack();
+        indexDownload();
 
         reply.send({
           success: true,
@@ -693,6 +762,12 @@ fastify.delete<{
 
       // Delete the file
       fs.unlinkSync(localFilePath);
+      try {
+        downloadsIndex.remove(bookId);
+      } catch (error) {
+        // The offline list skips books without a file, so a stale entry is harmless.
+        fastify.log.warn(`Could not unindex download ${bookId}: ${(error as Error).message}`);
+      }
 
       reply.send({ success: true, message: 'File deleted successfully' });
     } catch (error: any) {

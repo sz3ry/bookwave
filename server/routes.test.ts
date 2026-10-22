@@ -2,6 +2,7 @@ import { afterAll, afterEach, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createDownloadsIndex } from './downloadsIndex';
 import type { FetchLike } from './http/storytelFetch';
 import { encryptPassword } from './passwordCrypt';
 
@@ -54,8 +55,44 @@ function useFetch(routes: Record<string, () => Response>) {
 
 const creds = { email: 'reader@example.com', encryptedPassword: encryptPassword('secret') };
 
+// The server keeps its downloads index in USER_DATA_PATH; tests read and seed
+// the same file.
+const indexPath = path.join(tmpDir, 'downloads-index.json');
+const downloadsIndex = createDownloadsIndex(indexPath);
+
+// Fetch stub for routes that must answer from local data only.
+function useNoNetwork() {
+  const calls: string[] = [];
+  configureSessionForTests({
+    fetch: async (input) => {
+      calls.push(String(input));
+      throw new TypeError('fetch failed');
+    },
+  });
+  return calls;
+}
+
+function writeBookFile(bookId: string, title = 'Lalka') {
+  const filePath = path.join(tmpDir, `${title} [${bookId}].mp3`);
+  fs.writeFileSync(filePath, 'mp3');
+  return filePath;
+}
+
+const shelfEntry = (bookId: string, name: string) => ({
+  id: `c${bookId}`,
+  status: 2,
+  book: { name, authorsAsString: 'Bolesław Prus', consumableId: `c${bookId}`, largeCover: '' },
+  abook: { id: bookId, narratorAsString: '', time: 1000, description: '' },
+  abookMark: { pos: 10 },
+  ebook: null,
+});
+
 afterEach(() => {
   auth.logout();
+  fs.rmSync(indexPath, { force: true });
+  for (const name of fs.readdirSync(tmpDir)) {
+    if (name.endsWith('.mp3')) fs.rmSync(path.join(tmpDir, name), { force: true });
+  }
 });
 
 afterAll(async () => {
@@ -165,6 +202,94 @@ describe('routes', () => {
     } finally {
       fs.rmSync(filePath, { force: true });
     }
+  });
+
+  test('offline bookshelf lists indexed books whose file exists, without Storytel', async () => {
+    writeBookFile('701', 'Lalka');
+    downloadsIndex.upsert('701', shelfEntry('701', 'Lalka'));
+    downloadsIndex.upsert('702', shelfEntry('702', 'Deleted from disk'));
+    const calls = useNoNetwork();
+    auth.restore(creds);
+
+    const response = await fastify.inject({ method: 'GET', url: '/api/offline/bookshelf' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ books: [shelfEntry('701', 'Lalka')] });
+    expect(calls).toEqual([]);
+  });
+
+  test('offline bookshelf needs a session', async () => {
+    useNoNetwork();
+    const response = await fastify.inject({ method: 'GET', url: '/api/offline/bookshelf' });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  test('bookshelf indexes books that are already downloaded', async () => {
+    writeBookFile('801', 'Lalka');
+    useFetch({
+      [LOGIN_PATH]: () => json({ accountInfo: { jwt, singleSignToken: 'sst' } }),
+      [BOOKSHELF_PATH]: () =>
+        json({
+          items: {
+            c801: {
+              action: 'SET',
+              model: {
+                id: 'c801',
+                title: 'Lalka',
+                state: 'CONSUMING',
+                authors: [{ id: 'a', name: 'Bolesław Prus' }],
+                formats: [{ id: '801', type: 'abook', durationInMilliseconds: 1000 }],
+              },
+            },
+            c802: {
+              action: 'SET',
+              model: {
+                id: 'c802',
+                title: 'Not downloaded',
+                state: 'WILL_CONSUME',
+                formats: [{ id: '802', type: 'abook' }],
+              },
+            },
+          },
+        }),
+    });
+    auth.restore(creds);
+
+    const online = await fastify.inject({ method: 'GET', url: '/api/bookshelf' });
+    expect(online.statusCode).toBe(200);
+    const lalka = online.json().books.find((b: { id: string }) => b.id === 'c801');
+
+    expect(downloadsIndex.list()).toEqual([{ bookId: '801', entry: lalka }]);
+  });
+
+  test('already downloaded book is indexed with the entry the client sent', async () => {
+    writeBookFile('901', 'Lalka');
+    useNoNetwork();
+    auth.restore(creds);
+    const entry = shelfEntry('901', 'Lalka');
+
+    const response = await fastify.inject({
+      method: 'POST',
+      url: '/api/download',
+      payload: { bookId: '901', consumableId: 'c901', book: entry },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(downloadsIndex.list()).toEqual([{ bookId: '901', entry }]);
+  });
+
+  test('deleting a downloaded file drops it from the index', async () => {
+    writeBookFile('1001', 'Lalka');
+    downloadsIndex.upsert('1001', shelfEntry('1001', 'Lalka'));
+    downloadsIndex.upsert('1002', shelfEntry('1002', 'Potop'));
+    useNoNetwork();
+    auth.restore(creds);
+
+    const response = await fastify.inject({ method: 'DELETE', url: '/api/downloaded-file/1001' });
+
+    expect(response.statusCode).toBe(200);
+    expect(downloadsIndex.list().map((item) => item.bookId)).toEqual(['1002']);
   });
 
   test('translations stay public', async () => {
