@@ -133,7 +133,7 @@ interface StorytelClientOptions {
   onCredentialsRejected?: () => void;
 }
 
-// axios sent this Accept header on every request that did not set its own;
+// the previous HTTP client sent this Accept header on every request that did not set its own;
 // keep it so the requests Storytel sees stay unchanged.
 const DEFAULT_ACCEPT = 'application/json, text/plain, */*';
 

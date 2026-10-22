@@ -6,7 +6,7 @@ import fastifyJWT from '@fastify/jwt';
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
-import axios from 'axios';
+import { downloadToFile } from './download';
 import { appLogger } from './logger';
 import { encryptPassword } from './passwordCrypt';
 
@@ -111,8 +111,6 @@ const activeDownloads = new Map<
   string,
   {
     controller: AbortController;
-    writer: fs.WriteStream;
-    filePath: string;
   }
 >();
 
@@ -622,52 +620,28 @@ fastify.post<{
       // Download to a temporary file and rename it on completion, so a
       // partial download is never picked up by findDownloadedFile.
       const localFilePath = buildDownloadPath(bookId, book?.book?.name);
-      const partFilePath = `${localFilePath}.part`;
 
       // Create AbortController for this download
       const controller = new AbortController();
-      const writer = fs.createWriteStream(partFilePath);
 
       // Track this download
-      activeDownloads.set(bookId, {
-        controller,
-        writer,
-        filePath: partFilePath,
-      });
+      activeDownloads.set(bookId, { controller });
 
       try {
-        // Download the file
-        const response = await axios({
-          method: 'GET',
+        let lastLoggedStep = -1;
+        await downloadToFile({
           url: streamUrl,
-          responseType: 'stream',
-          signal: controller.signal as any,
+          filePath: localFilePath,
+          signal: controller.signal,
+          onProgress: (received, total) => {
+            const percentage = total ? Math.round((received / total) * 100) : 0;
+            const step = Math.floor(percentage / 10);
+            if (step !== lastLoggedStep) {
+              lastLoggedStep = step;
+              fastify.log.info(`Download progress for ${bookId}: ${percentage}%`);
+            }
+          },
         });
-
-        const totalLength = parseInt(response.headers['content-length'] || '0', 10);
-        let downloadedLength = 0;
-
-        response.data.on('data', (chunk: Buffer) => {
-          downloadedLength += chunk.length;
-          const percentage =
-            totalLength > 0 ? Math.round((downloadedLength / totalLength) * 100) : 0;
-
-          if (percentage % 10 === 0) {
-            fastify.log.info(`Download progress for ${bookId}: ${percentage}%`);
-          }
-        });
-
-        response.data.pipe(writer);
-
-        await new Promise<void>((resolve, reject) => {
-          writer.on('finish', () => resolve());
-          writer.on('error', reject);
-          controller.signal.addEventListener('abort', () => {
-            reject(new Error('Download cancelled'));
-          });
-        });
-
-        fs.renameSync(partFilePath, localFilePath);
 
         // Clean up
         activeDownloads.delete(bookId);
@@ -681,12 +655,8 @@ fastify.post<{
         // Clean up on error
         activeDownloads.delete(bookId);
 
-        // Remove partial file
-        if (fs.existsSync(partFilePath)) {
-          fs.unlinkSync(partFilePath);
-        }
-
-        if (error.message === 'Download cancelled') {
+        // downloadToFile already removed the partial file
+        if (controller.signal.aborted) {
           reply.code(499).send({ error: 'Download cancelled' });
         } else {
           throw error;
@@ -715,25 +685,9 @@ fastify.delete<{
         return reply.send({ error: 'No active download found' });
       }
 
-      // Abort the download
+      // Abort the download; downloadToFile removes the .part file itself and
+      // the download route replies 499 to its own client.
       download.controller.abort();
-
-      // Close the writer stream
-      download.writer.end();
-      download.writer.destroy();
-
-      // Wait a bit for the writer to close
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Remove partial file
-      try {
-        if (fs.existsSync(download.filePath)) {
-          fs.unlinkSync(download.filePath);
-        }
-      } catch (err) {
-        // File might be locked, ignore
-        console.error('Could not delete partial file:', err);
-      }
 
       // Clean up
       activeDownloads.delete(bookId);

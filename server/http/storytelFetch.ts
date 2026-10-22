@@ -72,7 +72,7 @@ async function parseBody(res: Response): Promise<unknown> {
   const text = await res.text();
   const contentType = res.headers.get('content-type') ?? '';
   const trimmed = text.trim();
-  // Like axios, parse JSON-looking bodies even when the content-type is wrong.
+  // Parse JSON-looking bodies even when the content-type is wrong.
   if (
     text &&
     (contentType.includes('json') || trimmed.startsWith('{') || trimmed.startsWith('['))
