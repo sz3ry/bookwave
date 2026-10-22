@@ -1,5 +1,5 @@
 name: 🐛 Bug Report
-description: Create a report to help us improve Storytel Player
+description: Create a report to help us improve Bookwave
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -31,15 +31,15 @@ body:
     id: os
     attributes:
       label: OS Version
-      description: What operating system are you using? (e.g., Windows 11, macOS 14.2, Ubuntu 22.04)
-      placeholder: macOS 14.2
+      description: What operating system are you using? (e.g., Windows 11, Ubuntu 24.04)
+      placeholder: Ubuntu 24.04
     validations:
       required: true
   - type: input
     id: app-version
     attributes:
-      label: Storytel Player Version
-      description: What version of Storytel Player are you running? (e.g., v1.0.0)
+      label: Bookwave Version
+      description: What version of Bookwave are you running? (e.g., v1.0.0)
       placeholder: v1.0.0
     validations:
       required: true
@@ -47,5 +47,5 @@ body:
     id: logs
     attributes:
       label: Relevant Log Output
-      description: Please copy and paste any relevant log output. You can check logs launching storytel-player from terminal.
+      description: Please copy and paste any relevant log output. You can check logs by launching Bookwave from a terminal.
       render: shell

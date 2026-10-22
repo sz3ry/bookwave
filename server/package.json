@@ -1,7 +1,7 @@
 {
   "name": "bookwave-server",
   "version": "1.0.0",
-  "description": "Storytel Web Server",
+  "description": "Bookwave server",
   "scripts": {
     "dev": "bun --watch build.ts",
     "build": "bun build.ts",

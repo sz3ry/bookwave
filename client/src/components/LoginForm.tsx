@@ -70,7 +70,7 @@ function LoginForm({ onLogin, sessionExpired }: LoginFormProps) {
           <div className="max-w-md w-full space-y-8 p-8 bg-gray-900 rounded-lg shadow-lg border border-gray-800">
             <div>
               <div className="flex justify-center">
-                <img src={'assets/icon.png'} alt={'Storytel'} className="w-12 h-12" />
+                <img src={'assets/icon.png'} alt={'Bookwave'} className="w-12 h-12" />
               </div>
               <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
                 {t('login.title')}

@@ -43,7 +43,7 @@ export class WindowManager {
         nodeIntegration: true,
         contextIsolation: true,
         devTools: this.isDev || this.isDebug,
-        partition: 'persist:storytel-app',
+        partition: 'persist:bookwave',
         preload: path.join(__dirname, '../preload.js'),
       },
       icon: path.join(__dirname, '../../../assets/icon.png'),

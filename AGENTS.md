@@ -16,7 +16,7 @@
 ### Architecture
 
 ```
-storytel-player/
+bookwave/
 ├── client/          # React frontend application
 │   ├── src/
 │   │   ├── components/  # React components
@@ -27,6 +27,7 @@ storytel-player/
 │   └── package.json
 ├── server/          # Fastify backend server
 │   ├── storytelApi.ts   # Storytel API integration
+│   ├── session.ts       # In-process Storytel session (one account)
 │   ├── locales/         # Translation files
 │   └── package.json
 ├── src/             # Electron main process
@@ -106,7 +107,8 @@ storytel-player/
 - **TypeScript**: Strict mode enabled, use proper typing
 - **React**: Functional components with hooks
 - **CSS**: Tailwind CSS utility classes
-- **Formatting**: Follow existing code style in the project
+- **Formatting and linting**: Biome (`bun run check`); the pre-commit hook runs
+  `biome check --write` on staged files and CI runs `bunx biome ci .`
 
 ### Component Patterns
 
@@ -119,7 +121,7 @@ storytel-player/
 
 - **Local State**: React hooks (useState, useEffect, etc.)
 - **Persistent Storage**: Use `electron-store` via IPC for desktop persistence
-- **API State**: Direct API calls via Axios (see `client/src/utils/api.ts`)
+- **API State**: Direct API calls through the `window.electronApi` IPC bridge (see `client/src/utils/api.ts`)
 
 ### Development Workflow
 
@@ -127,12 +129,23 @@ storytel-player/
 2. **Electron dev**: `bun run electron:dev` (builds server and main process, starts Vite on :3000)
 3. **Build**: `bun run build:all` (client, server and Electron main process)
 4. **Typecheck**: `bun run typecheck`
-5. **Distribution**: `bun run dist:linux` / `bun run dist:win` (x64 only)
+5. **Tests**: `bun run test` (Bun test runner, `*.test.ts` next to the code)
+6. **Lint/format**: `bun run check`
+7. **Distribution**: `bun run dist:linux` / `bun run dist:win` (x64 only)
+
+### Release Flow
+
+Releases are cut by release-please from `develop`: Conventional Commits pushed
+to `develop` keep a release PR up to date (version bump, `CHANGELOG.md`,
+`src/version.ts`). Merging that PR publishes a GitHub release, which triggers
+`build.yml` to build the Linux and Windows packages and upload them to the
+release. A manual run of `build.yml` only builds and never publishes.
 
 There is no browser mode: the app only runs inside Electron (from the Electron-only restructuring onward). The Fastify server runs in-process inside the Electron main process.
 
 ### Testing Strategy
 
+- Unit tests with `bun run test` (server, Storytel client, session, main-process auth)
 - Manual testing in development mode
 - Test across platforms (Windows, Linux)
 - Verify i18n translations for all supported languages
@@ -161,14 +174,22 @@ There is no browser mode: the app only runs inside Electron (from the Electron-o
 
 ### IPC Communication
 
-- Electron IPC handlers are in `src/modules/ipc.ts`
-- Frontend uses `window.electron` API (typed in `client/src/types/window.d.ts`)
+- Electron IPC handlers are in `src/modules/ipc.ts`; the bridges are exposed in `src/preload.ts`
+- Frontend uses the `window.electronApi`, `window.electronAuth`, `window.electronStore`,
+  `window.electronLocale`, `window.electronWindow`, `window.electronLogs` and
+  `window.trayControls` bridges (typed in `client/src/types/window.d.ts`; `electronApi`
+  in `client/src/utils/api.ts`, `electronStore` in `client/src/utils/storage.ts`)
 - Always handle both success and error cases
 
 ## Important Notes
 
-- **Security**: This is a desktop app with persistent session storage
-- **Authentication**: Session-based with secure storage via electron-store
+- **Security**: The renderer never sees a Storytel token or the password. Storytel
+  tokens live in memory in the in-process server session (`server/session.ts`);
+  app logs mask tokens, the account email and login replies
+- **Authentication**: The main process's `AuthManager` (`src/modules/auth.ts`) logs
+  in through the session and stores the credentials encrypted with Electron
+  `safeStorage` (OS keyring); without a usable keyring the session lasts for the
+  current run only. The renderer uses `window.electronAuth` (login/logout/state)
 - **Single Instance**: App uses single instance lock (one app instance at a time)
 - **Updates**: Electron updater is integrated for auto-updates
 - **Offline Mode**: Support for downloading audiobooks for offline playback
