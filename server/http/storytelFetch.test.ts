@@ -121,4 +121,21 @@ describe('storytelFetch', () => {
     expect(dump).toContain('pwd=***');
     expect(dump).not.toContain('SECRET');
   });
+
+  test('parses JSON body served as text/html', async () => {
+    const { fetchImpl } = stub(
+      () => new Response('{"a":1}', { status: 200, headers: { 'content-type': 'text/html' } }),
+    );
+    const res = await createStorytelFetch(fetchImpl)({ url: 'https://api.storytel.net/x' });
+    expect(res.data).toEqual({ a: 1 });
+  });
+
+  test('caller header overrides base header case-insensitively', async () => {
+    const { fetchImpl, calls } = stub(() => json({}));
+    await createStorytelFetch(fetchImpl)({
+      url: 'https://api.storytel.net/x',
+      headers: { 'User-Agent': 'custom/1' },
+    });
+    expect(new Headers(calls[0].init.headers).get('user-agent')).toBe('custom/1');
+  });
 });

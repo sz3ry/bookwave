@@ -71,7 +71,12 @@ function maskData(data: unknown): unknown {
 async function parseBody(res: Response): Promise<unknown> {
   const text = await res.text();
   const contentType = res.headers.get('content-type') ?? '';
-  if (contentType.includes('json') && text) {
+  const trimmed = text.trim();
+  // Like axios, parse JSON-looking bodies even when the content-type is wrong.
+  if (
+    text &&
+    (contentType.includes('json') || trimmed.startsWith('{') || trimmed.startsWith('['))
+  ) {
     try {
       return JSON.parse(text);
     } catch {
@@ -92,7 +97,10 @@ export function createStorytelFetch(
     }
     url.searchParams.set('version', STORYTEL_APP_VERSION);
 
-    const headers = new Headers({ ...STORYTEL_BASE_HEADERS, ...req.headers });
+    const headers = new Headers(STORYTEL_BASE_HEADERS);
+    for (const [key, value] of Object.entries(req.headers ?? {})) {
+      headers.set(key, value);
+    }
     let body: string | undefined;
     if (req.body) {
       if ('form' in req.body) {
