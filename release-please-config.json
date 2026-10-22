@@ -1,0 +1,11 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "bookwave",
+      "include-component-in-tag": false,
+      "release-as": "1.0.0",
+      "extra-files": ["src/version.ts"]
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "bookwave",
-  "version": "1.4.1",
+  "version": "0.0.0",
   "description": "Bookwave — desktop audiobook player for Storytel",
   "repository": {
     "type": "git",
@@ -20,7 +20,6 @@
     "typecheck": "tsc -p tsconfig.electron.json --noEmit && bun run --filter '*' typecheck",
     "test": "bun test --pass-with-no-tests",
     "clean": "rm -rf dist server/dist client/build",
-    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md && git add README.md CHANGELOG.md src/version.ts",
     "check": "biome check .",
     "prepare": "husky"
   },
@@ -47,8 +46,6 @@
     "@biomejs/biome": "2.6.2",
     "@types/dot-object": "^2.1.6",
     "@types/node": "^24.10.13",
-    "conventional-changelog": "^7.2.0",
-    "conventional-changelog-angular": "^8.3.1",
     "cross-env": "^10.1.0",
     "electron": "^43.1.0",
     "electron-builder": "^26.17.0",
