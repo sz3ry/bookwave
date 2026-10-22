@@ -46,8 +46,8 @@
     "skipForward": "+{{seconds}} seconds",
     "goTo": "Go to",
     "goto": "Goto",
-    "playing": "Playing",
-    "paused": "Paused",
+    "play": "Play",
+    "pause": "Pause",
     "nowPlaying": "Now Playing:",
     "loadingAudio": "Loading audio...",
     "loadingBookData": "Loading book data...",
@@ -103,6 +103,7 @@
   },
   "bookCard": {
     "completed": "Completed",
+    "notStarted": "Not started",
     "remaining": "remaining",
     "author": "Author:",
     "narrator": "Narrator:"

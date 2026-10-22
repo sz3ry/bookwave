@@ -46,8 +46,8 @@
     "skipForward": "+{{seconds}} sekuntia",
     "goTo": "Siirry kohtaan",
     "goto": "Siirry",
-    "playing": "Toistetaan",
-    "paused": "Tauolla",
+    "play": "Toista",
+    "pause": "Tauko",
     "nowPlaying": "Toistetaan nyt:",
     "loadingAudio": "Ladataan ääntä...",
     "loadingBookData": "Ladataan kirjan tietoja...",
@@ -103,6 +103,7 @@
   },
   "bookCard": {
     "completed": "Kuunneltu",
+    "notStarted": "Ei aloitettu",
     "remaining": "jäljellä",
     "author": "Kirjailija:",
     "narrator": "Lukija:"

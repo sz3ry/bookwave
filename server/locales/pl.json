@@ -48,8 +48,8 @@
     "skipForward": "+{{seconds}} sekund",
     "goTo": "Przejdź do",
     "goto": "Przejdź",
-    "playing": "Odtwarzanie",
-    "paused": "Wstrzymano",
+    "play": "Odtwórz",
+    "pause": "Wstrzymaj",
     "nowPlaying": "Teraz odtwarzane:",
     "loadingAudio": "Wczytywanie dźwięku...",
     "loadingBookData": "Wczytywanie danych książki...",
@@ -104,7 +104,8 @@
     "close": "Zamknij"
   },
   "bookCard": {
-    "completed": "Ukończono",
+    "completed": "Ukończona",
+    "notStarted": "Nierozpoczęta",
     "remaining": "do końca",
     "author": "Autor:",
     "narrator": "Lektor:"

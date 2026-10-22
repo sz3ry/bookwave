@@ -87,9 +87,7 @@ export function FloatingMenu({ onOpenSearch, onOpenSettings }: FloatingMenuProps
             {/* Unified Circular Cover/Play Button */}
             <button
               onClick={audio.togglePlayPause}
-              title={
-                audio.isPlaying ? t('player.paused', 'Paused') : t('player.playing', 'Playing')
-              }
+              title={audio.isPlaying ? t('player.pause', 'Pause') : t('player.play', 'Play')}
               className="relative w-11 h-11 flex-shrink-0 group/cover rounded-full focus:outline-none transition-transform hover:scale-105 active:scale-95 shadow-md"
             >
               {/* Progress Ring SVG */}

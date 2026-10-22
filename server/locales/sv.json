@@ -46,8 +46,8 @@
     "skipForward": "+{{seconds}} sekunder",
     "goTo": "Gå till",
     "goto": "Gå till",
-    "playing": "Spelar",
-    "paused": "Pausad",
+    "play": "Spela",
+    "pause": "Pausa",
     "nowPlaying": "Spelas nu:",
     "loadingAudio": "Laddar ljud...",
     "loadingBookData": "Laddar bokdata...",
@@ -103,6 +103,7 @@
   },
   "bookCard": {
     "completed": "Slutförd",
+    "notStarted": "Ej påbörjad",
     "remaining": "kvar",
     "author": "Författare:",
     "narrator": "Uppläsare:"

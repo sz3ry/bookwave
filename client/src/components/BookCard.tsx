@@ -130,7 +130,7 @@ export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCard
           <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1.5">
             <span className="truncate">
               {isFinished
-                ? t('dashboard.filters.concluded', 'Concluded')
+                ? t('bookCard.completed', 'Completed')
                 : isStarted
                   ? `${formatMicrosecondsTime(remainingTime, { hours: t('search.hours'), minutes: t('search.minutes') })} ${t('bookCard.remaining', 'remaining')}`
                   : totalDuration > 0
@@ -138,7 +138,7 @@ export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCard
                         hours: t('search.hours'),
                         minutes: t('search.minutes'),
                       })
-                    : t('dashboard.filters.notStarted', 'Not started')}
+                    : t('bookCard.notStarted', 'Not started')}
             </span>
             {isStarted && (
               <span className="font-mono font-semibold text-gray-500 tabular-nums">
