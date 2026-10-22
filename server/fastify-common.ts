@@ -734,17 +734,4 @@ fastify.post<{ Body: { message: string; data?: any } }>(
   },
 );
 
-fastify.get(
-  '/api/logs/export',
-  {
-    preHandler: requireSession,
-  },
-  async (_request, reply) => {
-    const logs = appLogger.getLogs();
-    reply.header('Content-Disposition', 'attachment; filename="storytel-logs.json"');
-    reply.header('Content-Type', 'application/json');
-    reply.send(JSON.stringify(logs, null, 2));
-  },
-);
-
 export default fastify;

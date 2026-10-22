@@ -49,11 +49,6 @@ export class UpdaterManager {
     autoUpdater.on('download-progress', (progressObj) => {
       const message = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}%`;
       console.log(message);
-
-      // Send progress to renderer if needed
-      if (this.mainWindow) {
-        this.mainWindow.webContents.send('update-download-progress', progressObj);
-      }
     });
 
     autoUpdater.on('update-downloaded', (info) => {
