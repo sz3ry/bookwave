@@ -1,9 +1,11 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, safeStorage } from 'electron';
 import { WindowManager } from './modules/window';
 import { TrayManager } from './modules/tray';
 import { ServerManager } from './modules/server';
 import { IpcManager } from './modules/ipc';
 import { UpdaterManager } from './modules/updater';
+import { AuthManager } from './modules/auth';
+import { storeManager } from './modules/store';
 import { i18n } from './i18n';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -14,6 +16,7 @@ let trayManager: TrayManager;
 let serverManager: ServerManager;
 let ipcManager: IpcManager;
 let updaterManager: UpdaterManager;
+let authManager: AuthManager;
 
 async function initialize(): Promise<void> {
   process.env.IS_ELECTRON = 'true';
@@ -39,10 +42,22 @@ async function initialize(): Promise<void> {
     await i18n.initialize(fastifyServer);
   }
 
+  // Restores stored credentials before the renderer can ask for the auth state.
+  authManager = new AuthManager({
+    auth: serverManager.getAuth(),
+    store: storeManager,
+    safeStorage,
+    platform: process.platform,
+    notifyExpired: () => {
+      windowManager.getWindow()?.webContents.send('auth:expired');
+    },
+  });
+  authManager.initialize();
+
   trayManager = new TrayManager(windowManager);
   trayManager.create();
 
-  ipcManager = new IpcManager(serverManager, trayManager, windowManager);
+  ipcManager = new IpcManager(serverManager, trayManager, windowManager, authManager);
   ipcManager.setupHandlers();
 
   // Initialize auto-updater

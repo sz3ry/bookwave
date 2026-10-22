@@ -1,12 +1,27 @@
 import * as path from 'path';
+import type { AuthApi } from '../types';
 
 export class ServerManager {
   private server: any | null = null;
+  private auth: AuthApi | null = null;
 
   async initialize(): Promise<void> {
     const serverPath = path.join(__dirname, '../../../server/dist/server.js');
-    const { default: server } = await import(serverPath);
-    this.server = server;
+    const mod = await import(serverPath);
+    // The bundle is CJS: named exports may sit on the module or on `default`.
+    const auth: AuthApi | undefined = mod.auth ?? mod.default?.auth;
+    if (!auth || typeof auth.login !== 'function') {
+      throw new Error(`Server bundle at ${serverPath} does not export \`auth\``);
+    }
+    this.server = mod.default;
+    this.auth = auth;
+  }
+
+  getAuth(): AuthApi {
+    if (!this.auth) {
+      throw new Error('Server not initialized');
+    }
+    return this.auth;
   }
 
   async injectRequest(

@@ -1,11 +1,28 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { LanguageState } from './i18n';
+import type { AuthStateView, LoginResult } from './modules/auth';
 
 // Store API
 contextBridge.exposeInMainWorld('electronStore', {
   get: (key: string): Promise<any> => ipcRenderer.invoke('store-get', key),
   remove: (key: string): Promise<void> => ipcRenderer.invoke('store-remove', key),
   set: (key: string, value: any): Promise<void> => ipcRenderer.invoke('store-set', key, value),
+});
+
+// Auth API: the renderer never sees the credentials, only the state.
+contextBridge.exposeInMainWorld('electronAuth', {
+  login: (email: string, password: string): Promise<LoginResult> =>
+    ipcRenderer.invoke('auth:login', email, password),
+  logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
+  getState: (): Promise<AuthStateView> => ipcRenderer.invoke('auth:state'),
+  // Storytel rejected the stored credentials; returns an unsubscribe function.
+  onExpired: (callback: () => void): (() => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('auth:expired', listener);
+    return () => {
+      ipcRenderer.removeListener('auth:expired', listener);
+    };
+  },
 });
 
 // Locale API

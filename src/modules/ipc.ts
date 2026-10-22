@@ -1,6 +1,7 @@
 import { ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
 import path from 'path';
 import { storeManager } from './store';
+import { type AuthManager, isProtectedStoreKey } from './auth';
 import type { ServerManager } from './server';
 import type { TrayManager } from './tray';
 import type { WindowManager } from './window';
@@ -11,19 +12,23 @@ export class IpcManager {
   private serverManager: ServerManager;
   private trayManager: TrayManager;
   private windowManager: WindowManager;
+  private authManager: AuthManager;
 
   constructor(
     serverManager: ServerManager,
     trayManager: TrayManager,
     windowManager: WindowManager,
+    authManager: AuthManager,
   ) {
     this.serverManager = serverManager;
     this.trayManager = trayManager;
     this.windowManager = windowManager;
+    this.authManager = authManager;
   }
 
   setupHandlers(): void {
     this.setupStoreHandlers();
+    this.setupAuthHandlers();
     this.setupApiHandlers();
     this.setupTrayHandlers();
     this.setupLocaleHandlers();
@@ -32,16 +37,42 @@ export class IpcManager {
   }
 
   private setupStoreHandlers(): void {
-    ipcMain.handle('store-get', (_event: IpcMainInvokeEvent, key: string) => {
-      return storeManager.get(key);
+    // The credentials live under `auth`; only the auth IPC below touches them.
+    // A non-string key is refused too: electron-store reads the whole store
+    // for a missing key and writes several keys from an object.
+    const isAllowed = (key: unknown): key is string =>
+      typeof key === 'string' && !isProtectedStoreKey(key);
+
+    ipcMain.handle('store-get', (_event: IpcMainInvokeEvent, key: unknown) => {
+      return isAllowed(key) ? storeManager.get(key) : undefined;
     });
 
-    ipcMain.handle('store-set', (_event: IpcMainInvokeEvent, key: string, value: any) => {
-      storeManager.set(key, value);
+    ipcMain.handle('store-set', (_event: IpcMainInvokeEvent, key: unknown, value: any) => {
+      if (isAllowed(key)) storeManager.set(key, value);
     });
 
-    ipcMain.handle('store-remove', (_event: IpcMainInvokeEvent, key: string) => {
-      storeManager.remove(key);
+    ipcMain.handle('store-remove', (_event: IpcMainInvokeEvent, key: unknown) => {
+      if (isAllowed(key)) storeManager.remove(key);
+    });
+  }
+
+  private setupAuthHandlers(): void {
+    ipcMain.handle(
+      'auth:login',
+      (_event: IpcMainInvokeEvent, email: unknown, password: unknown) => {
+        if (typeof email !== 'string' || typeof password !== 'string') {
+          return { ok: false, error: 'failed', message: 'Invalid login arguments' };
+        }
+        return this.authManager.login(email, password);
+      },
+    );
+
+    ipcMain.handle('auth:logout', () => {
+      this.authManager.logout();
+    });
+
+    ipcMain.handle('auth:state', () => {
+      return this.authManager.getState();
     });
   }
 
