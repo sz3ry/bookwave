@@ -108,10 +108,6 @@ export class IpcManager {
   }
 
   private setupLocaleHandlers(): void {
-    ipcMain.handle('get-locale', () => {
-      return i18n.getLanguage();
-    });
-
     // The language in use and the OS language list / country, for the search filter.
     ipcMain.handle('get-locale-state', () => {
       return i18n.getState();

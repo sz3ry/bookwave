@@ -27,7 +27,6 @@ contextBridge.exposeInMainWorld('electronAuth', {
 
 // Locale API
 contextBridge.exposeInMainWorld('electronLocale', {
-  getLocale: (): Promise<string> => ipcRenderer.invoke('get-locale'),
   // The language in use plus the OS preference list and country.
   getState: (): Promise<LanguageState> => ipcRenderer.invoke('get-locale-state'),
 });

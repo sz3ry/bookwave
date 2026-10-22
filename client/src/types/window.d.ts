@@ -47,7 +47,6 @@ declare global {
       onLogout?: (callback: () => void) => void;
     };
     electronLocale?: {
-      getLocale: () => Promise<string>;
       getState: () => Promise<AppLanguageState>;
     };
     electronLogs?: {

@@ -94,8 +94,9 @@ bookwave/
 
 - **UI Language vs. Catalog Language**: they are unrelated and must not be
   conflated. The UI language follows the OS only: `app.getPreferredSystemLanguages()`
-  in main and `navigator.languages` in the renderer, negotiated with
-  `negotiateLanguage` (English fallback). There is no manual picker, so the app
+  negotiated with `negotiateLanguage` (English fallback) in main. Main's resolved
+  language is authoritative: the renderer starts from `navigator.languages` and
+  then adopts it. There is no manual picker, so the app
   never mixes a chosen UI language with the account's market headings;
   which books exist, and in which languages, is decided by the country of the
   logged-in Storytel account. Never derive one from the other — a `sv-FI`

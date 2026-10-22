@@ -40,9 +40,9 @@ class ApiBackend {
   }
 }
 
-// The UI language is the OS language, resolved synchronously before init so the
-// first render is already right. In Electron `navigator.languages` mirrors the OS
-// preference list the main process negotiates over, so both sides agree.
+// The UI language is the OS language. First render uses `navigator.languages`
+// (synchronous); the main process' resolved language is authoritative and is
+// adopted below once it answers.
 const initialLanguage = negotiateLanguage(systemPreferredLanguages());
 
 i18n
@@ -87,5 +87,20 @@ export const getLanguageState = async (): Promise<LanguageState> => {
     region: regionFromLocales(systemLanguages),
   };
 };
+
+// Main resolves the language from the OS list, APP_LOCALE and Chromium's locale;
+// adopt it so the renderer, tray and server strings never disagree.
+if (window.electronLocale?.getState) {
+  window.electronLocale
+    .getState()
+    .then((state) => {
+      if (state?.resolved && state.resolved !== i18n.language) {
+        i18n.changeLanguage(state.resolved);
+      }
+    })
+    .catch(() => {
+      // Keep the language resolved from navigator.languages.
+    });
+}
 
 export default i18n;
