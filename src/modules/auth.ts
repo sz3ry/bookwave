@@ -89,15 +89,30 @@ export class AuthManager {
     // of throwing the credentials away.
     if (!this.canPersist()) return;
 
+    if (typeof blob !== 'string') {
+      // Not something safeStorage ever wrote: the store value is corrupted.
+      this.store.remove(CREDENTIALS_KEY);
+      return;
+    }
+
+    let text: string;
+    try {
+      text = this.safeStorage.decryptString(Buffer.from(blob, 'base64'));
+    } catch (error) {
+      // A locked keyring or a cancelled unlock prompt: start logged out but
+      // keep the blob, a later run with the keyring unlocked can still read it.
+      console.error('Failed to decrypt stored credentials:', error);
+      return;
+    }
+
     let creds: unknown;
     try {
-      if (typeof blob !== 'string') throw new Error('Stored credentials are not a string');
-      creds = JSON.parse(this.safeStorage.decryptString(Buffer.from(blob, 'base64')));
+      creds = JSON.parse(text);
     } catch {
       creds = undefined;
     }
     if (!isStoredCredentials(creds)) {
-      // Unreadable (another keyring, corrupted file): start logged out.
+      // Decrypted but not our credentials (corrupted file): start logged out.
       this.store.remove(CREDENTIALS_KEY);
       return;
     }

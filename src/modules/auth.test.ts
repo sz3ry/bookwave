@@ -211,11 +211,24 @@ describe('AuthManager.initialize', () => {
     expect(manager.getState()).toEqual({ loggedIn: true, email: CREDS.email, canPersist: true });
   });
 
-  test('corrupt blob is removed', () => {
+  test('a blob that fails to decrypt is kept and the app starts logged out', () => {
+    const blob = blobFor(CREDS);
     const { manager, store, safeStorage, fake } = setup({
-      stored: { [CREDENTIALS_KEY]: blobFor(CREDS) },
+      stored: { [CREDENTIALS_KEY]: blob },
     });
+    // A locked keyring or a cancelled unlock prompt makes decryptString throw.
     safeStorage.failDecrypt = true;
+    manager.initialize();
+
+    expect(store.calls.remove).toBe(0);
+    expect(store.data.get(CREDENTIALS_KEY)).toBe(blob);
+    expect(fake.restored).toEqual([]);
+    expect(manager.getState().loggedIn).toBe(false);
+  });
+
+  test('a blob that decrypts to invalid JSON is removed', () => {
+    const blob = fakeSafeStorage().encryptString('not json').toString('base64');
+    const { manager, store, fake } = setup({ stored: { [CREDENTIALS_KEY]: blob } });
     manager.initialize();
 
     expect(store.data.has(CREDENTIALS_KEY)).toBe(false);
