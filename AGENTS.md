@@ -96,8 +96,9 @@ bookwave/
   conflated. The UI language follows the OS only: `app.getPreferredSystemLanguages()`
   negotiated with `negotiateLanguage` (English fallback) in main. Main's resolved
   language is authoritative: the renderer starts from `navigator.languages` and
-  then adopts it. There is no manual picker, so the app
-  never mixes a chosen UI language with the account's market headings;
+  then adopts it. The UI language is never a manual choice, while Storytel's
+  own headings follow the account's market, so the two can differ (an English OS
+  with a Polish account shows an English UI with Polish headings);
   which books exist, and in which languages, is decided by the country of the
   logged-in Storytel account. Never derive one from the other — a `sv-FI`
   system locale means "Swedish speaker in Finland", not "Finnish catalog".

@@ -22,6 +22,9 @@ Accounts created through Google or Apple sign-in cannot log in directly. Set a p
 
 - **Library**: browse your Storytel bookshelf with cover art, progress tracking and status filters
 - **Catalog search**: search the whole catalog by title, author or narrator (Ctrl+K), scoped to your Storytel market
+- **Discover**: Storytel's front page with its tabs and rows, right next to catalog search
+- **Series hints**: see whether a book is part 1 of a series or which part comes next, and jump to it
+- **Continue series**: a row on the dashboard that offers the next part of series you have finished
 - **Player**: chapters, bookmarks, playback speed, sleep timer, multiple audio tracks and automatic resume
 - **Background playback**: a persistent mini-player with play/pause, skip, speed, chapters and sleep timer
 - **Offline listening**: download audiobooks for offline playback
