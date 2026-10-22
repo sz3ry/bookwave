@@ -207,20 +207,24 @@ describe('unreleased and locked audiobooks', () => {
     expect(mapped?.comingSoon).toBe(false);
   });
 
-  test('Czerwony plecak from the trending sample is coming soon and never next', async () => {
-    const sample = await Bun.file(
-      new URL('../.superpowers/sdd/2026-10-22-discovery/fixtures/trending.json', import.meta.url),
-    ).json();
-    const find = (o: any): any => {
-      if (!o || typeof o !== 'object') return undefined;
-      if (typeof o.title === 'string' && o.title.includes('Czerwony plecak')) return o;
-      for (const v of Object.values(o)) {
-        const r = find(v);
-        if (r) return r;
-      }
-      return undefined;
+  test('Czerwony plecak from the trending sample is coming soon and never next', () => {
+    // Trimmed from a live PL "trending" explore list (2026-10-22).
+    const sample = {
+      id: '11690537',
+      title: 'Czerwony plecak. Komisarz na telefon (2)',
+      authors: [{ name: 'Dagmara Andryka' }],
+      seriesInfo: { id: '199549', name: 'Komisarz na telefon', orderInSeries: 2 },
+      formats: [
+        {
+          type: 'abook',
+          isReleased: false,
+          isLockedContent: false,
+          releaseDate: '2026-12-14T00:00:00Z',
+          cover: { url: 'https://covers.storytel.com/jpg-640/x.jpg' },
+        },
+      ],
     };
-    const mapped = toDiscoveryItem(find(sample));
+    const mapped = toDiscoveryItem(sample);
     expect(mapped?.comingSoon).toBe(true);
     expect(mapped?.releaseDate).toStartWith('2026-12-14');
     expect(playableOnly(mapped ? [mapped] : [])).toHaveLength(1);
