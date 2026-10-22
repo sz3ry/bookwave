@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { BookShelfEntity, BookShelfResponse, SearchResultBook } from '../interfaces/books';
+import type {
+  BookShelfEntity,
+  BookShelfResponse,
+  SearchResultBook,
+  SeriesInfo,
+} from '../interfaces/books';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import Navbar from './Navbar';
@@ -17,6 +22,15 @@ import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
 import SeriesHint, { useSeriesInfo } from './SeriesHint';
 import api from '../utils/api';
 import '../types/window.d.ts';
+
+const toSeriesInfo = (raw: any): SeriesInfo | null =>
+  raw?.id
+    ? {
+        id: String(raw.id),
+        name: String(raw.name ?? ''),
+        orderInSeries: typeof raw.orderInSeries === 'number' ? raw.orderInSeries : null,
+      }
+    : null;
 
 function BookViewContent() {
   const { t, i18n } = useTranslation();
@@ -35,10 +49,10 @@ function BookViewContent() {
   // from the per-book book-details endpoint, fetched lazily below.
   const [description, setDescription] = useState('');
   const [language, setLanguage] = useState('');
-  const seriesInfo = useSeriesInfo(
-    book?.book?.consumableId ? String(book.book.consumableId) : (bookId ?? ''),
-    book?.book?.seriesInfo,
-  );
+  // Series info comes from the shelf entry or the book-details calls below, so
+  // the hook never fetches on its own here.
+  const [detailsSeries, setDetailsSeries] = useState<SeriesInfo | null>(null);
+  const seriesInfo = useSeriesInfo('', book?.book?.seriesInfo ?? detailsSeries, false);
 
   useEffect(() => {
     if (!location.state?.book && bookId) {
@@ -78,6 +92,7 @@ function BookViewContent() {
           };
           setFetchedBook(entity);
           setDescription(data.description || '');
+          setDetailsSeries(toSeriesInfo(data.seriesInfo));
           setLanguage(localizedLanguageName(data.language, i18n.language));
         })
         .catch((err) => {
@@ -111,6 +126,7 @@ function BookViewContent() {
         if (cancelled) return;
         const data = res.data || {};
         setDescription(data.description || '');
+        setDetailsSeries(toSeriesInfo(data.seriesInfo));
         setLanguage(localizedLanguageName(data.language, i18n.language));
       })
       .catch(() => {

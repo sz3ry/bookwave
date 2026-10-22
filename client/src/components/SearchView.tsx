@@ -101,8 +101,11 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
   // effect so it wins over that effect's reset on mount.
   const handedOverBook = (location.state as { selectBook?: SearchResultBook } | null)?.selectBook;
   useEffect(() => {
-    if (handedOverBook) setSelectedBook(handedOverBook);
-  }, [handedOverBook]);
+    if (!handedOverBook) return;
+    setSelectedBook(handedOverBook);
+    // Consume the handoff so back/reload do not select it again.
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [handedOverBook, navigate, location.pathname, location.search]);
 
   // Compute language breakdown stats
   const languageStats = useMemo<LanguageStat[]>(() => {

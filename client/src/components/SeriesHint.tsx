@@ -13,12 +13,16 @@ interface SeriesHintProps {
 
 // Series info of a book. Hits from the storytel.com fallback search carry none,
 // so it is read from the book-details call when `known` is missing.
-export function useSeriesInfo(bookId: string, known?: SeriesInfo): SeriesInfo | null {
+export function useSeriesInfo(
+  bookId: string,
+  known?: SeriesInfo | null,
+  fetchWhenMissing = true,
+): SeriesInfo | null {
   const [fetched, setFetched] = useState<SeriesInfo | null>(null);
 
   useEffect(() => {
     setFetched(null);
-    if (known) return;
+    if (known || !bookId || !fetchWhenMissing) return;
     let cancelled = false;
     api
       .get(`/book-details/${encodeURIComponent(bookId)}`)
@@ -37,7 +41,7 @@ export function useSeriesInfo(bookId: string, known?: SeriesInfo): SeriesInfo | 
     return () => {
       cancelled = true;
     };
-  }, [bookId, known]);
+  }, [bookId, known, fetchWhenMissing]);
 
   return known ?? fetched;
 }
@@ -71,11 +75,13 @@ export function SeriesHint({ seriesInfo, currentBookId, finished, onOpenBook }: 
         : series.firstAudiobook
       : null;
   const showStart = !!startTarget && startTarget.id !== currentBookId;
-  const showFirstUnavailable = !!series && !series.firstIsAudiobook && !!startTarget;
+  const showFirstUnavailable = !!series?.first && !series.firstIsAudiobook;
   const showNext = finished && !!series?.next && series.next.id !== currentBookId;
 
   const actionClass =
     'mt-2 w-full text-left px-3 py-2 rounded-lg bg-[#FF5100]/15 text-[#FF8A50] hover:bg-[#FF5100]/25 text-xs font-semibold transition-colors';
+  const primaryActionClass =
+    'mt-2 w-full text-left px-3 py-2 rounded-lg bg-[#FF5100] hover:bg-[#ff641a] text-white text-xs font-bold shadow-md shadow-[#FF5100]/25 transition-colors';
 
   return (
     <div className="mb-5 w-full rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-[13px]">
@@ -86,7 +92,11 @@ export function SeriesHint({ seriesInfo, currentBookId, finished, onOpenBook }: 
       </p>
 
       {showNext && series?.next && (
-        <button type="button" onClick={() => onOpenBook(series.next!)} className={actionClass}>
+        <button
+          type="button"
+          onClick={() => onOpenBook(series.next!)}
+          className={primaryActionClass}
+        >
           {t('series.next', { title: series.next.title })}
         </button>
       )}
