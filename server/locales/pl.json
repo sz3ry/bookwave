@@ -47,7 +47,9 @@
     "offline": "Jesteś offline. Strona główna Storytel wymaga połączenia z internetem.",
     "error": "Nie udało się wczytać tej strony.",
     "retry": "Spróbuj ponownie",
-    "empty": "Na razie nic tu nie ma."
+    "empty": "Na razie nic tu nie ma.",
+    "comingSoon": "Już wkrótce",
+    "releaseDate": "Premiera: {{date}}"
   },
   "player": {
     "chapters": "Rozdziały",

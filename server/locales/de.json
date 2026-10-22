@@ -45,7 +45,9 @@
     "offline": "Du bist offline. Die Storytel-Startseite braucht eine Internetverbindung.",
     "error": "Diese Seite konnte nicht geladen werden.",
     "retry": "Erneut versuchen",
-    "empty": "Hier gibt es noch nichts zu sehen."
+    "empty": "Hier gibt es noch nichts zu sehen.",
+    "comingSoon": "Demnächst",
+    "releaseDate": "Erscheint am {{date}}"
   },
   "player": {
     "chapters": "Kapitel",

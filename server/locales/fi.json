@@ -45,7 +45,9 @@
     "offline": "Olet offline-tilassa. Storytelin etusivu vaatii verkkoyhteyden.",
     "error": "Sivun lataaminen epäonnistui.",
     "retry": "Yritä uudelleen",
-    "empty": "Täällä ei ole vielä mitään näytettävää."
+    "empty": "Täällä ei ole vielä mitään näytettävää.",
+    "comingSoon": "Tulossa pian",
+    "releaseDate": "Julkaisu: {{date}}"
   },
   "player": {
     "chapters": "Luvut",

@@ -14,6 +14,9 @@ export interface DiscoveryItem {
   coverUrl: string | null;
   seriesInfo: SeriesInfo | null;
   hasAbook: boolean;
+  // The audiobook is announced but not out yet: listed, not playable.
+  comingSoon: boolean;
+  releaseDate: string | null;
   // The untouched explore item, so callers can reuse the search-hit mapper.
   raw: unknown;
 }
@@ -65,10 +68,8 @@ export function toSeriesInfo(raw: any): SeriesInfo | null {
 export function toDiscoveryItem(raw: any): DiscoveryItem | null {
   if (!raw?.id || !raw?.title) return null;
   const formats: any[] = Array.isArray(raw.formats) ? raw.formats : [];
-  // An unreleased or locked audiobook cannot be played, so it does not count.
-  const abook = formats.find(
-    (f) => f?.type === 'abook' && f.isReleased !== false && f.isLockedContent !== true,
-  );
+  // Locked content cannot be played, so it does not count as an audiobook.
+  const abook = formats.find((f) => f?.type === 'abook' && f.isLockedContent !== true);
   const ebook = formats.find((f) => f?.type === 'ebook');
   return {
     id: String(raw.id),
@@ -79,6 +80,8 @@ export function toDiscoveryItem(raw: any): DiscoveryItem | null {
     coverUrl: abook?.cover?.url || ebook?.cover?.url || raw.cover?.url || null,
     seriesInfo: toSeriesInfo(raw.seriesInfo),
     hasAbook: !!abook,
+    comingSoon: !!abook && abook.isReleased === false,
+    releaseDate: typeof abook?.releaseDate === 'string' ? abook.releaseDate : null,
     raw,
   };
 }
@@ -163,13 +166,15 @@ export function pickSeriesParts(items: DiscoveryItem[], currentOrder: number | n
       ? null
       : (parts.find((part) => part.seriesInfo?.orderInSeries === leadOrder && part.hasAbook) ??
         lead);
-  const firstAudiobook = parts.find((part) => part.hasAbook) ?? null;
+  // Coming-soon parts are listed but cannot be played yet.
+  const playable = (part: DiscoveryItem) => part.hasAbook && !part.comingSoon;
+  const firstAudiobook = parts.find(playable) ?? null;
   const next =
     currentOrder === null
       ? null
       : (parts.find(
           (part) =>
-            part.hasAbook &&
+            playable(part) &&
             part.seriesInfo?.orderInSeries != null &&
             part.seriesInfo.orderInSeries > currentOrder,
         ) ?? null);

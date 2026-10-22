@@ -45,7 +45,9 @@
     "offline": "Estás sin conexión. La portada de Storytel necesita conexión a internet.",
     "error": "No se pudo cargar esta página.",
     "retry": "Reintentar",
-    "empty": "Aún no hay nada que mostrar."
+    "empty": "Aún no hay nada que mostrar.",
+    "comingSoon": "Próximamente",
+    "releaseDate": "Estreno: {{date}}"
   },
   "player": {
     "chapters": "Capítulos",

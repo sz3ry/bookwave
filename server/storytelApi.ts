@@ -54,6 +54,9 @@ export interface SearchResultBook {
   description?: string;
   hasAbook: boolean;
   hasEbook: boolean;
+  // Announced but not out yet: listed, but cannot be played.
+  comingSoon?: boolean;
+  releaseDate?: string | null;
   language?: string;
   languageName?: string;
   seriesInfo?: SeriesInfo;
@@ -1372,6 +1375,8 @@ export function mapCatalogItem(item: DiscoveryItem): SearchResultBook {
     durationMs: abook ? durationMsOf(raw, abook) : 0,
     description: raw?.description ?? '',
     hasAbook: item.hasAbook,
+    comingSoon: item.comingSoon,
+    releaseDate: item.releaseDate,
     hasEbook: !!ebook,
     language: typeof raw?.language === 'string' ? raw.language.toLowerCase() : undefined,
     ...seriesField(item.seriesInfo),

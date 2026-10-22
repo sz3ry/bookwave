@@ -207,8 +207,9 @@ export function SearchResultList({
                 <button
                   type="button"
                   onClick={(e) => onPlayBook(e, book.id)}
+                  disabled={book.comingSoon}
                   title={t('search.play', 'Play')}
-                  className={`h-9 px-3.5 rounded-full font-semibold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
+                  className={`disabled:opacity-40 disabled:cursor-not-allowed h-9 px-3.5 rounded-full font-semibold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
                     isSelected
                       ? 'bg-[#FF5100] hover:bg-[#ff641a] text-white shadow-[#FF5100]/30'
                       : 'bg-white/10 hover:bg-[#FF5100] text-white hover:shadow-[#FF5100]/25'

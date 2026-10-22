@@ -41,6 +41,7 @@ interface DiscoverCardProps {
 }
 
 export function DiscoverCard({ book, selected, onSelect }: DiscoverCardProps) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -49,7 +50,12 @@ export function DiscoverCard({ book, selected, onSelect }: DiscoverCardProps) {
         selected ? 'bg-[#FF5100]/15 ring-1 ring-[#FF5100]/50' : 'hover:bg-white/[0.04]'
       }`}
     >
-      <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-900 mb-1.5">
+      <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gray-900 mb-1.5">
+        {book.comingSoon && (
+          <span className="absolute top-1 left-1 z-10 text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-black/75 text-[#FF8A50] border border-[#FF5100]/40">
+            {t('discover.comingSoon')}
+          </span>
+        )}
         {book.coverUrl && (
           <img
             src={buildCoverUrl(book.coverUrl)}

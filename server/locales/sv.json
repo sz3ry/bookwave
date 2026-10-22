@@ -45,7 +45,9 @@
     "offline": "Du är offline. Storytels startsida kräver en internetanslutning.",
     "error": "Det gick inte att ladda sidan.",
     "retry": "Försök igen",
-    "empty": "Det finns inget att visa här ännu."
+    "empty": "Det finns inget att visa här ännu.",
+    "comingSoon": "Kommer snart",
+    "releaseDate": "Utgivning: {{date}}"
   },
   "player": {
     "chapters": "Ljudspår",

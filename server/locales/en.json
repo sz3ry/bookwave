@@ -45,7 +45,9 @@
     "offline": "You're offline. Storytel's front page needs a connection.",
     "error": "Couldn't load this page.",
     "retry": "Try again",
-    "empty": "Nothing to show here yet."
+    "empty": "Nothing to show here yet.",
+    "comingSoon": "Coming soon",
+    "releaseDate": "Release: {{date}}"
   },
   "player": {
     "chapters": "Chapters",

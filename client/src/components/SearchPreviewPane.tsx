@@ -51,6 +51,13 @@ export function SearchPreviewPane({
           minutes: t('search.minutes'),
         })
       : '—';
+  const releaseDate = book.releaseDate ? new Date(book.releaseDate) : null;
+  const releaseDateText =
+    releaseDate && !Number.isNaN(releaseDate.getTime())
+      ? t('discover.releaseDate', {
+          date: new Intl.DateTimeFormat(i18n.language, { dateStyle: 'long' }).format(releaseDate),
+        })
+      : null;
   const languageLabel = book.language
     ? localizedLanguageName(book.language, i18n.language, book.languageName)
     : book.languageName
@@ -85,6 +92,14 @@ export function SearchPreviewPane({
       <div className="text-center mb-5">
         <h2 className="text-[19px] font-bold text-white leading-snug line-clamp-2">{book.title}</h2>
         <p className="text-sm text-[#9ca3af] mt-1 line-clamp-1">{book.authors}</p>
+        {book.comingSoon && (
+          <p className="mt-2 text-xs font-semibold text-[#FF8A50]">
+            <span className="uppercase font-bold px-2 py-0.5 rounded-full bg-[#FF5100]/20 border border-[#FF5100]/30">
+              {t('discover.comingSoon')}
+            </span>
+            {releaseDateText && <span className="ml-2">{releaseDateText}</span>}
+          </p>
+        )}
       </div>
 
       {/* Action Buttons: Listen & Add */}
@@ -92,7 +107,8 @@ export function SearchPreviewPane({
         <button
           type="button"
           onClick={() => onPlay(book.id)}
-          className="flex-1 h-[42px] rounded-xl bg-gradient-to-r from-[#FF5100] to-[#FF6B2B] hover:brightness-110 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#FF5100]/25 active:scale-95 transition-all"
+          disabled={book.comingSoon}
+          className="flex-1 h-[42px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 bg-gradient-to-r from-[#FF5100] to-[#FF6B2B] hover:brightness-110 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#FF5100]/25 active:scale-95 transition-all"
         >
           <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z" />

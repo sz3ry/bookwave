@@ -127,7 +127,7 @@ export function SeriesHint({ seriesInfo, currentBookId, finished, onOpenBook }: 
           <ol className="max-h-48 overflow-y-auto custom-scrollbar space-y-0.5">
             {series.parts.map((part) => {
               const isCurrent = part.id === currentBookId;
-              const disabled = isCurrent || !part.hasAbook;
+              const disabled = isCurrent || !part.hasAbook || !!part.comingSoon;
               return (
                 <li key={part.id}>
                   <button
@@ -147,6 +147,11 @@ export function SeriesHint({ seriesInfo, currentBookId, finished, onOpenBook }: 
                       {part.seriesInfo?.orderInSeries ?? '–'}
                     </span>
                     {part.title}
+                    {part.comingSoon && (
+                      <span className="ml-2 text-[10px] uppercase font-bold text-[#FF8A50]">
+                        {t('discover.comingSoon')}
+                      </span>
+                    )}
                   </button>
                 </li>
               );

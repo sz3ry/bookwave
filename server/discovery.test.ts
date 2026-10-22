@@ -188,8 +188,13 @@ describe('unreleased and locked audiobooks', () => {
     formats: [{ type: 'abook', cover: { url: 'https://c/9' }, ...extra }],
   });
 
-  test('an unreleased abook is not playable', () => {
-    expect(toDiscoveryItem(withAbook({ isReleased: false }))?.hasAbook).toBe(false);
+  test('an unreleased abook is listed as coming soon', () => {
+    const mapped = toDiscoveryItem(
+      withAbook({ isReleased: false, releaseDate: '2026-12-14T00:00:00Z' }),
+    );
+    expect(mapped?.hasAbook).toBe(true);
+    expect(mapped?.comingSoon).toBe(true);
+    expect(mapped?.releaseDate).toBe('2026-12-14T00:00:00Z');
   });
 
   test('a locked abook is not playable', () => {
@@ -197,12 +202,12 @@ describe('unreleased and locked audiobooks', () => {
   });
 
   test('a released, unlocked abook is playable', () => {
-    expect(toDiscoveryItem(withAbook({ isReleased: true, isLockedContent: false }))?.hasAbook).toBe(
-      true,
-    );
+    const mapped = toDiscoveryItem(withAbook({ isReleased: true, isLockedContent: false }));
+    expect(mapped?.hasAbook).toBe(true);
+    expect(mapped?.comingSoon).toBe(false);
   });
 
-  test('Czerwony plecak from the trending sample is dropped from lists', async () => {
+  test('Czerwony plecak from the trending sample is coming soon and never next', async () => {
     const sample = await Bun.file(
       new URL('../.superpowers/sdd/2026-10-22-discovery/fixtures/trending.json', import.meta.url),
     ).json();
@@ -216,7 +221,17 @@ describe('unreleased and locked audiobooks', () => {
       return undefined;
     };
     const mapped = toDiscoveryItem(find(sample));
-    expect(mapped?.hasAbook).toBe(false);
-    expect(playableOnly(mapped ? [mapped] : [])).toEqual([]);
+    expect(mapped?.comingSoon).toBe(true);
+    expect(mapped?.releaseDate).toStartWith('2026-12-14');
+    expect(playableOnly(mapped ? [mapped] : [])).toHaveLength(1);
+
+    const upcoming = {
+      ...(mapped as DiscoveryItem),
+      seriesInfo: { id: 's', name: 'S', orderInSeries: 2 },
+    };
+    const parts = pickSeriesParts([item('1', true, 1), upcoming], 1);
+    expect(parts.next).toBeNull();
+    expect(parts.firstAudiobook?.id).toBe('1');
+    expect(parts.parts).toHaveLength(2);
   });
 });

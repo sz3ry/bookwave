@@ -184,6 +184,9 @@ export interface SearchResultBook {
   description?: string;
   hasAbook: boolean;
   hasEbook: boolean;
+  // Announced but not out yet: listed, but cannot be played.
+  comingSoon?: boolean;
+  releaseDate?: string | null;
   language?: string;
   languageName?: string;
   seriesInfo?: SeriesInfo;

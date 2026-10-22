@@ -45,7 +45,9 @@
     "offline": "Sei offline. La home di Storytel richiede una connessione a internet.",
     "error": "Impossibile caricare questa pagina.",
     "retry": "Riprova",
-    "empty": "Non c'è ancora nulla da mostrare qui."
+    "empty": "Non c'è ancora nulla da mostrare qui.",
+    "comingSoon": "In arrivo",
+    "releaseDate": "Uscita: {{date}}"
   },
   "player": {
     "chapters": "Capitoli",
