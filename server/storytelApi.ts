@@ -1,6 +1,14 @@
-import axios, { type AxiosInstance } from 'axios';
+import {
+  createStorytelFetch,
+  type FetchLike,
+  StorytelAuthError,
+  StorytelHttpError,
+  type StorytelRequest,
+  type StorytelResponse,
+} from './http/storytelFetch';
 import { encryptPassword } from './passwordCrypt';
-import { appLogger } from './logger';
+
+export { StorytelAuthError };
 
 interface AccountInfo {
   jwt: string;
@@ -19,13 +27,6 @@ interface Bookmark {
 
 interface BookmarkResponse {
   bookmarks: Bookmark[];
-}
-
-interface StorytelAuthError extends Error {
-  isStorytelUnauthorized: boolean;
-  storytelStatus?: number;
-  storytelData?: unknown;
-  isLoginFailure?: boolean;
 }
 
 export interface SearchResultBook {
@@ -125,8 +126,30 @@ interface BookShelfResponse {
   books: BookShelfEntity[];
 }
 
+interface StorytelClientOptions {
+  fetch?: FetchLike;
+  // Called when login.action rejects the saved credentials during a token
+  // refresh. Not called for network errors or timeouts.
+  onCredentialsRejected?: () => void;
+}
+
+// axios sent this Accept header on every request that did not set its own;
+// keep it so the requests Storytel sees stay unchanged.
+const DEFAULT_ACCEPT = 'application/json, text/plain, */*';
+
+const LOGIN_URL = 'https://www.storytel.com/api/login.action';
+
+const BOOKMARK_ACCEPT = 'application/vnd.storytel.bookmark+json;v=2.0';
+
+function streamLocation(response: StorytelResponse<unknown>): string {
+  const location = response.headers.get('location');
+  if (!location) throw new Error('Storytel did not return a stream URL');
+  return location;
+}
+
 class StorytelClient {
-  private client: AxiosInstance;
+  private request: ReturnType<typeof createStorytelFetch>;
+  private onCredentialsRejected?: () => void;
   public loginData: LoginData;
 
   private static legacyLoginCache = new Map<
@@ -137,116 +160,57 @@ class StorytelClient {
   private savedEmail?: string;
   private savedEncryptedPassword?: string;
 
-  constructor() {
-    this.client = axios.create({
-      headers: {
-        'x-storytel-terminal': 'ios',
-        'user-agent': 'Storytel/25.38.0 (iOS 26.0; iPhone16,2) Release/924.1',
-      },
-      maxRedirects: 0,
-      validateStatus: (status) => status < 400,
-      timeout: 30000,
-      params: {
-        version: '25.38.0',
-      },
-    });
-
-    this.client.interceptors.request.use((request) => {
-      const url = request.url || '';
-      // Hide sensitive query params like password
-      let cleanUrl = url;
-      if (cleanUrl.includes('login.action')) {
-        cleanUrl = cleanUrl.replace(/pwd=[^&]+/, 'pwd=***');
-      }
-      appLogger.add({
-        type: 'http_request',
-        message: `[${request.method?.toUpperCase()}] ${cleanUrl}`,
-        method: request.method?.toUpperCase(),
-        url: cleanUrl,
-        data: request.data,
-      });
-      return request;
-    });
-
-    this.client.interceptors.response.use(
-      (response) => {
-        const url = response.config.url || '';
-        let cleanUrl = url;
-        if (cleanUrl.includes('login.action')) {
-          cleanUrl = cleanUrl.replace(/pwd=[^&]+/, 'pwd=***');
-        }
-        appLogger.add({
-          type: 'http_response',
-          message: `[${response.status}] ${cleanUrl}`,
-          status: response.status,
-          method: response.config.method?.toUpperCase(),
-          url: cleanUrl,
-          data: response.data,
-        });
-        return response;
-      },
-      async (error) => {
-        const url = error.config?.url || '';
-        const isLoginRequest = url.includes('login.action');
-        let cleanUrl = url;
-        if (cleanUrl.includes('login.action')) {
-          cleanUrl = cleanUrl.replace(/pwd=[^&]+/, 'pwd=***');
-        }
-        appLogger.add({
-          type: 'error',
-          message: `[Error ${error.response?.status || 'N/A'}] ${cleanUrl}`,
-          status: error.response?.status,
-          method: error.config?.method?.toUpperCase(),
-          url: cleanUrl,
-          data: error.response?.data || error.message,
-        });
-
-        // If 401 occurs on an authenticated request and we have not retried yet:
-        // Automatically refresh tokens and retry the request transparently.
-        if (
-          error.response?.status === 401 &&
-          !isLoginRequest &&
-          error.config &&
-          !error.config._isRetry
-        ) {
-          error.config._isRetry = true;
-          try {
-            if (this.savedEmail && this.savedEncryptedPassword) {
-              const cacheKey = `${this.savedEmail}:${this.savedEncryptedPassword}`;
-              StorytelClient.legacyLoginCache.delete(cacheKey);
-              await this.refreshLegacyLogin();
-              const freshBearer = this.loginData.accountInfo.jwt;
-              error.config.headers = error.config.headers || {};
-              error.config.headers.Authorization = `Bearer ${freshBearer}`;
-              return await this.client.request(error.config);
-            }
-          } catch {
-            // Ignore retry error and fall through to propagate 401
-          }
-        }
-
-        // Propagate Storytel 401 as a distinct error type so Fastify routes
-        // can return 401 to the frontend instead of a generic 500.
-        if (error.response?.status === 401) {
-          const authError: StorytelAuthError = new Error(
-            isLoginRequest ? 'Storytel login rejected' : 'Storytel session expired',
-          ) as StorytelAuthError;
-          authError.isStorytelUnauthorized = true;
-          authError.isLoginFailure = isLoginRequest;
-          authError.storytelStatus = error.response.status;
-          authError.storytelData = error.response.data;
-          return Promise.reject(authError);
-        }
-        return Promise.reject(error);
-      },
-    );
-
+  constructor(options: StorytelClientOptions = {}) {
+    this.request = createStorytelFetch(options.fetch);
+    this.onCredentialsRejected = options.onCredentialsRejected;
     this.loginData = {
       accountInfo: {
         jwt: '',
         singleSignToken: '',
       },
     };
+  }
+
+  // Sends a Storytel request. With `auth`, adds the api bearer and, when the
+  // session turns out to be expired (401), refreshes the login once and
+  // retries with the fresh bearer. Login calls are never retried.
+  private async send<T = any>(
+    req: StorytelRequest,
+    opts: { auth: boolean; isLogin?: boolean },
+  ): Promise<StorytelResponse<T>> {
+    const withHeaders = async (): Promise<StorytelRequest> => ({
+      ...req,
+      headers: {
+        Accept: DEFAULT_ACCEPT,
+        ...req.headers,
+        ...(opts.auth ? { Authorization: `Bearer ${await this.getApiBearer()}` } : {}),
+      },
+    });
+
+    try {
+      return await this.request<T>(await withHeaders());
+    } catch (error) {
+      if (
+        !(error instanceof StorytelAuthError) ||
+        opts.isLogin ||
+        !opts.auth ||
+        !this.savedEmail ||
+        !this.savedEncryptedPassword
+      ) {
+        throw error;
+      }
+      const cacheKey = `${this.savedEmail}:${this.savedEncryptedPassword}`;
+      StorytelClient.legacyLoginCache.delete(cacheKey);
+      try {
+        await this.refreshLegacyLogin();
+      } catch (refreshError) {
+        // A rejected re-login still means "session expired" to the caller;
+        // anything else (network, timeout) is reported as it is.
+        if (refreshError instanceof StorytelAuthError) throw error;
+        throw refreshError;
+      }
+      return await this.request<T>(await withHeaders());
+    }
   }
 
   setCredentials(email: string, encryptedPassword: string): void {
@@ -267,14 +231,19 @@ class StorytelClient {
       return;
     }
 
-    const url = 'https://www.storytel.com/api/login.action';
-    const params = {
-      m: 1,
-      uid: this.savedEmail,
-      pwd: this.savedEncryptedPassword,
-    };
-
-    const response = await this.client.get<LoginData>(url, { params });
+    let response: StorytelResponse<LoginData>;
+    try {
+      response = await this.send<LoginData>(
+        {
+          url: LOGIN_URL,
+          query: { m: 1, uid: this.savedEmail, pwd: this.savedEncryptedPassword },
+        },
+        { auth: false, isLogin: true },
+      );
+    } catch (error) {
+      if (error instanceof StorytelAuthError) this.onCredentialsRejected?.();
+      throw error;
+    }
     if (response.data?.accountInfo?.jwt) {
       this.loginData = response.data;
       let expiresIn = 1800; // default 30 min
@@ -302,17 +271,14 @@ class StorytelClient {
     const trimmedPassword = password.trim();
     const encryptedPassword = encryptPassword(trimmedPassword);
     this.setCredentials(trimmedEmail, encryptedPassword);
-    const url = 'https://www.storytel.com/api/login.action';
-    const params = {
-      m: 1,
-      uid: trimmedEmail,
-      pwd: encryptedPassword,
-    };
-
     try {
-      const response = await this.client.get<LoginData>(url, {
-        params,
-      });
+      const response = await this.send<LoginData>(
+        {
+          url: LOGIN_URL,
+          query: { m: 1, uid: trimmedEmail, pwd: encryptedPassword },
+        },
+        { auth: false, isLogin: true },
+      );
       this.loginData = response.data;
 
       const now = Math.floor(Date.now() / 1000);
@@ -425,15 +391,10 @@ class StorytelClient {
     const url = `https://api.storytel.net/bookmarks/positional?kidsMode=false&orderBy=updated&orderDirection=desc`;
 
     try {
-      const bearer = await this.getApiBearer();
-      const response = await this.client.get<{ bookmarks: Bookmark[] }>(url, {
-        params: {
-          ...(consumableId && { consumableIds: consumableId }),
-        },
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-        },
-      });
+      const response = await this.send<{ bookmarks: Bookmark[] }>(
+        { url, query: { ...(consumableId && { consumableIds: consumableId }) } },
+        { auth: true },
+      );
       return response.data.bookmarks;
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
@@ -449,23 +410,23 @@ class StorytelClient {
     const url = `https://api.storytel.net/bookmarks/positional`;
 
     try {
-      const bearer = await this.getApiBearer();
-      const response = await this.client.post(
-        url,
+      const response = await this.send(
         {
-          deviceId: deviceId,
-          action: 'player_paused',
-          secondsSinceCreated: 0,
-          position,
-          type: 'abook',
-          kidsMode: false,
-          consumableId: consumableId,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${bearer}`,
+          method: 'POST',
+          url,
+          body: {
+            json: {
+              deviceId: deviceId,
+              action: 'player_paused',
+              secondsSinceCreated: 0,
+              position,
+              type: 'abook',
+              kidsMode: false,
+              consumableId: consumableId,
+            },
           },
         },
+        { auth: true },
       );
       return response.data;
     } catch (error: any) {
@@ -487,36 +448,29 @@ class StorytelClient {
   // "no local state, send me everything". Do not "fix" this into a JSON body
   // such as {"items": []} — that is the 400 above.
   private async fetchBookshelfSnapshot(): Promise<RawBookshelfResponse> {
-    const bearer = await this.getApiBearer();
-    const response = await this.client.post<RawBookshelfResponse>(
-      StorytelClient.BOOKSHELF_URL,
-      '',
+    const response = await this.send<RawBookshelfResponse>(
       {
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          'content-type': 'application/x-www-form-urlencoded',
-          Accept: '*/*',
-        },
+        method: 'POST',
+        url: StorytelClient.BOOKSHELF_URL,
+        headers: { Accept: '*/*' },
+        body: { form: '' },
       },
+      { auth: true },
     );
     return response.data;
   }
 
-  // Push local changes. Must be real JSON: axios form-encodes plain objects
-  // when the request declares x-www-form-urlencoded, and the API discards such
-  // a body without ever failing the request.
+  // Push local changes. Must be real JSON: a form-encoded body is discarded by
+  // the API without ever failing the request.
   private async postBookshelfDelta(body: Record<string, unknown>): Promise<RawBookshelfResponse> {
-    const bearer = await this.getApiBearer();
-    const response = await this.client.post<RawBookshelfResponse>(
-      StorytelClient.BOOKSHELF_URL,
-      body,
+    const response = await this.send<RawBookshelfResponse>(
       {
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          'content-type': 'application/json',
-          Accept: '*/*',
-        },
+        method: 'POST',
+        url: StorytelClient.BOOKSHELF_URL,
+        headers: { Accept: '*/*' },
+        body: { json: body },
       },
+      { auth: true },
     );
     return response.data;
   }
@@ -658,11 +612,7 @@ class StorytelClient {
     // This correctly scopes search results to the logged-in user's country/market
     // and returns all available languages in their catalog (e.g. fi + sv + en).
     try {
-      const bearer = await this.getApiBearer();
-      const headers = {
-        Authorization: `Bearer ${bearer}`,
-        Accept: '*/*',
-      };
+      const headers = { Accept: '*/*' };
 
       const endpoints = [
         `https://api.storytel.net/search/v2?query=${encodeURIComponent(trimmed)}&configVariant=default`,
@@ -672,7 +622,7 @@ class StorytelClient {
 
       for (const url of endpoints) {
         try {
-          const response = await this.client.get(url, { headers });
+          const response = await this.send({ url, headers }, { auth: true });
           const rawItems = Array.isArray(response.data?.items)
             ? response.data.items
             : Array.isArray(response.data?.results)
@@ -739,14 +689,13 @@ class StorytelClient {
 
     try {
       const searchActionUrl = `${webSearchBaseUrl(country)}/api/search.action?q=${encodeURIComponent(trimmed)}`;
-      const response = await this.client.get(searchActionUrl, {
-        headers: {
-          Accept: 'application/json, text/plain, */*',
-        },
-        // Redirects stay disabled (see the client config): markets whose public
-        // search is gated behind sign-in (us, gb) answer 3xx towards an OAuth page,
-        // and following that would only download HTML that is discarded below.
-      });
+      // Redirects are never followed: markets whose public search is gated
+      // behind sign-in (us, gb) answer 3xx towards an OAuth page, and following
+      // that would only download HTML that is discarded below.
+      const response = await this.send(
+        { url: searchActionUrl, headers: { Accept: 'application/json, text/plain, */*' } },
+        { auth: false },
+      );
 
       const data = response.data;
       if (data && Array.isArray(data.books)) {
@@ -909,7 +858,7 @@ class StorytelClient {
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
       const customError: any = new Error(`Failed to add book to bookshelf: ${error.message}`);
-      customError.status = error.response?.status || 500;
+      customError.status = error.status || 500;
       throw customError;
     }
 
@@ -935,9 +884,9 @@ class StorytelClient {
       }
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
-      const detail = error.response?.data?.message || error.response?.data?.error || error.message;
+      const detail = error.data?.message || error.data?.error || error.message;
       const customError: any = new Error(`Failed to add book to bookshelf: ${detail}`);
-      customError.status = error.response?.status || 500;
+      customError.status = error.status || 500;
       throw customError;
     }
 
@@ -969,7 +918,7 @@ class StorytelClient {
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
       const customError: any = new Error(`Failed to remove book from bookshelf: ${error.message}`);
-      customError.status = error.response?.status || 500;
+      customError.status = error.status || 500;
       throw customError;
     }
 
@@ -1035,7 +984,7 @@ class StorytelClient {
       }
     }
 
-    if (lastError && !lastError.response) {
+    if (lastError && !(lastError instanceof StorytelHttpError)) {
       const detail = lastError.message;
       const customError: any = new Error(`Failed to remove book from bookshelf: ${detail}`);
       customError.status = 500;
@@ -1050,13 +999,7 @@ class StorytelClient {
     const url = `https://api.storytel.net/book-details/consumables/${consumableId}?kidsMode=false&configVariant=default`;
 
     try {
-      const bearer = await this.getApiBearer();
-      const response = await this.client.get(url, {
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          Accept: '*/*',
-        },
-      });
+      const response = await this.send({ url, headers: { Accept: '*/*' } }, { auth: true });
       return response.data;
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
@@ -1098,15 +1041,12 @@ class StorytelClient {
     let lastError: any = null;
 
     try {
-      const bearer = await this.getApiBearer();
       for (const url of candidates) {
         try {
-          const response = await this.client.get(url, {
-            headers: {
-              Authorization: `Bearer ${bearer}`,
-              Accept: 'application/json, text/plain, */*',
-            },
-          });
+          const response = await this.send(
+            { url, headers: { Accept: 'application/json, text/plain, */*' } },
+            { auth: true },
+          );
           if (response.data) {
             if (hasChapters(response.data)) {
               return response.data;
@@ -1135,7 +1075,7 @@ class StorytelClient {
         ];
         for (const legacyUrl of legacyUrls) {
           try {
-            const response = await this.client.get(legacyUrl);
+            const response = await this.send({ url: legacyUrl }, { auth: false });
             if (response.data) {
               if (hasChapters(response.data)) {
                 return response.data;
@@ -1174,51 +1114,38 @@ class StorytelClient {
   async getAudioStreamUrl(consumableId: string): Promise<string> {
     const url = `https://api.storytel.net/assets/v2/consumables/${consumableId}/abook`;
 
+    let response: StorytelResponse<unknown>;
     try {
-      const bearer = await this.getApiBearer();
-      const response = await this.client.get(url, {
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          Accept: '*/*',
-        },
-      });
-      // maxRedirects is 0 on the client, so a 2xx here is unexpected; prefer
-      // the redirect Location captured below in the catch.
-      return (response.request as any)?.res?.responseUrl || response.headers.location;
+      response = await this.send({ url, headers: { Accept: '*/*' } }, { auth: true });
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
-      const location = error.response?.headers?.location;
-      if (location) return location;
       throw new Error(`Failed to get audio stream URL: ${error.message}`);
     }
+    // Redirects are never followed, so the signed URL is the 302 Location.
+    return streamLocation(response);
   }
 
   async getStreamUrl(bookId: string): Promise<string> {
     const url = `https://www.storytel.com/mp3streamRangeReq?startposition=0&programId=${bookId}&token=${encodeURIComponent(this.loginData.accountInfo.singleSignToken)}`;
 
+    let response: StorytelResponse<unknown>;
     try {
-      const response = await this.client.get(url);
-      return (response.request as any).res.responseUrl || response.headers.location;
+      response = await this.send({ url }, { auth: false });
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
-      if (error.response && error.response.headers.location) {
-        return error.response.headers.location;
-      }
       throw new Error(`Failed to get stream URL: ${error.message}`);
     }
+    return streamLocation(response);
   }
 
   async getBookmark(consumableId: string): Promise<BookmarkResponse> {
     const url = `https://api.storytel.net/bookmarks/manual?type=abook&consumableId=${consumableId}`;
 
     try {
-      const bearer = await this.getApiBearer();
-      const response = await this.client.get<BookmarkResponse>(url, {
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          Accept: 'application/vnd.storytel.bookmark+json;v=2.0',
-        },
-      });
+      const response = await this.send<BookmarkResponse>(
+        { url, headers: { Accept: BOOKMARK_ACCEPT } },
+        { auth: true },
+      );
       return response.data;
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
@@ -1229,21 +1156,14 @@ class StorytelClient {
   async setBookmark(consumableId: string, position: number, note: string): Promise<void> {
     const url = 'https://api.storytel.net/bookmarks/manual';
     try {
-      const bearer = await this.getApiBearer();
-      await this.client.post(
-        url,
+      await this.send(
         {
-          position,
-          consumableId,
-          note,
-          type: 'abook',
+          method: 'POST',
+          url,
+          headers: { Accept: BOOKMARK_ACCEPT },
+          body: { json: { position, consumableId, note, type: 'abook' } },
         },
-        {
-          headers: {
-            Authorization: `Bearer ${bearer}`,
-            Accept: 'application/vnd.storytel.bookmark+json;v=2.0',
-          },
-        },
+        { auth: true },
       );
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
@@ -1260,13 +1180,15 @@ class StorytelClient {
 
     const url = `https://api.storytel.net/bookmarks/manual/${bookmarkId}?id=${bookmarkId}`;
     try {
-      const bearer = await this.getApiBearer();
-      await this.client.put(url, bookmarkData, {
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          Accept: 'application/vnd.storytel.bookmark+json;v=2.0',
+      await this.send(
+        {
+          method: 'PUT',
+          url,
+          headers: { Accept: BOOKMARK_ACCEPT },
+          ...(bookmarkData === undefined ? {} : { body: { json: bookmarkData } }),
         },
-      });
+        { auth: true },
+      );
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
       throw new Error(`Failed to update bookmark: ${error.message}`);
@@ -1282,13 +1204,10 @@ class StorytelClient {
 
     const url = `https://api.storytel.net/bookmarks/manual/${bookmarkId}?id=${bookmarkId}`;
     try {
-      const bearer = await this.getApiBearer();
-      await this.client.delete(url, {
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          Accept: 'application/vnd.storytel.bookmark+json;v=2.0',
-        },
-      });
+      await this.send(
+        { method: 'DELETE', url, headers: { Accept: BOOKMARK_ACCEPT } },
+        { auth: true },
+      );
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
       throw new Error(`Failed to delete bookmark: ${error.message}`);
