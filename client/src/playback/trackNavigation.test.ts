@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { TimelineTrack } from './timeline';
-import { bookSeconds, nextTrackIndex, planSeek } from './trackNavigation';
+import { bookSeconds, nextTrackIndex, nextUrlRetry, planSeek } from './trackNavigation';
 
 // Storytel: one track whose duration is unknown until the metadata loads.
 const single: TimelineTrack[] = [{ id: 'c-1', startMs: 0, durationMs: 0 }];
@@ -53,5 +53,30 @@ describe('nextTrackIndex', () => {
     expect(nextTrackIndex(three, 0)).toBe(1);
     expect(nextTrackIndex(three, 2)).toBeNull();
     expect(nextTrackIndex(single, 0)).toBeNull();
+  });
+});
+
+describe('nextUrlRetry', () => {
+  const none = { index: -1, at: [] };
+
+  test('allows two re-resolves of a track within 10 s, then gives up', () => {
+    expect(nextUrlRetry(none, 3, 1000)).toEqual({ index: 3, at: [1000] });
+    expect(nextUrlRetry({ index: 3, at: [1000] }, 3, 4000)).toEqual({
+      index: 3,
+      at: [1000, 4000],
+    });
+    expect(nextUrlRetry({ index: 3, at: [1000, 4000] }, 3, 9000)).toBeNull();
+  });
+
+  test('forgets attempts older than the window', () => {
+    const history = { index: 3, at: [1000, 4000] };
+    expect(nextUrlRetry(history, 3, 11_000)).toEqual({ index: 3, at: [4000, 11_000] });
+  });
+
+  test('counts each track on its own', () => {
+    expect(nextUrlRetry({ index: 3, at: [1000, 4000] }, 4, 5000)).toEqual({
+      index: 4,
+      at: [5000],
+    });
   });
 });

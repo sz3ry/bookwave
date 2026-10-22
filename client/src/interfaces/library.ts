@@ -18,6 +18,20 @@ export interface AudiotekaLibraryEntry {
   positionMs: number | null;
 }
 
+/** Client copy of the server's `AudiotekaTrack`: one MP3 on the book timeline. */
+export interface AudiotekaTrack {
+  id: string;
+  index: number;
+  durationMs: number;
+  startMs: number;
+}
+
+/** `GET /api/audioteka/books/:id`. */
+export interface AudiotekaBookDetails {
+  book: Omit<AudiotekaLibraryEntry, 'sources' | 'available' | 'positionMs'>;
+  tracks: AudiotekaTrack[];
+}
+
 export interface LibraryBook {
   provider: ProviderId;
   /** `storytel:<abook.id || id>` or `audioteka:<id>`; unique across providers. */

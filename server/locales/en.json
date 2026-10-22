@@ -81,6 +81,14 @@
       "hours": "h",
       "minutes": "min",
       "seconds": "s"
+    },
+    "part": "Part {{n}}",
+    "positionConflict": {
+      "title": "Where do you want to continue?",
+      "message": "The position saved on another device differs from this one. Choose where to continue listening.",
+      "thisDevice": "This device: {{time}}",
+      "otherDevice": "{{device}}: {{time}}",
+      "otherDeviceUnknown": "Other device: {{time}}"
     }
   },
   "bookmarks": {

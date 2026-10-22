@@ -38,9 +38,14 @@ export function FloatingMenu({ onOpenSearch, onOpenSettings }: FloatingMenuProps
     '';
 
   const handleOpenFullPlayer = () => {
-    if (audio.activeBookId) {
-      navigate(`/player/${audio.activeBookId}`, { state: { book: audio.activeBook } });
+    if (!audio.activeBookId) return;
+    if (audio.activeProvider === 'audioteka') {
+      navigate(`/player/audioteka/${audio.activeBookId}`, {
+        state: { audiotekaBook: audio.activeAudiotekaEntry },
+      });
+      return;
     }
+    navigate(`/player/${audio.activeBookId}`, { state: { book: audio.activeBook } });
   };
 
   return (

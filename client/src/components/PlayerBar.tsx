@@ -12,6 +12,7 @@ export function PlayerBar() {
   const {
     activeBook,
     activeBookId,
+    activeProvider,
     isPlaying,
     isLoading,
     currentTime,
@@ -78,7 +79,11 @@ export function PlayerBar() {
 
   const handleOpenFullPlayer = () => {
     if (activeBookId) {
-      navigate(`/player/${activeBookId}`);
+      navigate(
+        activeProvider === 'audioteka'
+          ? `/player/audioteka/${activeBookId}`
+          : `/player/${activeBookId}`,
+      );
     }
   };
 

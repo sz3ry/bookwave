@@ -11,16 +11,27 @@ import {
 } from 'react';
 import { trackAction } from '../utils/api';
 import storage from '../utils/storage';
-import { type BookShelfEntity, BookMetaData } from '../interfaces/books';
+import type { BookShelfEntity } from '../interfaces/books';
 import type { Chapter } from '../interfaces/chapters';
+import type { AudiotekaLibraryEntry, ProviderId } from '../interfaces/library';
 import { generateAudioTracks } from '../utils/chapters';
+import { audiotekaEntryToBookEntity } from '../utils/helpers';
 import i18n from '../i18n';
-import { createStorytelSource, type PlaybackSource } from '../playback/sources';
+import {
+  createAudiotekaSource,
+  createStorytelSource,
+  fetchAudiotekaBook,
+  type PlaybackSource,
+} from '../playback/sources';
+import { isStorytelSession } from '../playback/lastSession';
+import PositionConflictModal, { type PositionConflict } from '../components/PositionConflictModal';
 import { totalDurationMs } from '../playback/timeline';
 import {
   bookSeconds as timelineSeconds,
   nextTrackIndex,
+  nextUrlRetry,
   planSeek,
+  type UrlRetries,
 } from '../playback/trackNavigation';
 import { resolveStartPosition, type StoredPosition } from '../playback/positionSync';
 
@@ -38,11 +49,13 @@ const readLocalPosition = async (storageKey: string): Promise<StoredPosition | n
   }
 };
 
-const writeLocalPosition = async (storageKey: string, position: number) => {
+// `remoteSeen` is kept only for sources with the `ask` conflict policy.
+const writeLocalPosition = async (storageKey: string, position: number, remoteSeen?: number) => {
   try {
     const payload: StoredPosition = {
       position,
       updatedAt: new Date().toISOString(),
+      ...(remoteSeen === undefined ? {} : { remoteSeen }),
     };
     await storage.set(storageKey, JSON.stringify(payload));
   } catch {
@@ -54,6 +67,12 @@ const writeLocalPosition = async (storageKey: string, position: number) => {
 // writes happen on every n-th of these ticks (`remoteWriteIntervalMs`).
 const LOCAL_POSITION_INTERVAL_MS = 15000;
 
+// A track whose URL the element rejects (a signed CDN URL expired or answered
+// 403) is re-resolved at most this many times within the window, then the
+// load error is shown.
+const URL_RETRY_LIMIT = 2;
+const URL_RETRY_WINDOW_MS = 10_000;
+
 /** Current position on the book timeline, in seconds (see `trackNavigation`). */
 const bookSeconds = (
   audio: HTMLAudioElement,
@@ -62,17 +81,11 @@ const bookSeconds = (
 ): number =>
   source ? timelineSeconds(source.tracks, trackIndex, audio.currentTime) : audio.currentTime;
 
-/** Start position in ms chosen from the local cache and the provider's position. */
-const chooseStartPosition = (
-  source: PlaybackSource,
+/** `newest` policy: the newer of the local cache and the provider's position, in ms. */
+const newestStartPosition = (
   local: StoredPosition | null,
   remote: Awaited<ReturnType<PlaybackSource['readRemotePosition']>>,
 ): number => {
-  if (source.conflictPolicy === 'ask') {
-    const start = resolveStartPosition(local, remote);
-    // The conflict prompt is not wired yet: keep this device's position.
-    return start.kind === 'use' ? start.positionMs : start.localMs;
-  }
   if (remote && local) {
     const remoteTime = remote.updatedTime ? Date.parse(remote.updatedTime) : 0;
     const localTime = Date.parse(local.updatedAt);
@@ -95,7 +108,10 @@ export interface CurrentChapterInfo {
 }
 
 export interface AudioContextType {
+  /** The playing book's display fields; for an Audioteka book see `activeAudiotekaEntry`. */
   activeBook: BookShelfEntity | null;
+  activeProvider: ProviderId | null;
+  activeAudiotekaEntry: AudiotekaLibraryEntry | null;
   activeBookId: string | null;
   activeConsumableId: string | null;
   audioSrc: string | null;
@@ -110,6 +126,7 @@ export interface AudioContextType {
   chapters: Chapter[];
   currentChapter: CurrentChapterInfo | null;
   loadBook: (book: BookShelfEntity | null, bookId: string, autoPlay?: boolean) => Promise<void>;
+  loadAudiotekaBook: (entry: AudiotekaLibraryEntry, autoPlay?: boolean) => Promise<void>;
   togglePlayPause: () => void;
   seek: (seekTime: number) => void;
   skipForward: (seconds?: number) => void;
@@ -139,6 +156,11 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [activeBookId, setActiveBookId] = useState<string | null>(null);
   const [activeConsumableId, setActiveConsumableId] = useState<string | null>(null);
   const [activeSource, setActiveSource] = useState<PlaybackSource | null>(null);
+  const [activeProvider, setActiveProvider] = useState<ProviderId | null>(null);
+  const [activeAudiotekaEntry, setActiveAudiotekaEntry] = useState<AudiotekaLibraryEntry | null>(
+    null,
+  );
+  const [positionConflict, setPositionConflict] = useState<PositionConflict | null>(null);
 
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -164,10 +186,29 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const sourceRef = useRef<PlaybackSource | null>(null);
   const trackIndexRef = useRef(0);
   // Set while the element switches to another track of the same book (from
-  // the URL request until the new track's metadata has loaded): the offset to
-  // start it at, and whether it plays then. Element pause/time events of the
-  // old track are not the book's while it is set.
-  const pendingTrackStartRef = useRef<{ offsetSeconds: number; play: boolean } | null>(null);
+  // the URL request until the new track's metadata has loaded): the track,
+  // the offset to start it at, and whether it plays then. Element pause/time
+  // events of the old track are not the book's while it is set.
+  const pendingTrackStartRef = useRef<{
+    index: number;
+    offsetSeconds: number;
+    play: boolean;
+  } | null>(null);
+  // Whether the loaded track streams from the network (see `resolveTrackUrl`).
+  const trackRemoteRef = useRef(false);
+  // True from a book load until its first track's metadata has applied the
+  // saved position.
+  const awaitingStartPositionRef = useRef(false);
+  // Recent URL re-resolves of one track, for `URL_RETRY_LIMIT`.
+  const urlRetriesRef = useRef<UrlRetries>({ index: -1, at: [] });
+  // The last remote position Bookwave saw or wrote for the active book, kept
+  // in its local position (`StoredPosition.remoteSeen`); `ask` sources only.
+  const remoteSeenRef = useRef<number | undefined>(undefined);
+  // Settles the open position conflict prompt; null settles it without a choice.
+  const conflictResolverRef = useRef<((choice: 'local' | 'remote' | null) => void) | null>(null);
+  // The Audioteka book whose details are being fetched by `loadAudiotekaBook`.
+  const audiotekaLoadingIdRef = useRef<string | null>(null);
+  const activeAudiotekaEntryRef = useRef<AudiotekaLibraryEntry | null>(null);
   // The latest `markPaused`, for callbacks that keep a stable identity.
   const markPausedRef = useRef<(writePosition?: boolean) => void>(() => {});
   // Discards a slow stream/track URL response once a newer load has taken over.
@@ -177,41 +218,73 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     activeBookIdRef.current = activeBookId;
     audioSrcRef.current = audioSrc;
     isPlayingRef.current = isPlaying;
+    activeAudiotekaEntryRef.current = activeAudiotekaEntry;
   });
+
+  const remoteSeenFor = useCallback(
+    (source: PlaybackSource): number | undefined =>
+      source.conflictPolicy === 'ask' && sourceRef.current === source
+        ? remoteSeenRef.current
+        : undefined,
+    [],
+  );
+
+  // Remote write of the active (or just replaced) book; on success the local
+  // position records the written value as seen.
+  const writeRemote = useCallback(async (source: PlaybackSource, position: number) => {
+    await source.writeRemotePosition(position);
+    if (source.conflictPolicy !== 'ask') return;
+    if (sourceRef.current === source) remoteSeenRef.current = position;
+    await writeLocalPosition(source.positionStorageKey, position, position);
+  }, []);
 
   // Position synchronization helper
   const updatePosition = useCallback(
-    async (writeRemote: boolean = true) => {
+    async (shouldWriteRemote: boolean = true) => {
       if (!audioRef.current || !activeSource) return;
+      // A torn-down element (a book switch pauses it after removing its
+      // stream) reads 0, which is not the book's position
+      if (!audioSrcRef.current) return;
 
       const position = Math.floor(
         bookSeconds(audioRef.current, activeSource, trackIndexRef.current) * 1000,
       );
       // Always persist locally first so offline listening is preserved
-      await writeLocalPosition(activeSource.positionStorageKey, position);
-      if (!writeRemote) return;
+      await writeLocalPosition(
+        activeSource.positionStorageKey,
+        position,
+        remoteSeenFor(activeSource),
+      );
+      if (!shouldWriteRemote) return;
 
       try {
-        await activeSource.writeRemotePosition(position);
+        await writeRemote(activeSource, position);
       } catch (err) {
         console.warn('Failed to sync position to API, kept locally', err);
       }
     },
-    [activeSource],
+    [activeSource, writeRemote, remoteSeenFor],
   );
 
-  // Switch the element to another track of the current book
+  // Switch the element to another track of the current book. `start` null
+  // reloads a track that has not applied the book's saved position yet, which
+  // its metadata then does as on a fresh load.
   const loadTrack = useCallback(
-    async (source: PlaybackSource, index: number, offsetSeconds: number, play: boolean) => {
+    async (
+      source: PlaybackSource,
+      index: number,
+      start: { offsetSeconds: number; play: boolean } | null,
+    ) => {
       const audio = audioRef.current;
       if (!audio) return;
       const requestId = ++loadRequestIdRef.current;
-      pendingTrackStartRef.current = { offsetSeconds, play };
+      pendingTrackStartRef.current = start ? { index, ...start } : null;
       try {
-        const { url } = await source.resolveTrackUrl(index);
+        const { url, remote } = await source.resolveTrackUrl(index);
         if (requestId !== loadRequestIdRef.current) return;
 
         trackIndexRef.current = index;
+        trackRemoteRef.current = remote;
         audioSrcRef.current = url;
         setAudioSrc(url);
         audio.src = url;
@@ -252,16 +325,63 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         audio.currentTime = plan.seconds;
         return false;
       }
-      loadTrack(
-        source,
-        plan.index,
-        plan.offsetSeconds,
-        play ?? (pending ? pending.play : !audio.paused),
-      );
+      loadTrack(source, plan.index, {
+        offsetSeconds: plan.offsetSeconds,
+        play: play ?? (pending ? pending.play : !audio.paused),
+      });
       return true;
     },
     [loadTrack],
   );
+
+  // Opens the position conflict prompt and resolves with the user's choice,
+  // or with null when another book load closes it first.
+  const askPositionConflict = useCallback(
+    (conflict: PositionConflict) =>
+      new Promise<'local' | 'remote' | null>((resolve) => {
+        conflictResolverRef.current?.(null);
+        conflictResolverRef.current = resolve;
+        setPositionConflict(conflict);
+      }),
+    [],
+  );
+
+  const settlePositionConflict = useCallback((choice: 'local' | 'remote' | null) => {
+    const resolve = conflictResolverRef.current;
+    conflictResolverRef.current = null;
+    setPositionConflict(null);
+    resolve?.(choice);
+  }, []);
+
+  // Pause and resume that respect a pending track switch: the old track must
+  // neither restart nor hand its pause to the book, so the switch's own play
+  // flag decides what the new track does once it has loaded.
+  const pausePlayback = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const pending = pendingTrackStartRef.current;
+    if (pending) {
+      if (!pending.play) return;
+      pending.play = false;
+      if (!audio.paused) audio.pause();
+      markPausedRef.current();
+      return;
+    }
+    audio.pause();
+  }, []);
+
+  const resumePlayback = useCallback(() => {
+    const audio = audioRef.current;
+    // While the conflict prompt is open the start position is not applied yet
+    if (!audio || conflictResolverRef.current) return;
+    const pending = pendingTrackStartRef.current;
+    if (pending) {
+      pending.play = true;
+      setIsPlaying(true);
+      return;
+    }
+    audio.play().catch(console.error);
+  }, []);
 
   // Read remote/local saved position and jump. Returns true when the position
   // is on another track, which then starts asynchronously.
@@ -275,7 +395,27 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       }
 
       const local = await readLocalPosition(source.positionStorageKey);
-      const chosenPosition = chooseStartPosition(source, local, remote);
+      let chosenPosition: number;
+      if (source.conflictPolicy === 'ask') {
+        const start = resolveStartPosition(local, remote);
+        if (sourceRef.current !== source) return false;
+        if (start.kind === 'use') {
+          chosenPosition = start.positionMs;
+          remoteSeenRef.current = remote?.positionMs ?? local?.remoteSeen;
+        } else {
+          const choice = await askPositionConflict({
+            localMs: start.localMs,
+            remoteMs: start.remoteMs,
+            device: start.device,
+          });
+          if (choice === null || sourceRef.current !== source) return false;
+          chosenPosition = choice === 'remote' ? start.remoteMs : start.localMs;
+          remoteSeenRef.current = start.remoteMs;
+          await writeLocalPosition(source.positionStorageKey, chosenPosition, start.remoteMs);
+        }
+      } else {
+        chosenPosition = newestStartPosition(local, remote);
+      }
 
       if (sourceRef.current !== source || !audioRef.current) return false;
       const switched = seekBook(Math.floor(chosenPosition / 1000), play);
@@ -284,7 +424,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       }
       return switched;
     },
-    [seekBook],
+    [seekBook, askPositionConflict],
   );
 
   // Load chapters for the active book
@@ -352,79 +492,67 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   );
 
   // Sleep timer implementation
-  const setSleepTimer = useCallback((option: number | 'chapter' | null) => {
-    if (sleepTimerIntervalRef.current) {
-      clearInterval(sleepTimerIntervalRef.current);
-      sleepTimerIntervalRef.current = null;
-    }
-    setSleepTimerMode(option);
+  const setSleepTimer = useCallback(
+    (option: number | 'chapter' | null) => {
+      if (sleepTimerIntervalRef.current) {
+        clearInterval(sleepTimerIntervalRef.current);
+        sleepTimerIntervalRef.current = null;
+      }
+      setSleepTimerMode(option);
 
-    if (option === null) {
-      setSleepTimerRemaining(null);
-      return;
-    }
-
-    if (typeof option === 'number') {
-      const totalSeconds = option * 60;
-      setSleepTimerRemaining(totalSeconds);
-
-      sleepTimerIntervalRef.current = setInterval(() => {
-        setSleepTimerRemaining((prev) => {
-          if (prev === null || prev <= 1) {
-            clearInterval(sleepTimerIntervalRef.current);
-            sleepTimerIntervalRef.current = null;
-            if (audioRef.current) {
-              audioRef.current.pause();
-            }
-            setSleepTimerMode(null);
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (option === 'chapter') {
-      setSleepTimerRemaining(null);
-    }
-  }, []);
-
-  const shouldAutoPlayRef = useRef<boolean>(true);
-
-  // Main book loader
-  const loadBook = useCallback(
-    async (book: BookShelfEntity | null, bookId: string, autoPlay: boolean = true) => {
-      const isMatchingBook =
-        book &&
-        (String(book.id) === String(bookId) ||
-          String(book.abook?.id) === String(bookId) ||
-          String(book.book?.consumableId) === String(bookId));
-      const validBook = isMatchingBook ? book : null;
-      const consumableId = validBook?.book?.consumableId || bookId;
-      shouldAutoPlayRef.current = autoPlay;
-
-      // If this book is already active and stream is loaded, don't restart
-      if (activeBookIdRef.current === bookId && audioSrcRef.current) {
-        if (validBook) setActiveBook(validBook);
-        if (autoPlay && audioRef.current && !isPlayingRef.current) {
-          audioRef.current.play().catch(console.error);
-        }
+      if (option === null) {
+        setSleepTimerRemaining(null);
         return;
       }
 
-      const source = createStorytelSource(validBook, bookId);
+      if (typeof option === 'number') {
+        const totalSeconds = option * 60;
+        setSleepTimerRemaining(totalSeconds);
+
+        sleepTimerIntervalRef.current = setInterval(() => {
+          setSleepTimerRemaining((prev) => {
+            if (prev === null || prev <= 1) {
+              clearInterval(sleepTimerIntervalRef.current);
+              sleepTimerIntervalRef.current = null;
+              pausePlayback();
+              setSleepTimerMode(null);
+              return null;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else if (option === 'chapter') {
+        setSleepTimerRemaining(null);
+      }
+    },
+    [pausePlayback],
+  );
+
+  const shouldAutoPlayRef = useRef<boolean>(true);
+
+  // Leaves the current book before another one loads: flushes its position,
+  // closes a conflict prompt it opened and tears down the element stream.
+  const releaseCurrentBook = useCallback(
+    (nextProvider: ProviderId, nextKey: string) => {
+      settlePositionConflict(null);
 
       // If switching from a previous book, flush its position bookmark immediately
       const prevSource = sourceRef.current;
       if (
         prevSource &&
-        (prevSource.provider !== source.provider || prevSource.bookKey !== source.bookKey) &&
+        (prevSource.provider !== nextProvider || prevSource.bookKey !== nextKey) &&
         audioRef.current
       ) {
         const prevPosition = Math.floor(
           bookSeconds(audioRef.current, prevSource, trackIndexRef.current) * 1000,
         );
         if (prevPosition > 0) {
-          writeLocalPosition(prevSource.positionStorageKey, prevPosition);
-          prevSource.writeRemotePosition(prevPosition).catch((err) => {
+          writeLocalPosition(
+            prevSource.positionStorageKey,
+            prevPosition,
+            remoteSeenFor(prevSource),
+          );
+          writeRemote(prevSource, prevPosition).catch((err) => {
             console.warn('Failed to sync previous book bookmark position:', err);
           });
         }
@@ -441,15 +569,50 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         positionUpdateIntervalRef.current = null;
       }
 
-      sourceRef.current = source;
       trackIndexRef.current = 0;
       pendingTrackStartRef.current = null;
+      trackRemoteRef.current = false;
+      awaitingStartPositionRef.current = true;
+      urlRetriesRef.current = { index: -1, at: [] };
+      remoteSeenRef.current = undefined;
       isPlayingRef.current = false;
       audioSrcRef.current = null;
       setIsPlaying(false);
       setCurrentTime(0);
-      setDuration(source.tracks.length > 1 ? totalDurationMs(source.tracks) / 1000 : 0);
       setAudioSrc(null);
+    },
+    [settlePositionConflict, writeRemote, remoteSeenFor],
+  );
+
+  // Main book loader
+  const loadBook = useCallback(
+    async (book: BookShelfEntity | null, bookId: string, autoPlay: boolean = true) => {
+      const isMatchingBook =
+        book &&
+        (String(book.id) === String(bookId) ||
+          String(book.abook?.id) === String(bookId) ||
+          String(book.book?.consumableId) === String(bookId));
+      const validBook = isMatchingBook ? book : null;
+      const consumableId = validBook?.book?.consumableId || bookId;
+      shouldAutoPlayRef.current = autoPlay;
+
+      // If this book is already active and stream is loaded, don't restart
+      if (
+        sourceRef.current?.provider === 'storytel' &&
+        activeBookIdRef.current === bookId &&
+        audioSrcRef.current
+      ) {
+        if (validBook) setActiveBook(validBook);
+        if (autoPlay && !isPlayingRef.current) resumePlayback();
+        return;
+      }
+
+      const source = createStorytelSource(validBook, bookId);
+      audiotekaLoadingIdRef.current = null;
+      releaseCurrentBook(source.provider, source.bookKey);
+
+      sourceRef.current = source;
+      setDuration(source.tracks.length > 1 ? totalDurationMs(source.tracks) / 1000 : 0);
 
       // Persist session to local storage for quick restore
       storage
@@ -464,16 +627,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       try {
         setIsLoading(true);
         setError(null);
+        setActiveProvider('storytel');
+        setActiveAudiotekaEntry(null);
         setActiveBook(validBook);
         activeBookIdRef.current = bookId;
         setActiveBookId(bookId);
         setActiveConsumableId(consumableId);
         setActiveSource(source);
 
-        const { url } = await source.resolveTrackUrl(0);
+        const { url, remote } = await source.resolveTrackUrl(0);
         // A newer load took over while this stream was being resolved
         if (requestId !== loadRequestIdRef.current) return;
 
+        trackRemoteRef.current = remote;
         audioSrcRef.current = url;
         setAudioSrc(url);
 
@@ -488,7 +654,77 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    [refreshChapters],
+    [refreshChapters, releaseCurrentBook, resumePlayback],
+  );
+
+  // Audioteka book loader. Never written to `last_played_session`, which
+  // stays Storytel-only: an Audioteka book is not restored on launch.
+  const loadAudiotekaBook = useCallback(
+    async (entry: AudiotekaLibraryEntry, autoPlay: boolean = true) => {
+      shouldAutoPlayRef.current = autoPlay;
+      const current = sourceRef.current;
+      const isActive =
+        (current?.provider === 'audioteka' &&
+          current.bookKey === entry.id &&
+          !!audioSrcRef.current) ||
+        audiotekaLoadingIdRef.current === entry.id;
+      if (isActive) {
+        // `shouldAutoPlayRef` above is what a load still in flight plays by
+        setActiveAudiotekaEntry(entry);
+        setActiveBook(audiotekaEntryToBookEntity(entry));
+        if (autoPlay && audioSrcRef.current && !isPlayingRef.current) resumePlayback();
+        return;
+      }
+
+      releaseCurrentBook('audioteka', entry.id);
+      sourceRef.current = null;
+      audiotekaLoadingIdRef.current = entry.id;
+      setDuration(entry.durationMs / 1000);
+      setChapters([]);
+
+      const requestId = ++loadRequestIdRef.current;
+      setIsLoading(true);
+      setError(null);
+      setActiveProvider('audioteka');
+      setActiveAudiotekaEntry(entry);
+      setActiveBook(audiotekaEntryToBookEntity(entry));
+      activeBookIdRef.current = entry.id;
+      setActiveBookId(entry.id);
+      setActiveConsumableId(entry.id);
+      setActiveSource(null);
+
+      try {
+        const { tracks } = await fetchAudiotekaBook(entry.id);
+        if (requestId !== loadRequestIdRef.current) return;
+        audiotekaLoadingIdRef.current = null;
+        if (tracks.length === 0) throw new Error(i18n.t('player.loadError'));
+
+        const source = createAudiotekaSource(entry, tracks);
+        sourceRef.current = source;
+        setActiveSource(source);
+        const durationSeconds = totalDurationMs(source.tracks) / 1000;
+        setDuration(durationSeconds);
+        refreshChapters(source, durationSeconds);
+
+        const { url, remote } = await source.resolveTrackUrl(0);
+        if (requestId !== loadRequestIdRef.current) return;
+
+        trackRemoteRef.current = remote;
+        audioSrcRef.current = url;
+        setAudioSrc(url);
+        if (audioRef.current) {
+          audioRef.current.src = url;
+          audioRef.current.load();
+        }
+      } catch (err) {
+        if (requestId !== loadRequestIdRef.current) return;
+        audiotekaLoadingIdRef.current = null;
+        console.error('Failed to load Audioteka book:', err);
+        setError(errorMessage(err));
+        setIsLoading(false);
+      }
+    },
+    [refreshChapters, releaseCurrentBook, resumePlayback],
   );
 
   // Restore previous session on launch
@@ -498,17 +734,24 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         const raw = await storage.get('last_played_session');
         if (!raw) return;
         const saved = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        if (saved?.bookId && !activeBookIdRef.current) {
-          const source = createStorytelSource(saved.book || null, saved.bookId);
+        if (!isStorytelSession(saved)) {
+          // Not a Storytel book (an Audioteka id from an earlier build): drop it
+          await storage.remove('last_played_session');
+          return;
+        }
+        if (!activeBookIdRef.current) {
+          const book = (saved.book as BookShelfEntity | null | undefined) || null;
+          const source = createStorytelSource(book, saved.bookId);
           sourceRef.current = source;
           trackIndexRef.current = 0;
           setActiveSource(source);
-          setActiveBook(saved.book || null);
+          setActiveProvider('storytel');
+          setActiveBook(book);
           activeBookIdRef.current = saved.bookId;
           setActiveBookId(saved.bookId);
           const cid = saved.consumableId || saved.bookId;
           setActiveConsumableId(cid);
-          const savedDurationSec = saved.book?.abook?.time ? saved.book.abook.time / 1000000 : 0;
+          const savedDurationSec = book?.abook?.time ? book.abook.time / 1000000 : 0;
           if (savedDurationSec > 0) {
             setDuration(savedDurationSec);
           }
@@ -527,21 +770,23 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   const togglePlayPause = useCallback(() => {
     if (!audioRef.current) return;
+    // The start position is still being chosen in the conflict prompt
+    if (conflictResolverRef.current) return;
     if (!audioSrc && activeBookId) {
-      loadBook(activeBook, activeBookId, true);
+      const audiotekaEntry = activeAudiotekaEntryRef.current;
+      if (activeProvider === 'audioteka' && audiotekaEntry) {
+        loadAudiotekaBook(audiotekaEntry, true);
+      } else {
+        loadBook(activeBook, activeBookId, true);
+      }
       return;
     }
     // During a track switch the old track must not restart: flip what the
     // new track does once it has loaded instead.
     const pendingSwitch = pendingTrackStartRef.current;
     if (pendingSwitch) {
-      pendingSwitch.play = !pendingSwitch.play;
-      if (pendingSwitch.play) {
-        setIsPlaying(true);
-      } else {
-        if (!audioRef.current.paused) audioRef.current.pause();
-        markPausedRef.current();
-      }
+      if (pendingSwitch.play) pausePlayback();
+      else resumePlayback();
       return;
     }
     if (isPlaying) {
@@ -549,7 +794,17 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     } else {
       audioRef.current.play().catch(console.error);
     }
-  }, [isPlaying, audioSrc, activeBookId, activeBook, loadBook]);
+  }, [
+    isPlaying,
+    audioSrc,
+    activeBookId,
+    activeBook,
+    activeProvider,
+    loadBook,
+    loadAudiotekaBook,
+    pausePlayback,
+    resumePlayback,
+  ]);
 
   const seek = useCallback(
     (seekTime: number) => {
@@ -690,7 +945,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       const cur = bookSeconds(audioRef.current, sourceRef.current, trackIndexRef.current);
       setCurrentTime(cur);
       if (sleepTimerMode === 'chapter' && currentChapter && cur >= currentChapter.end - 0.5) {
-        audioRef.current.pause();
+        pausePlayback();
         setSleepTimerMode(null);
       }
     }
@@ -726,6 +981,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         return prev;
       });
     }
+    awaitingStartPositionRef.current = false;
     const switchedTrack = await goToPosition(source, shouldAutoPlayRef.current);
     if (switchedTrack || sourceRef.current !== source) return;
     setIsLoading(false);
@@ -740,11 +996,73 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     const source = sourceRef.current;
     const next = source ? nextTrackIndex(source.tracks, trackIndexRef.current) : null;
     if (source && next !== null) {
-      loadTrack(source, next, 0, true);
+      loadTrack(source, next, { offsetSeconds: 0, play: true });
       return;
     }
     setIsPlaying(false);
     updatePosition();
+  };
+
+  // A signed track URL the element could not play (expired, CDN 403): forget
+  // it, ask the provider again and continue at the same offset. Returns false
+  // when the source has no URL cache, the track is local, or the retries of
+  // this track are used up.
+  const retryTrackUrl = (): boolean => {
+    const audio = audioRef.current;
+    const source = sourceRef.current;
+    if (!audio || !source?.invalidateTrackUrl || !trackRemoteRef.current) return false;
+
+    const index = trackIndexRef.current;
+    const retries = nextUrlRetry(
+      urlRetriesRef.current,
+      index,
+      Date.now(),
+      URL_RETRY_LIMIT,
+      URL_RETRY_WINDOW_MS,
+    );
+    if (!retries) return false;
+    urlRetriesRef.current = retries;
+
+    console.warn(`Track ${index} URL failed, resolving it again`);
+    source.invalidateTrackUrl(index);
+    const pending = pendingTrackStartRef.current;
+    if (pending) {
+      loadTrack(source, index, { offsetSeconds: pending.offsetSeconds, play: pending.play });
+    } else if (awaitingStartPositionRef.current) {
+      // The saved position has not been applied yet: the reload applies it
+      loadTrack(source, index, null);
+    } else {
+      const offsetSeconds = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      loadTrack(source, index, { offsetSeconds, play: isPlayingRef.current || !audio.paused });
+    }
+    return true;
+  };
+
+  const onError = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    console.error('Audio error:', e);
+    const pending = pendingTrackStartRef.current;
+    // The old track failing while the next one's URL is still resolving: the
+    // switch replaces it anyway
+    if (pending && pending.index !== trackIndexRef.current) return;
+    if (retryTrackUrl()) return;
+
+    setIsLoading(false);
+    const retriable = !!sourceRef.current?.invalidateTrackUrl && trackRemoteRef.current;
+    if (retriable) setError(i18n.t('player.loadError'));
+    // A failed track switch: drop it (and any URL request still in
+    // flight) so the next attempt starts clean. The track index always
+    // matches the element's src, so it needs no change.
+    if (pending) {
+      pendingTrackStartRef.current = null;
+      loadRequestIdRef.current += 1;
+      markPaused(false);
+      return;
+    }
+    if (retriable && !audioRef.current?.paused) {
+      audioRef.current?.pause();
+      return;
+    }
+    setIsPlaying(false);
   };
 
   // Tray play/pause listeners
@@ -786,6 +1104,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     <AudioContext.Provider
       value={{
         activeBook,
+        activeProvider,
+        activeAudiotekaEntry,
         activeBookId,
         activeConsumableId,
         audioSrc,
@@ -800,6 +1120,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         chapters,
         currentChapter,
         loadBook,
+        loadAudiotekaBook,
         togglePlayPause,
         seek,
         skipForward,
@@ -824,21 +1145,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         onTimeUpdate={onTimeUpdate}
         onLoadedMetadata={onLoadedMetadata}
         onEnded={onEnded}
-        onError={(e) => {
-          console.error('Audio error:', e);
-          setIsLoading(false);
-          // A failed track switch: drop it (and any URL request still in
-          // flight) so the next attempt starts clean. The track index always
-          // matches the element's src, so it needs no change.
-          if (pendingTrackStartRef.current) {
-            pendingTrackStartRef.current = null;
-            loadRequestIdRef.current += 1;
-            markPaused(false);
-            return;
-          }
-          setIsPlaying(false);
-        }}
+        onError={onError}
       />
+      <PositionConflictModal conflict={positionConflict} onChoose={settlePositionConflict} />
       {children}
     </AudioContext.Provider>
   );

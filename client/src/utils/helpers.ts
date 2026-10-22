@@ -1,4 +1,5 @@
 import type { SearchResultBook, BookShelfEntity } from '../interfaces/books';
+import type { AudiotekaLibraryEntry } from '../interfaces/library';
 
 // Build a usable cover URL. The new bookshelf API returns absolute URLs
 // (https://covers.storytel.com/...); the legacy API returned relative paths
@@ -82,6 +83,32 @@ export const searchResultToBookEntity = (searchBook: SearchResultBook): BookShel
     subscribesToSerie: 0,
   };
 };
+
+/**
+ * The display fields of an Audioteka book in the shape the player components
+ * read (title, authors, narrators, cover, duration). It carries no Storytel
+ * ids: nothing may send it to a Storytel endpoint.
+ */
+export const audiotekaEntryToBookEntity = (entry: AudiotekaLibraryEntry): BookShelfEntity =>
+  ({
+    id: 0,
+    status: 2,
+    book: {
+      name: entry.title,
+      authorsAsString: entry.authors.join(', '),
+      consumableId: '',
+      cover: entry.coverUrl || '',
+      coverE: '',
+      largeCover: entry.coverUrl || '',
+      largeCoverE: '',
+    },
+    abook: {
+      narratorAsString: entry.narrators.join(', '),
+      time: entry.durationMs * 1000,
+    },
+    abookMark: null,
+    ebook: null,
+  }) as unknown as BookShelfEntity;
 
 export const localizedLanguageName = (
   code?: string | null,

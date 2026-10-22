@@ -81,6 +81,14 @@
       "hours": "t",
       "minutes": "min",
       "seconds": "s"
+    },
+    "part": "Osa {{n}}",
+    "positionConflict": {
+      "title": "Mistä haluat jatkaa?",
+      "message": "Toiselle laitteelle tallennettu kohta poikkeaa tämän laitteen kohdasta. Valitse, mistä jatkat kuuntelua.",
+      "thisDevice": "Tämä laite: {{time}}",
+      "otherDevice": "{{device}}: {{time}}",
+      "otherDeviceUnknown": "Toinen laite: {{time}}"
     }
   },
   "bookmarks": {

@@ -81,6 +81,14 @@
       "hours": "tim",
       "minutes": "min",
       "seconds": "s"
+    },
+    "part": "Del {{n}}",
+    "positionConflict": {
+      "title": "Var vill du fortsätta?",
+      "message": "Positionen som sparats på en annan enhet skiljer sig från den på den här enheten. Välj var du vill fortsätta lyssna.",
+      "thisDevice": "Den här enheten: {{time}}",
+      "otherDevice": "{{device}}: {{time}}",
+      "otherDeviceUnknown": "Annan enhet: {{time}}"
     }
   },
   "bookmarks": {

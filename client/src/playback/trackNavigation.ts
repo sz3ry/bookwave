@@ -38,3 +38,26 @@ export function planSeek(
 export function nextTrackIndex(tracks: TimelineTrack[], currentIndex: number): number | null {
   return currentIndex < tracks.length - 1 ? currentIndex + 1 : null;
 }
+
+/** Recent automatic URL re-resolves of one track (epoch ms). */
+export interface UrlRetries {
+  index: number;
+  at: number[];
+}
+
+/**
+ * Whether track `index` may resolve its URL again after a playback error:
+ * at most `limit` times within `windowMs`. Returns the updated history, or
+ * null when the retries are used up.
+ */
+export function nextUrlRetry(
+  history: UrlRetries,
+  index: number,
+  now: number,
+  limit = 2,
+  windowMs = 10_000,
+): UrlRetries | null {
+  const recent = history.index === index ? history.at.filter((at) => now - at < windowMs) : [];
+  if (recent.length >= limit) return null;
+  return { index, at: [...recent, now] };
+}

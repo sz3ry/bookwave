@@ -81,6 +81,14 @@
       "hours": "h",
       "minutes": "min",
       "seconds": "s"
+    },
+    "part": "Partie {{n}}",
+    "positionConflict": {
+      "title": "Où voulez-vous reprendre ?",
+      "message": "La position enregistrée sur un autre appareil diffère de celle de cet appareil. Choisissez où reprendre l'écoute.",
+      "thisDevice": "Cet appareil : {{time}}",
+      "otherDevice": "{{device}} : {{time}}",
+      "otherDeviceUnknown": "Autre appareil : {{time}}"
     }
   },
   "bookmarks": {

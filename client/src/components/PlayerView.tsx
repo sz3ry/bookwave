@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LoadingState from './LoadingState';
@@ -12,11 +12,13 @@ import PlayerControls from './PlayerControls';
 import BookInfo from './BookInfo';
 import DownloadCancelModal from './DownloadCancelModal';
 import type { BookShelfEntity } from '../interfaces/books';
+import type { AudiotekaLibraryEntry } from '../interfaces/library';
 import { useAudioContext } from '../contexts/AudioContext';
 import { useBookmarks } from '../hooks/useBookmarks';
 import { useChapters } from '../hooks/useChapters';
 import { useGotoModal } from '../hooks/useGotoModal';
-import { truncateTitle } from '../utils/helpers';
+import { audiotekaEntryToBookEntity, truncateTitle } from '../utils/helpers';
+import { fetchAudiotekaBook, fetchAudiotekaPosition } from '../playback/sources';
 import '../types/window.d.ts';
 import api, { trackAction } from '../utils/api';
 
@@ -27,15 +29,42 @@ function PlayerView() {
   const navigate = useNavigate();
   const audio = useAudioContext();
 
+  // `/player/audioteka/:bookId` plays an Audioteka book, `/player/:bookId` a Storytel one
+  const isAudioteka = location.pathname.startsWith('/player/audioteka/');
+
   const [fetchedBook, setFetchedBook] = useState<BookShelfEntity | null>(null);
+  const [fetchedAudiotekaEntry, setFetchedAudiotekaEntry] = useState<AudiotekaLibraryEntry | null>(
+    null,
+  );
 
   // Reset fetched book details when switching to a different book
   useEffect(() => {
     setFetchedBook(null);
+    setFetchedAudiotekaEntry(null);
   }, [bookId]);
+
+  // The Audioteka entry: from the library's navigation state, the book that
+  // is already playing, or fetched below
+  const stateAudiotekaEntry: AudiotekaLibraryEntry | null =
+    isAudioteka && location.state?.audiotekaBook?.id === bookId
+      ? location.state.audiotekaBook
+      : null;
+  const activeAudiotekaEntry =
+    isAudioteka && audio.activeProvider === 'audioteka' && audio.activeAudiotekaEntry?.id === bookId
+      ? audio.activeAudiotekaEntry
+      : null;
+  const audiotekaEntry =
+    stateAudiotekaEntry ||
+    activeAudiotekaEntry ||
+    (isAudioteka && fetchedAudiotekaEntry?.id === bookId ? fetchedAudiotekaEntry : null);
+  const audiotekaBook = useMemo(
+    () => (audiotekaEntry ? audiotekaEntryToBookEntity(audiotekaEntry) : null),
+    [audiotekaEntry],
+  );
 
   // Check if the central active book matches this route's bookId
   const isCurrentActiveBook =
+    !isAudioteka &&
     audio.activeBook &&
     (String(audio.activeBookId) === String(bookId) ||
       String(audio.activeBook.id) === String(bookId) ||
@@ -44,6 +73,7 @@ function PlayerView() {
 
   // Check if navigation state book matches this route's bookId
   const stateBookMatches =
+    !isAudioteka &&
     location.state?.book &&
     (String(location.state.book.id) === String(bookId) ||
       String(location.state.book.book?.consumableId) === String(bookId) ||
@@ -56,15 +86,17 @@ function PlayerView() {
       String(fetchedBook.book?.consumableId) === String(bookId) ||
       String(fetchedBook.abook?.id) === String(bookId));
 
-  const book: BookShelfEntity | null =
-    (stateBookMatches ? location.state.book : null) ||
-    (fetchedBookMatches ? fetchedBook : null) ||
-    (isCurrentActiveBook ? audio.activeBook : null);
+  const book: BookShelfEntity | null = isAudioteka
+    ? audiotekaBook
+    : (stateBookMatches ? location.state.book : null) ||
+      (fetchedBookMatches ? fetchedBook : null) ||
+      (isCurrentActiveBook ? audio.activeBook : null);
 
   // The play buttons navigate here with `autoPlay` in the router state; opening
   // the player any other way (mini player, deep link) only loads the book.
   const autoPlayRequested = location.state?.autoPlay === true;
-  const activeConsumableId = book?.book?.consumableId || bookId || '';
+  // Bookmarks, Storytel chapters and downloads are Storytel-only
+  const activeConsumableId = isAudioteka ? '' : book?.book?.consumableId || bookId || '';
 
   const [error, setError] = useState('');
   const [isLoadingBookData, setIsLoadingBookData] = useState(true);
@@ -76,10 +108,42 @@ function PlayerView() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [showDownloadCancelModal, setShowDownloadCancelModal] = useState(false);
 
+  // An Audioteka book opened without its library entry (a deep link): build
+  // the entry from the book and the account's position
+  const needsAudiotekaEntry = isAudioteka && !stateAudiotekaEntry && !activeAudiotekaEntry;
+  useEffect(() => {
+    if (!needsAudiotekaEntry || !bookId) return;
+    let cancelled = false;
+    Promise.all([
+      fetchAudiotekaBook(bookId),
+      fetchAudiotekaPosition(bookId).catch((err) => {
+        console.warn('Failed to fetch the Audioteka position:', err);
+        return null;
+      }),
+    ])
+      .then(([details, remote]) => {
+        if (cancelled) return;
+        setFetchedAudiotekaEntry({
+          ...details.book,
+          sources: [],
+          available: true,
+          positionMs: remote?.positionMs ?? null,
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Failed to fetch Audioteka book details:', err);
+        setError(err?.response?.data?.error || err?.message || t('player.loadError'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId, needsAudiotekaEntry, t]);
+
   // Fetch fallback book details if not available
   useEffect(() => {
     const hasBookDetails = stateBookMatches || isCurrentActiveBook;
-    if (!hasBookDetails && bookId) {
+    if (!isAudioteka && !hasBookDetails && bookId) {
       let cancelled = false;
       api
         .get(`/book-details/${bookId}`)
@@ -127,7 +191,7 @@ function PlayerView() {
         cancelled = true;
       };
     }
-  }, [bookId, stateBookMatches, isCurrentActiveBook]);
+  }, [bookId, isAudioteka, stateBookMatches, isCurrentActiveBook]);
 
   // Load book into central audio player. The play intent belongs to the
   // navigation, so it is honoured on the first run - which also resumes a book
@@ -142,9 +206,24 @@ function PlayerView() {
       lastBookIdRef.current = bookId;
       const isAlreadyLoaded = audio.activeBookId === bookId && !isNewBook && !!audio.audioSrc;
       const autoPlay = autoPlayRequested && (isNewBook || !isAlreadyLoaded);
-      audio.loadBook(book, bookId, autoPlay);
+      if (!isAudioteka) {
+        audio.loadBook(book, bookId, autoPlay);
+      } else if (audiotekaEntry) {
+        audio.loadAudiotekaBook(audiotekaEntry, autoPlay);
+      } else {
+        // Wait for the entry before counting the book as loaded
+        lastBookIdRef.current = null;
+      }
     }
-  }, [bookId, book, autoPlayRequested, audio.loadBook]);
+  }, [
+    bookId,
+    book,
+    isAudioteka,
+    audiotekaEntry,
+    autoPlayRequested,
+    audio.loadBook,
+    audio.loadAudiotekaBook,
+  ]);
 
   // Bookmarks hook
   const bookmarks = useBookmarks({
@@ -170,6 +249,12 @@ function PlayerView() {
   // Load book data (chapters and bookmarks)
   useEffect(() => {
     const loadBookData = async () => {
+      if (isAudioteka) {
+        // Its chapters (one per track) come from the audio context
+        setIsLoadingBookData(false);
+        if (book) document.title = truncateTitle(book.book.name);
+        return;
+      }
       if (activeConsumableId) {
         setIsLoadingBookData(true);
         try {
@@ -188,12 +273,12 @@ function PlayerView() {
     return () => {
       document.title = 'Bookwave';
     };
-  }, [activeConsumableId, book]);
+  }, [isAudioteka, activeConsumableId, book]);
 
   // Check download status on mount
   useEffect(() => {
     const checkDownloadStatus = async () => {
-      if (bookId) {
+      if (bookId && !isAudioteka) {
         try {
           const { data: statusData } = await api.get(`/download-status/${bookId}`);
           setIsDownloaded(statusData.downloaded);
@@ -204,7 +289,7 @@ function PlayerView() {
     };
 
     void checkDownloadStatus();
-  }, [bookId]);
+  }, [bookId, isAudioteka]);
 
   // Handle download button click
   const handleDownloadClick = async () => {
@@ -313,6 +398,11 @@ function PlayerView() {
     };
   }, [audio.togglePlayPause, audio.skipForward, audio.skipBackward, audio.isPlaying]);
 
+  // An Audioteka deep link whose book could not be fetched has nothing to load
+  if (isAudioteka && error && !book) {
+    return <ErrorState error={error} onRetry={() => navigate('/')} />;
+  }
+
   if (audio.isLoading || isLoadingBookData || !book) {
     return (
       <LoadingState
@@ -329,7 +419,9 @@ function PlayerView() {
     <div className="min-h-screen bg-black text-white relative">
       <Navbar
         barTitle={t('player.nowPlaying')}
-        onBackClick={() => navigate(`/book/${bookId}`, { state: { book } })}
+        onBackClick={() =>
+          isAudioteka ? navigate('/') : navigate(`/book/${bookId}`, { state: { book } })
+        }
       >
         <span>{book.book.name}</span>
       </Navbar>
@@ -404,6 +496,8 @@ function PlayerView() {
               onCancelDownload={handleDownloadClick}
               isDownloaded={isDownloaded}
               isDownloading={isDownloading}
+              showBookmarks={!isAudioteka}
+              showDownload={!isAudioteka}
             />
 
             {/* Player Controls */}

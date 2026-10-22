@@ -81,6 +81,14 @@
       "hours": "Std.",
       "minutes": "Min.",
       "seconds": "Sek."
+    },
+    "part": "Teil {{n}}",
+    "positionConflict": {
+      "title": "Wo möchten Sie weiterhören?",
+      "message": "Die auf einem anderen Gerät gespeicherte Position weicht von der auf diesem Gerät ab. Wählen Sie, wo Sie weiterhören möchten.",
+      "thisDevice": "Dieses Gerät: {{time}}",
+      "otherDevice": "{{device}}: {{time}}",
+      "otherDeviceUnknown": "Anderes Gerät: {{time}}"
     }
   },
   "bookmarks": {
