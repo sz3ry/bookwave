@@ -33,6 +33,15 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Lint
+        run: bunx biome ci .
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
       - name: Build
         run: bun run build:all
 
@@ -58,6 +67,13 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      # Lint runs in the Linux job only: Windows checkouts get CRLF line endings.
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
 
       - name: Build
         run: bun run build:all
