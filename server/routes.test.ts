@@ -95,8 +95,9 @@ afterEach(() => {
   }
 });
 
-afterAll(async () => {
-  await fastify.close();
+// The fastify instance is not closed here: bun runs all test files in one
+// process and server/audioteka/routes.test.ts injects into the same instance.
+afterAll(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

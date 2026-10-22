@@ -9,6 +9,9 @@ import { downloadToFile } from './download';
 import { createDownloadsIndex } from './downloadsIndex';
 import type { FetchLike } from './http/storytelFetch';
 import { appLogger } from './logger';
+import { AudiotekaClient } from './audioteka/client';
+import { audiotekaRoutes } from './audioteka/routes';
+import { type AudiotekaAuthApi, createAudiotekaSession } from './audioteka/session';
 import { type AuthApi, createSession } from './session';
 
 // Routes behind requireSession get the session's shared Storytel client.
@@ -141,6 +144,20 @@ export function configureSessionForTests(options: { fetch?: FetchLike }): void {
 const session = createSession((opts) => new StorytelClient({ ...opts, fetch: sessionFetch }));
 
 export const auth: AuthApi = session;
+
+// Fetch used by the Audioteka client; only tests replace it.
+let audiotekaFetch: FetchLike | undefined;
+
+export function configureAudiotekaForTests(options: { fetch?: FetchLike }): void {
+  audiotekaFetch = options.fetch;
+}
+
+// The logged-in Audioteka account, driven by the main process like `auth`.
+const audiotekaSession = createAudiotekaSession(
+  (opts) => new AudiotekaClient({ ...opts, fetch: audiotekaFetch }),
+);
+
+export const audiotekaAuth: AudiotekaAuthApi = audiotekaSession;
 
 fastify.decorateRequest('storytel', null as unknown as StorytelClient);
 
@@ -911,5 +928,7 @@ fastify.post<{ Body: { message: string; data?: any } }>(
     reply.send({ success: true });
   },
 );
+
+fastify.register(audiotekaRoutes(audiotekaSession));
 
 export default fastify;
