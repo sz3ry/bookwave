@@ -1270,6 +1270,9 @@ class StorytelClient {
       }));
     const playable = await Promise.all(
       chips.map(async (chip, index) => {
+        // Name-based on purpose: Storytel serves podcast episodes and dual-format
+        // books as `abook`, so the content check cannot tell these tabs apart.
+        if (index > 0 && /podcast|ebook/i.test(`${chip.pageSlug} ${chip.id}`)) return false;
         try {
           return await this.chipHasAudiobooks(chip);
         } catch (error) {

@@ -538,6 +538,25 @@ describe('StorytelClient explore', () => {
     await expect(clientWithSession(fetchImpl).getExploreChips()).rejects.toThrow();
   });
 
+  test('getExploreChips hides podcast and ebook tabs by name', async () => {
+    const { fetchImpl, callsTo } = router({
+      [CHIPS_PATH]: () =>
+        json({
+          chips: [
+            { id: 'c1', label: 'Home', pageSlug: 'home' },
+            { id: 'c2', label: 'Podcasts', pageSlug: 'poland-podcasts-categorypage' },
+            { id: 'c3', label: 'eBooks', pageSlug: 'poland-ebooks-categorypage-v2' },
+          ],
+        }),
+      '/explore/pages/home': () => json(homePage),
+      '/explore/pages/poland-podcasts-categorypage': () => json(homePage),
+      '/explore/pages/poland-ebooks-categorypage-v2': () => json(homePage),
+    });
+    const chips = await clientWithSession(fetchImpl).getExploreChips();
+    expect(chips.map((c) => c.id)).toEqual(['c1']);
+    expect(callsTo('/explore/pages/poland-podcasts-categorypage')).toHaveLength(0);
+  });
+
   test('getExploreChips rejects on 401 during probing', async () => {
     const { fetchImpl } = router({
       [CHIPS_PATH]: () => json({ chips: [{ id: 'c1', label: 'Home', pageSlug: 'home' }] }),
