@@ -1,6 +1,12 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 import type { AuthApi, StoredCredentials } from '../types';
-import { AuthManager, CREDENTIALS_KEY, isProtectedStoreKey, type SafeStorageLike } from './auth';
+import {
+  AuthManager,
+  CREDENTIALS_KEY,
+  createAuthIpcHandlers,
+  isProtectedStoreKey,
+  type SafeStorageLike,
+} from './auth';
 
 const CREDS: StoredCredentials = { email: 'reader@example.com', encryptedPassword: 'ENC(secret)' };
 const PASSWORD = 'plain-secret-password';
@@ -291,5 +297,40 @@ describe('isProtectedStoreKey', () => {
     expect(isProtectedStoreKey('authorName')).toBe(false);
     expect(isProtectedStoreKey('settings.alwaysOnTop')).toBe(false);
     expect(isProtectedStoreKey('hasSeenWelcome')).toBe(false);
+  });
+});
+
+describe('createAuthIpcHandlers', () => {
+  test('auth state asked during startup waits for the restored session', async () => {
+    const { manager } = setup({ stored: { [CREDENTIALS_KEY]: blobFor(CREDS) } });
+    let markReady!: (m: AuthManager) => void;
+    const handlers = createAuthIpcHandlers(new Promise((resolve) => (markReady = resolve)));
+
+    // The renderer asks before main has restored the stored credentials.
+    const pending = handlers.state();
+    manager.initialize();
+    markReady(manager);
+
+    expect(await pending).toEqual({ loggedIn: true, email: CREDS.email, canPersist: true });
+  });
+
+  test('login and logout go through the manager once it is ready', async () => {
+    const { manager } = setup();
+    const handlers = createAuthIpcHandlers(Promise.resolve(manager));
+
+    expect(await handlers.login(CREDS.email, PASSWORD)).toMatchObject({ ok: true });
+    await handlers.logout();
+    expect((await handlers.state()).loggedIn).toBe(false);
+  });
+
+  test('login rejects non-string arguments', async () => {
+    const { manager } = setup();
+    const handlers = createAuthIpcHandlers(Promise.resolve(manager));
+
+    expect(await handlers.login(42, PASSWORD)).toEqual({
+      ok: false,
+      error: 'failed',
+      message: 'Invalid login arguments',
+    });
   });
 });

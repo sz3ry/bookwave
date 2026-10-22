@@ -18,10 +18,23 @@ let ipcManager: IpcManager;
 let updaterManager: UpdaterManager;
 let authManager: AuthManager;
 
+// Resolved once the stored credentials are restored; the auth IPC handlers
+// wait for it, so the renderer never sees a premature logged-out state.
+let markAuthReady!: (manager: AuthManager) => void;
+let failAuthReady!: (error: unknown) => void;
+const authReady = new Promise<AuthManager>((resolve, reject) => {
+  markAuthReady = resolve;
+  failAuthReady = reject;
+});
+// A failed startup is reported by the IPC callers; avoid an unhandled rejection.
+authReady.catch(() => {});
+
 async function initialize(): Promise<void> {
   process.env.IS_ELECTRON = 'true';
   process.env.DOWNLOAD_PATH = app.getPath('downloads');
   process.env.USER_DATA_PATH = app.getPath('userData');
+
+  IpcManager.setupAuthHandlers(authReady);
 
   windowManager = new WindowManager(isDev, isDebug);
   const mainWindow = windowManager.create();
@@ -53,11 +66,12 @@ async function initialize(): Promise<void> {
     },
   });
   authManager.initialize();
+  markAuthReady(authManager);
 
   trayManager = new TrayManager(windowManager);
   trayManager.create();
 
-  ipcManager = new IpcManager(serverManager, trayManager, windowManager, authManager);
+  ipcManager = new IpcManager(serverManager, trayManager, windowManager);
   ipcManager.setupHandlers();
 
   // Initialize auto-updater
@@ -88,7 +102,13 @@ if (!gotTheLock) {
     }
   });
 
-  app.whenReady().then(initialize);
+  app
+    .whenReady()
+    .then(initialize)
+    .catch((error) => {
+      failAuthReady(error);
+      console.error('Failed to start:', error);
+    });
 }
 
 app.on('before-quit', () => {

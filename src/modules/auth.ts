@@ -167,3 +167,23 @@ export class AuthManager {
     return this.safeStorage.getSelectedStorageBackend?.() !== 'basic_text';
   }
 }
+
+// The auth:* IPC handlers. They are registered before the window loads and
+// each waits for `ready`, so a renderer asking during startup gets the
+// restored session instead of "No handler registered" or a logged-out state.
+export function createAuthIpcHandlers(ready: Promise<AuthManager>) {
+  return {
+    async login(email: unknown, password: unknown): Promise<LoginResult> {
+      if (typeof email !== 'string' || typeof password !== 'string') {
+        return { ok: false, error: 'failed', message: 'Invalid login arguments' };
+      }
+      return (await ready).login(email, password);
+    },
+    async logout(): Promise<void> {
+      (await ready).logout();
+    },
+    async state(): Promise<AuthStateView> {
+      return (await ready).getState();
+    },
+  };
+}

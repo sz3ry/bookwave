@@ -1,7 +1,7 @@
 import { ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
 import path from 'path';
 import { storeManager } from './store';
-import { type AuthManager, isProtectedStoreKey } from './auth';
+import { type AuthManager, createAuthIpcHandlers, isProtectedStoreKey } from './auth';
 import type { ServerManager } from './server';
 import type { TrayManager } from './tray';
 import type { WindowManager } from './window';
@@ -12,23 +12,31 @@ export class IpcManager {
   private serverManager: ServerManager;
   private trayManager: TrayManager;
   private windowManager: WindowManager;
-  private authManager: AuthManager;
 
   constructor(
     serverManager: ServerManager,
     trayManager: TrayManager,
     windowManager: WindowManager,
-    authManager: AuthManager,
   ) {
     this.serverManager = serverManager;
     this.trayManager = trayManager;
     this.windowManager = windowManager;
-    this.authManager = authManager;
+  }
+
+  // Registered before the window loads, ahead of the other handlers: the
+  // renderer asks for the auth state first thing, while main is still
+  // starting the server and restoring the stored credentials.
+  static setupAuthHandlers(authReady: Promise<AuthManager>): void {
+    const handlers = createAuthIpcHandlers(authReady);
+    ipcMain.handle('auth:login', (_event: IpcMainInvokeEvent, email: unknown, password: unknown) =>
+      handlers.login(email, password),
+    );
+    ipcMain.handle('auth:logout', () => handlers.logout());
+    ipcMain.handle('auth:state', () => handlers.state());
   }
 
   setupHandlers(): void {
     this.setupStoreHandlers();
-    this.setupAuthHandlers();
     this.setupApiHandlers();
     this.setupTrayHandlers();
     this.setupLocaleHandlers();
@@ -53,26 +61,6 @@ export class IpcManager {
 
     ipcMain.handle('store-remove', (_event: IpcMainInvokeEvent, key: unknown) => {
       if (isAllowed(key)) storeManager.remove(key);
-    });
-  }
-
-  private setupAuthHandlers(): void {
-    ipcMain.handle(
-      'auth:login',
-      (_event: IpcMainInvokeEvent, email: unknown, password: unknown) => {
-        if (typeof email !== 'string' || typeof password !== 'string') {
-          return { ok: false, error: 'failed', message: 'Invalid login arguments' };
-        }
-        return this.authManager.login(email, password);
-      },
-    );
-
-    ipcMain.handle('auth:logout', () => {
-      this.authManager.logout();
-    });
-
-    ipcMain.handle('auth:state', () => {
-      return this.authManager.getState();
     });
   }
 
