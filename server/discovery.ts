@@ -133,6 +133,8 @@ export function isAllowedExploreUrl(url: string): boolean {
   } catch {
     return false;
   }
+  if (parsed.username || parsed.password) return false;
+  if (/%2f|%5c|%2e/i.test(parsed.pathname)) return false;
   return parsed.origin === EXPLORE_ORIGIN && parsed.pathname.startsWith('/explore/');
 }
 
@@ -151,7 +153,13 @@ function byOrder(a: DiscoveryItem, b: DiscoveryItem): number {
 export function pickSeriesParts(items: DiscoveryItem[], currentOrder: number | null): SeriesParts {
   const parts = [...items].sort(byOrder);
   const lead = parts[0];
-  const first = lead && lead.seriesInfo?.orderInSeries != null ? lead : null;
+  const leadOrder = lead?.seriesInfo?.orderInSeries ?? null;
+  // Among parts tied at the lowest order, prefer an audiobook.
+  const first =
+    leadOrder === null
+      ? null
+      : (parts.find((part) => part.seriesInfo?.orderInSeries === leadOrder && part.hasAbook) ??
+        lead);
   const firstAudiobook = parts.find((part) => part.hasAbook) ?? null;
   const next =
     currentOrder === null

@@ -1216,7 +1216,8 @@ class StorytelClient {
   // needed), always with kidsMode=false. Cached per URL for an hour.
   private async exploreGet<T>(url: string): Promise<T> {
     const target = new URL(url);
-    if (!target.searchParams.has('kidsMode')) target.searchParams.set('kidsMode', 'false');
+    target.searchParams.set('kidsMode', 'false');
+    target.searchParams.delete('store');
     const key = target.toString();
     const cached = this.exploreCache.get(key);
     if (cached !== undefined) return cached as T;
@@ -1245,16 +1246,13 @@ class StorytelClient {
   // A chip is kept when its page shows audiobooks. Inline rows are checked
   // directly; a page made only of lazy rows is judged by its first row.
   private async chipHasAudiobooks(chip: DiscoveryChip): Promise<boolean> {
-    try {
-      const page = await this.getExplorePage(chip.pageSlug);
-      if (page.rows.some((row) => row.items.length > 0)) return true;
-      const lazy = page.rows.find((row) => row.itemsUrl);
-      if (!lazy?.itemsUrl) return false;
-      return (await this.getExploreList(lazy.itemsUrl)).items.length > 0;
-    } catch (error: any) {
-      if (error.isStorytelUnauthorized) throw error;
-      return false;
-    }
+    // Errors (offline, 5xx, 401) propagate: a chip is dropped only after its
+    // page loaded and showed no audiobooks.
+    const page = await this.getExplorePage(chip.pageSlug);
+    if (page.rows.some((row) => row.items.length > 0)) return true;
+    const lazy = page.rows.find((row) => row.itemsUrl);
+    if (!lazy?.itemsUrl) return false;
+    return (await this.getExploreList(lazy.itemsUrl)).items.length > 0;
   }
 
   async getExplorePage(pageSlug: string, nextPageToken?: string): Promise<DiscoveryPage> {

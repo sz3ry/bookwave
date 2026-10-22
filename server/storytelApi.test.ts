@@ -485,6 +485,63 @@ describe('StorytelClient explore', () => {
     expect(callsTo('/explore/pages/ebooks')).toHaveLength(1);
   });
 
+  test('getExploreList forces kidsMode=false and drops store', async () => {
+    const { fetchImpl, calls } = router({
+      '/explore/list-resource/x': () => json({ title: 'L', items: [] }),
+    });
+    await clientWithSession(fetchImpl).getExploreList(
+      'https://api.storytel.net/explore/list-resource/x?kidsMode=true&store=STHP-SE',
+    );
+    expect(calls[0].url.searchParams.get('kidsMode')).toBe('false');
+    expect(calls[0].url.searchParams.has('store')).toBe(false);
+  });
+
+  test('getExploreChips rejects when a probe fails', async () => {
+    const { fetchImpl } = router({
+      [CHIPS_PATH]: () => json({ chips: [{ id: 'c1', label: 'Home', pageSlug: 'home' }] }),
+      '/explore/pages/home': () => {
+        throw new Error('network down');
+      },
+    });
+    await expect(clientWithSession(fetchImpl).getExploreChips()).rejects.toThrow();
+  });
+
+  test('getExploreChips rejects on 401 during probing', async () => {
+    const { fetchImpl } = router({
+      [CHIPS_PATH]: () => json({ chips: [{ id: 'c1', label: 'Home', pageSlug: 'home' }] }),
+      '/explore/pages/home': () => json({}, 401),
+    });
+    await expect(clientWithSession(fetchImpl).getExploreChips()).rejects.toThrow();
+  });
+
+  test('getExploreChips judges a lazy-only page by its first lazy row', async () => {
+    const lazyPage = (path: string) => ({
+      title: 'P',
+      contentBlocks: [
+        {
+          id: 'l',
+          title: 'Lazy',
+          itemsUrl: `https://api.storytel.net/explore/list-resource/${path}`,
+        },
+      ],
+    });
+    const { fetchImpl } = router({
+      [CHIPS_PATH]: () =>
+        json({
+          chips: [
+            { id: 'c1', label: 'Books', pageSlug: 'books' },
+            { id: 'c2', label: 'Pods', pageSlug: 'pods' },
+          ],
+        }),
+      '/explore/pages/books': () => json(lazyPage('good')),
+      '/explore/pages/pods': () => json(lazyPage('bad')),
+      '/explore/list-resource/good': () => json({ title: 'G', items: [rawBook('1')] }),
+      '/explore/list-resource/bad': () => json({ title: 'B', items: [rawBook('2', 'ebook')] }),
+    });
+    const chips = await clientWithSession(fetchImpl).getExploreChips();
+    expect(chips.map((c) => c.id)).toEqual(['c1']);
+  });
+
   test('getSeries follows pages up to the cap and keeps every format', async () => {
     const { fetchImpl, callsTo } = router({
       '/explore/lists/series/70705': ({ url }) => {

@@ -59,6 +59,10 @@ describe('isAllowedExploreUrl', () => {
     expect(isAllowedExploreUrl('https://api.storytel.net.evil.com/explore/x')).toBe(false);
     expect(isAllowedExploreUrl('https://evil.example/explore/x')).toBe(false);
     expect(isAllowedExploreUrl('not a url')).toBe(false);
+    expect(isAllowedExploreUrl('https://user:pw@api.storytel.net/explore/x')).toBe(false);
+    expect(isAllowedExploreUrl('https://api.storytel.net/explore/..%2Fbookmarks')).toBe(false);
+    expect(isAllowedExploreUrl('https://api.storytel.net/explore/a%5Cb')).toBe(false);
+    expect(isAllowedExploreUrl('https://api.storytel.net/explore/%2e%2e/x')).toBe(false);
   });
 });
 
@@ -147,6 +151,12 @@ describe('pickSeriesParts', () => {
     expect(result.firstIsAudiobook).toBe(true);
     expect(result.firstAudiobook?.id).toBe('x');
     expect(result.next?.id).toBe('y');
+  });
+
+  test('prefers an audiobook among parts tied for part 1', () => {
+    const result = pickSeriesParts([item('e1', false, 1), item('a1', true, 1)], 1);
+    expect(result.first?.id).toBe('a1');
+    expect(result.firstIsAudiobook).toBe(true);
   });
 
   test('empty series', () => {
