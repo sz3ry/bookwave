@@ -1,8 +1,8 @@
-# Agent Development Guidelines for Storytel Player
+# Agent Development Guidelines for Bookwave
 
 ## Project Overview
 
-**Storytel Player** is an unofficial cross-platform desktop application for playing Storytel audiobooks, built with TypeScript, React, Fastify, and Electron.
+**Bookwave** is an unofficial desktop application for playing Storytel audiobooks (Linux x64: AppImage and deb; Windows x64: NSIS), built with TypeScript, React, Fastify, and Electron.
 
 ### Tech Stack
 - **Frontend**: React 18 + TypeScript + Tailwind CSS + Vite
@@ -121,7 +121,9 @@ storytel-player/
 2. **Development mode**: `npm run dev` (runs both client and server with hot reload)
 3. **Electron dev**: `npm run electron:dev`
 4. **Build**: `npm run build` (builds client and server)
-5. **Electron distribution**: `npm run electron:dist` (creates distributable packages)
+5. **Distribution**: `npm run dist:linux` / `npm run dist:win` (x64 only)
+
+There is no browser mode: the app only runs inside Electron (from the Electron-only restructuring onward). The Fastify server runs in-process inside the Electron main process.
 
 ### Testing Strategy
 
@@ -163,14 +165,9 @@ storytel-player/
 
 ## Git Repository
 
-- **Repository**: https://github.com/debba/storytel-player
-- **Issues**: https://github.com/debba/storytel-player/issues
-- **Releases**: https://github.com/debba/storytel-player/releases
-
-## Discord Community
-
-- Discord server for community discussions, feature requests, and support
-- Link will be added once the welcome modal implementation is complete
+- **Repository**: https://github.com/sz3ry/bookwave
+- **Issues**: https://github.com/sz3ry/bookwave/issues
+- **Releases**: https://github.com/sz3ry/bookwave/releases
 
 ## License
 
