@@ -9,6 +9,7 @@ import ErrorState from './ErrorState';
 import ContinueSeriesRow from './ContinueSeriesRow';
 import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
 import type { BookShelfEntity, BookShelfResponse } from '../interfaces/books';
+import { compareByRecency } from '../utils/series';
 import { isOfflineError, removeFromBookshelfErrorKey } from '../utils/helpers';
 
 // How often the offline Dashboard retries Storytel in the background.
@@ -168,14 +169,7 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
     }
 
     // Sort by most recently updated
-    result.sort((a, b) => {
-      const getTimestamp = (book: BookShelfEntity): number => {
-        if (book.positionUpdatedTime) return new Date(book.positionUpdatedTime).getTime();
-        if (book.stateUpdateTime) return new Date(book.stateUpdateTime).getTime();
-        return 0;
-      };
-      return getTimestamp(b) - getTimestamp(a);
-    });
+    result.sort(compareByRecency);
 
     return result;
   }, [books, filterStatus, searchQuery]);

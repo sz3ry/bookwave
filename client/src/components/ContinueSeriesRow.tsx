@@ -4,34 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { BookShelfEntity, SearchResultBook } from '../interfaces/books';
 import { getDiscoverySeries } from '../utils/api';
-import { isBookFinished } from '../utils/helpers';
+import { pickFinishedSeries } from '../utils/series';
 import { DiscoverCard } from './DiscoverList';
-
-// Series looked up per load; the server caches each lookup for an hour.
-const MAX_SERIES = 10;
-
-const recency = (book: BookShelfEntity): number => {
-  if (book.positionUpdatedTime) return new Date(book.positionUpdatedTime).getTime();
-  if (book.stateUpdateTime) return new Date(book.stateUpdateTime).getTime();
-  return 0;
-};
-
-/** Finished books with a series, newest first, one per series, at most MAX_SERIES. */
-export function pickFinishedSeries(books: BookShelfEntity[]): BookShelfEntity[] {
-  const seen = new Set<string>();
-  const picked: BookShelfEntity[] = [];
-  const finished = books
-    .filter((b) => b.book?.seriesInfo?.id && isBookFinished(b))
-    .sort((a, b) => recency(b) - recency(a));
-  for (const entity of finished) {
-    const id = entity.book.seriesInfo?.id as string;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    picked.push(entity);
-    if (picked.length >= MAX_SERIES) break;
-  }
-  return picked;
-}
 
 interface ContinueSeriesRowProps {
   books: BookShelfEntity[];
@@ -43,14 +17,25 @@ export function ContinueSeriesRow({ books, offline }: ContinueSeriesRowProps) {
   const navigate = useNavigate();
   const [suggestions, setSuggestions] = useState<SearchResultBook[]>([]);
 
+  // Stable keys so unrelated shelf changes do not refire the lookups.
+  const picked = pickFinishedSeries(books);
+  const pickedKey = picked
+    .map((b) => `${b.book.seriesInfo?.id}:${b.book.seriesInfo?.orderInSeries ?? ''}`)
+    .join('|');
+  const ownedKey = books
+    .map((b) => String(b.book?.consumableId))
+    .sort()
+    .join('|');
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on pickedKey and ownedKey
   useEffect(() => {
-    // `cancelled` drops results of a previous books list or an offline switch.
+    // `cancelled` drops results of a previous key or an offline switch.
     let cancelled = false;
-    setSuggestions([]);
-    if (offline) return;
-    const picked = pickFinishedSeries(books);
-    if (picked.length === 0) return;
-    const owned = new Set(books.map((b) => String(b.book?.consumableId)));
+    if (offline || picked.length === 0) {
+      setSuggestions([]);
+      return;
+    }
+    const owned = new Set(ownedKey.split('|'));
     Promise.all(
       picked.map((entity) =>
         getDiscoverySeries(
@@ -74,7 +59,7 @@ export function ContinueSeriesRow({ books, offline }: ContinueSeriesRowProps) {
     return () => {
       cancelled = true;
     };
-  }, [books, offline]);
+  }, [pickedKey, ownedKey, offline]);
 
   if (offline || suggestions.length === 0) return null;
 
