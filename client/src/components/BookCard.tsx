@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { buildCoverUrl, formatMicrosecondsTime } from '../utils/helpers';
+import { buildCoverUrl, formatMicrosecondsTime, isBookFinished } from '../utils/helpers';
 import type { BookShelfEntity } from '../interfaces/books';
 
 interface BookCardProps {
@@ -21,7 +21,7 @@ export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCard
   const progressPercent =
     totalDuration > 0 ? Math.min(Math.max((position / totalDuration) * 100, 0), 100) : 0;
 
-  const isFinished = book.status === 3 || (totalDuration > 0 && position >= totalDuration * 0.98);
+  const isFinished = isBookFinished(book);
   const isStarted = position > 0 && !isFinished;
 
   const coverUrl =

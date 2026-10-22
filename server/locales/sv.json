@@ -302,5 +302,13 @@
       "addToBookshelfFailed": "Kunde inte lägga till boken i bokhyllan. Den kanske inte ingår i ditt lands abonnemang.",
       "addToBookshelfNotConfirmed": "Storytel tog emot begäran men boken dök inte upp i din bokhylla. Den kanske inte ingår i ditt abonnemang."
     }
+  },
+  "series": {
+    "partOf": "Del {{n}} av {{series}}",
+    "inSeries": "Serie: {{series}}",
+    "next": "Nästa: {{title}}",
+    "startWith": "Börja med del {{n}}: {{title}}",
+    "firstUnavailable": "Del {{n}} finns inte som ljudbok.",
+    "parts": "Delar i serien"
   }
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SearchResultBook } from '../interfaces/books';
+import SeriesHint, { useSeriesInfo } from './SeriesHint';
 import { buildCoverUrl, formatMicrosecondsTime, localizedLanguageName } from '../utils/helpers';
 
 interface SearchPreviewPaneProps {
@@ -9,6 +10,7 @@ interface SearchPreviewPaneProps {
   onAddToLibrary: (bookId: string) => void;
   isAdded: boolean;
   isAdding: boolean;
+  onSelectBook: (book: SearchResultBook) => void;
 }
 
 export function SearchPreviewPane({
@@ -17,8 +19,10 @@ export function SearchPreviewPane({
   onAddToLibrary,
   isAdded,
   isAdding,
+  onSelectBook,
 }: SearchPreviewPaneProps) {
   const { t, i18n } = useTranslation();
+  const seriesInfo = useSeriesInfo(book?.id ?? '', book?.seriesInfo);
 
   if (!book) {
     return (
@@ -142,6 +146,15 @@ export function SearchPreviewPane({
           )}
         </button>
       </div>
+
+      {book && seriesInfo && (
+        <SeriesHint
+          seriesInfo={seriesInfo}
+          currentBookId={book.id}
+          finished={false}
+          onOpenBook={onSelectBook}
+        />
+      )}
 
       {/* Metadata Rows */}
       <div className="border-t border-b border-white/[0.06] divide-y divide-white/[0.04] py-1 text-[13px] mb-5">

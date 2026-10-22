@@ -302,5 +302,13 @@
       "addToBookshelfFailed": "Could not add book to library. It may not be available in your account's region.",
       "addToBookshelfNotConfirmed": "Storytel accepted the request but the book did not appear in your library. It may not be included in your subscription."
     }
+  },
+  "series": {
+    "partOf": "Part {{n}} of {{series}}",
+    "inSeries": "Series: {{series}}",
+    "next": "Next: {{title}}",
+    "startWith": "Start with part {{n}}: {{title}}",
+    "firstUnavailable": "Part {{n}} is not available as an audiobook.",
+    "parts": "Parts in this series"
   }
 }

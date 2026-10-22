@@ -1,22 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { BookShelfEntity } from '../interfaces/books';
+import type { BookShelfEntity, BookShelfResponse, SearchResultBook } from '../interfaces/books';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import Navbar from './Navbar';
 import {
   addToBookshelfErrorKey,
   buildCoverUrl,
+  isBookFinished,
   localizedLanguageName,
   removeFromBookshelfErrorKey,
   truncateTitle,
 } from '../utils/helpers';
 import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
+import SeriesHint, { useSeriesInfo } from './SeriesHint';
 import api from '../utils/api';
 import '../types/window.d.ts';
 
-function BookView() {
+function BookViewContent() {
   const { t, i18n } = useTranslation();
   const { bookId } = useParams();
   const location = useLocation();
@@ -33,6 +35,10 @@ function BookView() {
   // from the per-book book-details endpoint, fetched lazily below.
   const [description, setDescription] = useState('');
   const [language, setLanguage] = useState('');
+  const seriesInfo = useSeriesInfo(
+    book?.book?.consumableId ? String(book.book.consumableId) : (bookId ?? ''),
+    book?.book?.seriesInfo,
+  );
 
   useEffect(() => {
     if (!location.state?.book && bookId) {
@@ -169,6 +175,22 @@ function BookView() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Open a series part: its BookView when it is on the bookshelf, otherwise the
+  // search page with the part selected in the preview pane.
+  const handleOpenSeriesBook = async (part: SearchResultBook) => {
+    try {
+      const res = await api.get<BookShelfResponse>('/bookshelf');
+      const owned = (res.data?.books || []).find((b) => String(b.book?.consumableId) === part.id);
+      if (owned) {
+        navigate(`/book/${part.id}`, { state: { book: owned } });
+        return;
+      }
+    } catch (err) {
+      console.warn('Bookshelf lookup failed, opening the search preview instead', err);
+    }
+    navigate('/search', { state: { selectBook: part } });
   };
 
   const handlePlayBook = () => {
@@ -359,6 +381,17 @@ function BookView() {
             </div>
           </div>
 
+          {seriesInfo && (
+            <div className="w-full max-w-md mt-8">
+              <SeriesHint
+                seriesInfo={seriesInfo}
+                currentBookId={String(book.book.consumableId || bookId)}
+                finished={isBookFinished(book)}
+                onOpenBook={handleOpenSeriesBook}
+              />
+            </div>
+          )}
+
           {/* Description */}
           <div className="w-full max-w-md mt-8">
             <p className="text-gray-300 text-sm leading-relaxed">{getTruncatedDescription()}</p>
@@ -383,6 +416,12 @@ function BookView() {
       />
     </div>
   );
+}
+
+// Keyed by book so opening another part from the series list resets all state.
+function BookView() {
+  const { bookId } = useParams();
+  return <BookViewContent key={bookId} />;
 }
 
 export default BookView;

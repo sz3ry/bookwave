@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
 import type { SearchResultBook, SearchResponse } from '../interfaces/books';
@@ -22,6 +22,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
   const { t, i18n } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const activeQuery = propQuery !== undefined ? propQuery : searchParams.get('q') || '';
 
@@ -94,6 +95,14 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
   }, [activeQuery]);
+
+  // A book handed over by another page (e.g. a series part opened from BookView)
+  // is previewed with the Discover home still visible. Declared after the query
+  // effect so it wins over that effect's reset on mount.
+  const handedOverBook = (location.state as { selectBook?: SearchResultBook } | null)?.selectBook;
+  useEffect(() => {
+    if (handedOverBook) setSelectedBook(handedOverBook);
+  }, [handedOverBook]);
 
   // Compute language breakdown stats
   const languageStats = useMemo<LanguageStat[]>(() => {
@@ -332,6 +341,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
         onAddToLibrary={(id) => handleAddToLibrary(null, id)}
         isAdded={selectedBook ? !!addedBooks[selectedBook.id] : false}
         isAdding={selectedBook ? addingBookId === selectedBook.id : false}
+        onSelectBook={(book) => setSelectedBook(book)}
       />
     </div>
   );

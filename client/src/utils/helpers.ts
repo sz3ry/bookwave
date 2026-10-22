@@ -173,3 +173,13 @@ export const isOfflineError = (err: any): boolean => {
   const status: number | undefined = err?.response?.status;
   return status === undefined || status >= 500;
 };
+
+// A book counts as concluded when Storytel marks it finished or the listening
+// position is within the last 2% of the audiobook.
+export const isBookFinished = (
+  book: Pick<BookShelfEntity, 'status' | 'abook' | 'abookMark'>,
+): boolean => {
+  const position = book.abookMark ? book.abookMark.pos : 0;
+  const totalDuration = book.abook?.time || 0;
+  return book.status === 3 || (totalDuration > 0 && position >= totalDuration * 0.98);
+};

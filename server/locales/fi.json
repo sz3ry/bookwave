@@ -302,5 +302,13 @@
       "addToBookshelfFailed": "Kirjaa ei voitu lisätä kirjastoon. Se ei välttämättä ole saatavilla tilisi alueella.",
       "addToBookshelfNotConfirmed": "Storytel vastaanotti pyynnön, mutta kirja ei ilmestynyt kirjastoosi. Se ei välttämättä sisälly tilaukseesi."
     }
+  },
+  "series": {
+    "partOf": "Osa {{n}} sarjasta {{series}}",
+    "inSeries": "Sarja: {{series}}",
+    "next": "Seuraavaksi: {{title}}",
+    "startWith": "Aloita osasta {{n}}: {{title}}",
+    "firstUnavailable": "Osa {{n}} ei ole saatavilla äänikirjana.",
+    "parts": "Sarjan osat"
   }
 }
