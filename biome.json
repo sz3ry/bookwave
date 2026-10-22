@@ -14,6 +14,7 @@
       "!server/dist",
       "!**/node_modules",
       "!bun.lock",
+      "!.release-please-manifest.json",
       "!docs/superpowers",
       "!.superpowers"
     ]
