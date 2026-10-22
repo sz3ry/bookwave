@@ -7,6 +7,8 @@ export class ServerManager {
   private auth: AuthApi | null = null;
   private audiotekaAuth: AudiotekaAuthApi | null = null;
   private mediaResolver: FileResolver | null = null;
+  // Requests still running, so a quit can let them finish (see `settle`)
+  private inFlight = new Set<Promise<unknown>>();
 
   async initialize(): Promise<void> {
     const serverPath = path.join(__dirname, '../../../server/dist/server.js');
@@ -63,12 +65,14 @@ export class ServerManager {
       throw new Error('Server not initialized');
     }
 
-    const response = await this.server.inject({
+    const request = this.server.inject({
       method,
       url,
       payload,
       headers: headers || {},
     });
+    this.inFlight.add(request);
+    const response = await request.finally(() => this.inFlight.delete(request));
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       let errorData: any = {};
@@ -87,8 +91,24 @@ export class ServerManager {
     }
 
     return {
-      data: response.json(),
+      // A 204 has no body to parse
+      data: response.payload ? response.json() : null,
     };
+  }
+
+  /**
+   * Waits until the requests running now have finished, at most `timeoutMs`.
+   * Called before quitting, so a position write the renderer sent while its
+   * window closed still reaches the provider.
+   */
+  async settle(timeoutMs: number): Promise<void> {
+    if (this.inFlight.size === 0) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, timeoutMs);
+    });
+    await Promise.race([Promise.allSettled([...this.inFlight]).then(() => {}), timeout]);
+    clearTimeout(timer);
   }
 
   getServer(): any | null {

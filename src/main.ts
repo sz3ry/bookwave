@@ -13,6 +13,8 @@ import { handleMediaRequest, MEDIA_SCHEME, registerMediaScheme } from './modules
 import type { FileResolver } from './modules/mediaProtocol';
 
 const isDev = process.env.NODE_ENV === 'development';
+// How long a quit waits for server requests still running
+const QUIT_SETTLE_TIMEOUT_MS = 3000;
 const isDebug = process.env.IS_DEBUG === 'true';
 
 let windowManager: WindowManager;
@@ -184,6 +186,17 @@ app.on('window-all-closed', async () => {
     windowManager.killClientProcess();
     app.quit();
   }
+});
+
+// `app.quit()` closes the windows and then quits without `window-all-closed`;
+// hold the quit once so the position writes the renderer sent while its
+// window closed (see the audio context's `beforeunload`) reach the provider.
+let requestsSettledBeforeQuit = false;
+app.on('will-quit', (event) => {
+  if (requestsSettledBeforeQuit || !serverManager) return;
+  requestsSettledBeforeQuit = true;
+  event.preventDefault();
+  serverManager.settle(QUIT_SETTLE_TIMEOUT_MS).finally(() => app.quit());
 });
 
 app.on('activate', () => {

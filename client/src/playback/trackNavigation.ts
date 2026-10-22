@@ -16,6 +16,23 @@ export function bookSeconds(
   return (tracks[trackIndex]?.startMs ?? 0) / 1000 + elementSeconds;
 }
 
+/**
+ * The book position in ms to save. While a track switch (or URL reload) is
+ * pending the element still holds the old track or reads 0 before the new
+ * one's metadata, so the pending target is the book's position.
+ */
+export function bookPositionMs(
+  tracks: TimelineTrack[],
+  trackIndex: number,
+  elementSeconds: number,
+  pending: { index: number; offsetSeconds: number } | null,
+): number {
+  if (pending) {
+    return Math.floor((tracks[pending.index]?.startMs ?? 0) + pending.offsetSeconds * 1000);
+  }
+  return Math.floor(bookSeconds(tracks, trackIndex, elementSeconds) * 1000);
+}
+
 export type SeekPlan =
   /** Stay on the loaded track and set the element to `seconds`. */
   | { kind: 'element'; seconds: number }

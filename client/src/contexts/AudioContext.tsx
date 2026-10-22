@@ -27,13 +27,18 @@ import { isStorytelSession } from '../playback/lastSession';
 import PositionConflictModal, { type PositionConflict } from '../components/PositionConflictModal';
 import { totalDurationMs } from '../playback/timeline';
 import {
+  bookPositionMs,
   bookSeconds as timelineSeconds,
   nextTrackIndex,
   nextUrlRetry,
   planSeek,
   type UrlRetries,
 } from '../playback/trackNavigation';
-import { resolveStartPosition, type StoredPosition } from '../playback/positionSync';
+import {
+  resolveStartPosition,
+  type StoredPosition,
+  storedPosition,
+} from '../playback/positionSync';
 
 const readLocalPosition = async (storageKey: string): Promise<StoredPosition | null> => {
   try {
@@ -52,11 +57,7 @@ const readLocalPosition = async (storageKey: string): Promise<StoredPosition | n
 // `remoteSeen` is kept only for sources with the `ask` conflict policy.
 const writeLocalPosition = async (storageKey: string, position: number, remoteSeen?: number) => {
   try {
-    const payload: StoredPosition = {
-      position,
-      updatedAt: new Date().toISOString(),
-      ...(remoteSeen === undefined ? {} : { remoteSeen }),
-    };
+    const payload = storedPosition(position, remoteSeen);
     await storage.set(storageKey, JSON.stringify(payload));
   } catch {
     // best-effort cache; ignore failures
@@ -229,6 +230,18 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  // The book position in ms to save, honouring a pending track switch
+  const positionToSave = useCallback(
+    (audio: HTMLAudioElement, source: PlaybackSource): number =>
+      bookPositionMs(
+        source.tracks,
+        trackIndexRef.current,
+        audio.currentTime,
+        pendingTrackStartRef.current,
+      ),
+    [],
+  );
+
   // Remote write of the active (or just replaced) book; on success the local
   // position records the written value as seen.
   const writeRemote = useCallback(async (source: PlaybackSource, position: number) => {
@@ -246,9 +259,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       // stream) reads 0, which is not the book's position
       if (!audioSrcRef.current) return;
 
-      const position = Math.floor(
-        bookSeconds(audioRef.current, activeSource, trackIndexRef.current) * 1000,
-      );
+      const position = positionToSave(audioRef.current, activeSource);
       // Always persist locally first so offline listening is preserved
       await writeLocalPosition(
         activeSource.positionStorageKey,
@@ -263,7 +274,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         console.warn('Failed to sync position to API, kept locally', err);
       }
     },
-    [activeSource, writeRemote, remoteSeenFor],
+    [activeSource, writeRemote, remoteSeenFor, positionToSave],
   );
 
   // Switch the element to another track of the current book. `start` null
@@ -543,9 +554,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         (prevSource.provider !== nextProvider || prevSource.bookKey !== nextKey) &&
         audioRef.current
       ) {
-        const prevPosition = Math.floor(
-          bookSeconds(audioRef.current, prevSource, trackIndexRef.current) * 1000,
-        );
+        const prevPosition = positionToSave(audioRef.current, prevSource);
         if (prevPosition > 0) {
           writeLocalPosition(
             prevSource.positionStorageKey,
@@ -581,7 +590,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       setCurrentTime(0);
       setAudioSrc(null);
     },
-    [settlePositionConflict, writeRemote, remoteSeenFor],
+    [settlePositionConflict, writeRemote, remoteSeenFor, positionToSave],
   );
 
   // Main book loader
@@ -1076,14 +1085,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   // Cleanup on unmount & save on window close
   useEffect(() => {
+    // On quit (or reload) the local write keeps `remoteSeen`; an `ask` source
+    // also sends its remote write, which the main process lets finish before
+    // it quits (`ServerManager.settle`). If that write is lost, the kept
+    // `remoteSeen` still matches the remote, so the next open does not ask.
     const handleBeforeUnload = () => {
       const source = sourceRef.current;
-      if (audioRef.current && source) {
-        const position = Math.floor(
-          bookSeconds(audioRef.current, source, trackIndexRef.current) * 1000,
-        );
+      if (audioRef.current && source && audioSrcRef.current) {
+        const position = positionToSave(audioRef.current, source);
         if (position > 0) {
-          writeLocalPosition(source.positionStorageKey, position);
+          writeLocalPosition(source.positionStorageKey, position, remoteSeenFor(source));
+          if (source.conflictPolicy === 'ask') {
+            source.writeRemotePosition(position).catch(() => {});
+          }
         }
       }
     };
@@ -1098,7 +1112,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         clearInterval(sleepTimerIntervalRef.current);
       }
     };
-  }, []);
+  }, [positionToSave, remoteSeenFor]);
 
   return (
     <AudioContext.Provider

@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import type { TimelineTrack } from './timeline';
-import { bookSeconds, nextTrackIndex, nextUrlRetry, planSeek } from './trackNavigation';
+import {
+  bookPositionMs,
+  bookSeconds,
+  nextTrackIndex,
+  nextUrlRetry,
+  planSeek,
+} from './trackNavigation';
 
 // Storytel: one track whose duration is unknown until the metadata loads.
 const single: TimelineTrack[] = [{ id: 'c-1', startMs: 0, durationMs: 0 }];
@@ -78,5 +84,28 @@ describe('nextUrlRetry', () => {
       index: 4,
       at: [5000],
     });
+  });
+});
+
+describe('bookPositionMs', () => {
+  const tracks: TimelineTrack[] = [
+    { id: 'a', startMs: 0, durationMs: 120_000 },
+    { id: 'b', startMs: 120_000, durationMs: 80_000 },
+  ];
+
+  test('uses the element time on the loaded track', () => {
+    expect(bookPositionMs(tracks, 1, 30.5, null)).toBe(150_500);
+  });
+
+  test('uses the pending target while a switch is pending', () => {
+    // The element already holds track b but reads 0 before its metadata
+    expect(bookPositionMs(tracks, 1, 0, { index: 1, offsetSeconds: 42 })).toBe(162_000);
+    // The element still holds track a while b's URL resolves
+    expect(bookPositionMs(tracks, 0, 119, { index: 1, offsetSeconds: 0 })).toBe(120_000);
+  });
+
+  test('a single-track book is the element time', () => {
+    const single = [{ id: 's', startMs: 0, durationMs: 0 }];
+    expect(bookPositionMs(single, 0, 75.9, null)).toBe(75_900);
   });
 });

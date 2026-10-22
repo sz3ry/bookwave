@@ -8,6 +8,24 @@ export interface StoredPosition {
   remoteSeen?: number;
 }
 
+/**
+ * The record written under `pos:<id>`. Every local write of an `ask` source
+ * (the 15 s tick, a book switch, app quit) carries the `remoteSeen` Bookwave
+ * currently knows; dropping it would make the next open ask about a remote
+ * value Bookwave itself wrote.
+ */
+export function storedPosition(
+  position: number,
+  remoteSeen: number | undefined,
+  now: Date = new Date(),
+): StoredPosition {
+  return {
+    position,
+    updatedAt: now.toISOString(),
+    ...(remoteSeen === undefined ? {} : { remoteSeen }),
+  };
+}
+
 export type StartPosition =
   | { kind: 'use'; positionMs: number; source: 'local' | 'remote' }
   | { kind: 'ask'; localMs: number; remoteMs: number; device: string | null };
