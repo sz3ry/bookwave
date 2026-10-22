@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import api from '../utils/api';
 import LogsModal from './LogsModal';
 import LanguageModal from './LanguageModal';
 import Modal from './Modal';
@@ -47,8 +46,8 @@ function SettingsModal({ isOpen, onClose, onLogout }: SettingsModalProps) {
   const fetchAccountInfo = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/account');
-      setEmail(response.data.email);
+      const state = await window.electronAuth?.getState();
+      setEmail(state?.email ?? '');
     } catch (error) {
       console.error('Failed to fetch account info:', error);
     } finally {

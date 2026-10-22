@@ -13,7 +13,6 @@ import { useTranslation } from 'react-i18next';
 import LoginForm from './components/LoginForm';
 import Dashboard from './components/Dashboard';
 import PlayerView from './components/PlayerView';
-import api from './utils/api';
 import storage from './utils/storage';
 import BookView from './components/BookView';
 import WelcomeModal from './components/WelcomeModal';
@@ -105,40 +104,57 @@ function App() {
     }
   }, [triggerLogout]);
 
-  useEffect(() => {
-    const handleUnauthorized = async () => {
-      await storage.remove('token');
-      setIsAuthenticated(false);
+  // Mirrors the main-process auth state into the UI and the tray.
+  const applyLoggedOut = (expired: boolean) => {
+    setIsAuthenticated(false);
+    if (expired) {
       setSessionExpired(true);
-      if (window.trayControls?.updateAuthState) {
-        window.trayControls.updateAuthState(false);
+    }
+    if (window.trayControls?.updateAuthState) {
+      window.trayControls.updateAuthState(false);
+    }
+  };
+
+  useEffect(() => {
+    return window.electronAuth?.onExpired(() => applyLoggedOut(true));
+  }, []);
+
+  // `auth:expired` is dropped when no window exists, so re-read the state
+  // whenever the window comes back into view.
+  useEffect(() => {
+    const recheck = async () => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const state = await window.electronAuth?.getState();
+        if (state && !state.loggedIn) {
+          setIsAuthenticated((was) => {
+            if (was) applyLoggedOut(true);
+            return false;
+          });
+        }
+      } catch (error) {
+        console.error('Auth state re-check failed:', error);
       }
     };
-    window.addEventListener('unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('unauthorized', handleUnauthorized);
+    document.addEventListener('visibilitychange', recheck);
+    window.addEventListener('focus', recheck);
+    return () => {
+      document.removeEventListener('visibilitychange', recheck);
+      window.removeEventListener('focus', recheck);
+    };
   }, []);
 
   const checkAuthStatus = async () => {
     try {
-      const token = await storage.get('token');
-      if (!token) {
-        setIsAuthenticated(false);
-        setIsLoading(false);
-        if (window.trayControls?.updateAuthState) {
-          window.trayControls.updateAuthState(false);
-        }
-        return;
-      }
-
-      const response = await api.get('/auth/status');
-      const authenticated = response.data.authenticated;
+      const state = await window.electronAuth?.getState();
+      const authenticated = !!state?.loggedIn;
       setIsAuthenticated(authenticated);
       if (window.trayControls?.updateAuthState) {
         window.trayControls.updateAuthState(authenticated);
       }
     } catch (error) {
+      console.error('Failed to read auth state:', error);
       setIsAuthenticated(false);
-      await storage.remove('token');
       if (window.trayControls?.updateAuthState) {
         window.trayControls.updateAuthState(false);
       }
@@ -174,11 +190,10 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await api.post('/logout');
+      await window.electronAuth?.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      await storage.remove('token');
       setIsAuthenticated(false);
       setShowConfirmModal(false);
       setShowSettingsModal(false);

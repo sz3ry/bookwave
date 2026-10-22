@@ -9,8 +9,10 @@
     "errors": {
       "required": "Bitte geben Sie sowohl E-Mail als auch Passwort ein",
       "failed": "Anmeldung fehlgeschlagen",
-      "sessionExpired": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
-    }
+      "sessionExpired": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+      "invalidCredentials": "E-Mail-Adresse oder Passwort ist falsch"
+    },
+    "keyringUnavailable": "Es wurde kein System-Schlüsselbund gefunden, daher wird dein Passwort nicht gespeichert. Beim nächsten Start von Bookwave musst du dich erneut anmelden."
   },
   "dashboard": {
     "title": "Meine Bibliothek",

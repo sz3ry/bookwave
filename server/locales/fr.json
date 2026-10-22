@@ -9,8 +9,10 @@
     "errors": {
       "required": "Veuillez entrer votre e-mail et votre mot de passe",
       "failed": "Échec de la connexion",
-      "sessionExpired": "Votre session a expiré. Veuillez vous reconnecter."
-    }
+      "sessionExpired": "Votre session a expiré. Veuillez vous reconnecter.",
+      "invalidCredentials": "Adresse e-mail ou mot de passe incorrect"
+    },
+    "keyringUnavailable": "Aucun trousseau de clés système n'a été trouvé, votre mot de passe ne sera donc pas enregistré. Vous devrez vous reconnecter au prochain démarrage de Bookwave."
   },
   "dashboard": {
     "title": "Ma Bibliothèque",

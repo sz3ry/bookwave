@@ -1,5 +1,3 @@
-import storage from './storage';
-
 declare global {
   interface Window {
     electronApi?: any;
@@ -32,33 +30,13 @@ const request = async <T>(
   data?: unknown,
   config?: RequestConfig,
 ): Promise<ApiResponse<T>> => {
-  const token = await storage.get('token');
-  const headers = {
-    ...(config?.headers || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-  const finalConfig = { ...config, headers };
-  const hadToken = !!headers.Authorization;
-  const notifyUnauthorized = (status: unknown) => {
-    if (status === 401 && hadToken && !url.includes('/login')) {
-      window.dispatchEvent(new Event('unauthorized'));
-    }
-  };
+  const finalConfig = { ...config, headers: { ...(config?.headers || {}) } };
 
-  try {
-    const result = await window.electronApi[method](`/api${url}`, data ?? null, finalConfig);
-    if (result?.__isError) {
-      notifyUnauthorized(result.statusCode);
-      throw new ApiError(result.error, { status: result.statusCode, data: result.data });
-    }
-    return result;
-  } catch (error: any) {
-    // ApiError was already reported above; this covers unexpected IPC errors
-    if (!(error instanceof ApiError)) {
-      notifyUnauthorized(error?.response?.status ?? error?.status ?? error?.statusCode);
-    }
-    throw error;
+  const result = await window.electronApi[method](`/api${url}`, data ?? null, finalConfig);
+  if (result?.__isError) {
+    throw new ApiError(result.error, { status: result.statusCode, data: result.data });
   }
+  return result;
 };
 
 const api = {

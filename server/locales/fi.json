@@ -9,8 +9,10 @@
     "errors": {
       "required": "Anna sekä sähköpostiosoite että salasana",
       "failed": "Kirjautuminen epäonnistui",
-      "sessionExpired": "Istuntosi on vanhentunut. Kirjaudu sisään uudelleen."
-    }
+      "sessionExpired": "Istuntosi on vanhentunut. Kirjaudu sisään uudelleen.",
+      "invalidCredentials": "Virheellinen sähköpostiosoite tai salasana"
+    },
+    "keyringUnavailable": "Järjestelmän avainnippua ei löytynyt, joten salasanaasi ei tallenneta. Sinun täytyy kirjautua uudelleen seuraavalla kerralla, kun käynnistät Bookwaven."
   },
   "dashboard": {
     "title": "Kirjastoni",

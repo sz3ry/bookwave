@@ -9,8 +9,10 @@
     "errors": {
       "required": "Please enter both email and password",
       "failed": "Login failed",
-      "sessionExpired": "Your session has expired. Please sign in again."
-    }
+      "sessionExpired": "Your session has expired. Please sign in again.",
+      "invalidCredentials": "Incorrect email or password"
+    },
+    "keyringUnavailable": "No system keyring found, so your password won't be saved. You'll need to log in again next time you start Bookwave."
   },
   "dashboard": {
     "title": "My Library",

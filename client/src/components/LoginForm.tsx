@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import api, { trackAction } from '../utils/api';
-import storage from '../utils/storage';
+import { trackAction } from '../utils/api';
 import LanguageButton from './LanguageButton';
 
 interface LoginFormProps {
@@ -17,7 +16,15 @@ function LoginForm({ onLogin, sessionExpired }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [canPersist, setCanPersist] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    window.electronAuth
+      ?.getState()
+      .then((state) => setCanPersist(state.canPersist))
+      .catch((err) => console.error('Failed to read auth state:', err));
+  }, []);
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
@@ -32,13 +39,20 @@ function LoginForm({ onLogin, sessionExpired }: LoginFormProps) {
 
     try {
       trackAction('User attempted login', { email });
-      const response = await api.post('/login', { email, password });
-      const { token } = response.data;
-      await storage.set('token', token);
-      onLogin();
-      navigate('/');
-    } catch (error: any) {
-      setError(error.response?.data?.error || t('login.errors.failed'));
+      const result = await window.electronAuth?.login(email, password);
+      if (result?.ok) {
+        onLogin();
+        navigate('/');
+      } else if (result?.error === 'invalid_credentials') {
+        setError(t('login.errors.invalidCredentials'));
+      } else {
+        // `message` is English diagnostics, never shown to the user.
+        if (result?.message) console.error('Login failed:', result.message);
+        setError(t('login.errors.failed'));
+      }
+    } catch (error) {
+      console.error('Login failed:', error);
+      setError(t('login.errors.failed'));
     } finally {
       setIsLoading(false);
     }
@@ -188,6 +202,9 @@ function LoginForm({ onLogin, sessionExpired }: LoginFormProps) {
                 </button>
               </div>
             </form>
+            {!canPersist && (
+              <p className="text-xs text-center text-gray-400">{t('login.keyringUnavailable')}</p>
+            )}
           </div>
         </div>
       </main>

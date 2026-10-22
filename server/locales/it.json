@@ -9,8 +9,10 @@
     "errors": {
       "required": "Inserisci sia email che password",
       "failed": "Accesso fallito",
-      "sessionExpired": "La tua sessione è scaduta. Effettua nuovamente il login."
-    }
+      "sessionExpired": "La tua sessione è scaduta. Effettua nuovamente il login.",
+      "invalidCredentials": "Indirizzo email o password non corretti"
+    },
+    "keyringUnavailable": "Nessun portachiavi di sistema trovato, quindi la tua password non verrà salvata. Dovrai accedere di nuovo al prossimo avvio di Bookwave."
   },
   "dashboard": {
     "title": "La mia libreria",

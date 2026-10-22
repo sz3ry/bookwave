@@ -9,8 +9,10 @@
     "errors": {
       "required": "Por favor, introduce tanto el correo electrónico como la contraseña",
       "failed": "Error al iniciar sesión",
-      "sessionExpired": "Tu sesión ha expirado. Por favor, inicia sesión de nuevo."
-    }
+      "sessionExpired": "Tu sesión ha expirado. Por favor, inicia sesión de nuevo.",
+      "invalidCredentials": "Correo electrónico o contraseña incorrectos"
+    },
+    "keyringUnavailable": "No se encontró ningún llavero del sistema, así que tu contraseña no se guardará. Tendrás que volver a iniciar sesión la próxima vez que abras Bookwave."
   },
   "dashboard": {
     "title": "Mi Biblioteca",

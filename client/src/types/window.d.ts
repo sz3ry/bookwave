@@ -16,7 +16,27 @@ declare global {
     region: string | null;
   }
 
+  /** Mirrors `AuthStateView` in the Electron main process (src/modules/auth.ts). */
+  interface AuthStateView {
+    loggedIn: boolean;
+    email: string | null;
+    /** False when there is no OS keyring: the session lasts for this run only. */
+    canPersist: boolean;
+  }
+
+  /** Mirrors `LoginResult` in the Electron main process (src/modules/auth.ts). */
+  type AuthLoginResult =
+    | { ok: true; state: AuthStateView }
+    | { ok: false; error: 'invalid_credentials' | 'failed'; message?: string };
+
   interface Window {
+    electronAuth?: {
+      login: (email: string, password: string) => Promise<AuthLoginResult>;
+      logout: () => Promise<void>;
+      getState: () => Promise<AuthStateView>;
+      /** Returns an unsubscribe function. */
+      onExpired: (callback: () => void) => () => void;
+    };
     // TODO: Define proper types for tray control methods based on actual Electron IPC
     trayControls?: {
       updateProgress?: (current: number, total: number) => void;
