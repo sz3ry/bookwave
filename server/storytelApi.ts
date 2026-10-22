@@ -164,6 +164,19 @@ const LOGIN_URL = 'https://www.storytel.com/api/login.action';
 
 const EXPLORE_BASE = 'https://api.storytel.net/explore';
 const SERIES_MAX_PAGES = 5;
+// Lazy rows checked per chip before it is judged to have no audiobooks.
+const CHIP_PROBE_ROWS = 3;
+
+// A 4xx other than 401 for one explore row: the row is unavailable for this
+// account, not a sign that Storytel is unreachable or the session expired.
+function isClientErrorRow(error: unknown): boolean {
+  return (
+    error instanceof StorytelHttpError &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    error.status !== 401
+  );
+}
 
 const BOOKMARK_ACCEPT = 'application/vnd.storytel.bookmark+json;v=2.0';
 
@@ -1257,15 +1270,23 @@ class StorytelClient {
   }
 
   // A chip is kept when its page shows audiobooks. Inline rows are checked
-  // directly; a page made only of lazy rows is judged by its first row.
+  // directly; a page made only of lazy rows is judged by its first few rows.
   private async chipHasAudiobooks(chip: DiscoveryChip): Promise<boolean> {
     // Errors (offline, 5xx, 401) propagate: a chip is dropped only after its
     // page loaded and showed no audiobooks.
     const page = await this.getExplorePage(chip.pageSlug);
     if (page.rows.some((row) => row.items.length > 0)) return true;
-    const lazy = page.rows.find((row) => row.itemsUrl);
-    if (!lazy?.itemsUrl) return false;
-    return (await this.getExploreList(lazy.itemsUrl)).items.length > 0;
+    const lazyUrls = page.rows.flatMap((row) => (row.itemsUrl ? [row.itemsUrl] : []));
+    for (const itemsUrl of lazyUrls.slice(0, CHIP_PROBE_ROWS)) {
+      try {
+        if ((await this.getExploreList(itemsUrl)).items.length > 0) return true;
+      } catch (error) {
+        // Personalised rows ("new episodes for you") answer 404 for accounts
+        // without matching content; such a row says nothing about the chip.
+        if (!isClientErrorRow(error)) throw error;
+      }
+    }
+    return false;
   }
 
   async getExplorePage(pageSlug: string, nextPageToken?: string): Promise<DiscoveryPage> {

@@ -542,6 +542,49 @@ describe('StorytelClient explore', () => {
     expect(chips.map((c) => c.id)).toEqual(['c1']);
   });
 
+  test('getExploreChips skips lazy rows Storytel answers with a 4xx', async () => {
+    const { fetchImpl } = router({
+      [CHIPS_PATH]: () =>
+        json({
+          chips: [
+            { id: 'c1', label: 'Home', pageSlug: 'home' },
+            { id: 'c2', label: 'Gone', pageSlug: 'gone' },
+          ],
+        }),
+      '/explore/pages/home': () =>
+        json({
+          title: 'P',
+          contentBlocks: [
+            {
+              id: 'personal',
+              title: 'New episodes for you',
+              itemsUrl: 'https://api.storytel.net/explore/list-resource/personal',
+            },
+            {
+              id: 'top',
+              title: 'Top',
+              itemsUrl: 'https://api.storytel.net/explore/list-resource/top',
+            },
+          ],
+        }),
+      '/explore/pages/gone': () =>
+        json({
+          title: 'G',
+          contentBlocks: [
+            {
+              id: 'x',
+              title: 'X',
+              itemsUrl: 'https://api.storytel.net/explore/list-resource/personal',
+            },
+          ],
+        }),
+      '/explore/list-resource/personal': () => json({}, 404),
+      '/explore/list-resource/top': () => json({ title: 'T', items: [rawBook('1')] }),
+    });
+    const chips = await clientWithSession(fetchImpl).getExploreChips();
+    expect(chips.map((c) => c.id)).toEqual(['c1']);
+  });
+
   test('getSeries follows pages up to the cap and keeps every format', async () => {
     const { fetchImpl, callsTo } = router({
       '/explore/lists/series/70705': ({ url }) => {
