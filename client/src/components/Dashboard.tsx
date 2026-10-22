@@ -10,6 +10,9 @@ import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
 import type { BookShelfEntity, BookShelfResponse } from '../interfaces/books';
 import { removeFromBookshelfErrorKey } from '../utils/helpers';
 
+// How often the offline Dashboard retries Storytel in the background.
+const OFFLINE_RETRY_MS = 30_000;
+
 interface DashboardProps {
   onLogout: () => void;
   triggerLogout?: boolean;
@@ -51,17 +54,19 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
   // update the list, so an older failing load cannot replace a newer result.
   const loadSeqRef = useRef(0);
 
-  const loadBookshelf = async () => {
+  // `silent` retries the online bookshelf in the background while offline: no
+  // loading state, and a failure keeps the offline list as it is.
+  const loadBookshelf = async ({ silent = false }: { silent?: boolean } = {}) => {
     const seq = ++loadSeqRef.current;
     const isCurrent = () => seq === loadSeqRef.current;
     try {
-      setIsLoading(true);
+      if (!silent) setIsLoading(true);
       const response = await api.get<BookShelfResponse>('/bookshelf');
       if (!isCurrent()) return;
       setBooks(response.data.books || []);
       setIsOffline(false);
     } catch (err: any) {
-      if (!isCurrent()) return;
+      if (!isCurrent() || silent) return;
       // Only an unreachable Storytel (no HTTP status, or a server error) means
       // offline; a 4xx such as a rejected session is a real error.
       const status: number | undefined = err?.response?.status;
@@ -82,9 +87,26 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
         setError(t('dashboard.loadError'));
       }
     } finally {
-      if (isCurrent()) setIsLoading(false);
+      if (isCurrent() && !silent) setIsLoading(false);
     }
   };
+
+  // While showing the offline list, switch back to the online bookshelf as soon
+  // as Storytel is reachable again, without a manual reload.
+  useEffect(() => {
+    if (!isOffline) return;
+    const retry = () => {
+      void loadBookshelf({ silent: true });
+    };
+    window.addEventListener('online', retry);
+    window.addEventListener('focus', retry);
+    const timer = window.setInterval(retry, OFFLINE_RETRY_MS);
+    return () => {
+      window.removeEventListener('online', retry);
+      window.removeEventListener('focus', retry);
+      window.clearInterval(timer);
+    };
+  }, [isOffline]);
 
   // Status counts
   const counts = useMemo(() => {
