@@ -20,7 +20,9 @@
     "typecheck": "tsc -p tsconfig.electron.json --noEmit && bun run --filter '*' typecheck",
     "test": "bun test --pass-with-no-tests",
     "clean": "rm -rf dist server/dist client/build",
-    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md && git add README.md CHANGELOG.md src/version.ts"
+    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md && git add README.md CHANGELOG.md src/version.ts",
+    "check": "biome check .",
+    "prepare": "husky"
   },
   "author": "Łukasz Wiśniewski <fr.luksus@gmail.com>",
   "license": "MIT",
@@ -42,6 +44,7 @@
     "@babel/node": "^7.29.0",
     "@babel/preset-env": "^7.29.0",
     "@babel/preset-react": "^7.28.5",
+    "@biomejs/biome": "2.6.2",
     "@types/dot-object": "^2.1.6",
     "@types/node": "^24.10.13",
     "conventional-changelog": "^7.2.0",
@@ -49,6 +52,8 @@
     "cross-env": "^10.1.0",
     "electron": "^43.1.0",
     "electron-builder": "^26.17.0",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.0",
     "typescript": "^5.9.3"
   },
   "build": {
@@ -115,5 +120,8 @@
   "trustedDependencies": [
     "electron",
     "esbuild"
-  ]
+  ],
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json}": "biome check --write --no-errors-on-unmatched"
+  }
 }
