@@ -18,7 +18,7 @@ const testEnv = {
 const savedEnv = Object.fromEntries(Object.keys(testEnv).map((key) => [key, process.env[key]]));
 Object.assign(process.env, testEnv);
 
-const { default: fastify, auth, configureSession } = await import('./fastify-common');
+const { default: fastify, auth, configureSessionForTests } = await import('./fastify-common');
 
 for (const [key, value] of Object.entries(savedEnv)) {
   if (value === undefined) delete process.env[key];
@@ -44,7 +44,7 @@ function useFetch(routes: Record<string, () => Response>) {
     if (!route) throw new Error(`unexpected request to ${pathname}`);
     return route();
   };
-  configureSession({ fetch: fetchImpl });
+  configureSessionForTests({ fetch: fetchImpl });
 }
 
 const creds = { email: 'reader@example.com', encryptedPassword: encryptPassword('secret') };

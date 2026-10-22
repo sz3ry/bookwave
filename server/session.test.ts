@@ -37,6 +37,9 @@ function sessionWith(fetchImpl: FetchLike) {
   return createSession((opts) => new StorytelClient({ ...opts, fetch: fetchImpl }));
 }
 
+// Lets pending fetch calls start before the test resolves them.
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 const creds = { email: 'reader@example.com', encryptedPassword: encryptPassword('secret') };
 
 describe('session', () => {
@@ -156,6 +159,46 @@ describe('session', () => {
 
     expect(notified).toBe(0);
     expect(session.getState().loggedIn).toBe(false);
+  });
+
+  test('logout during in-flight login keeps the user logged out', async () => {
+    let resolveLogin: (response: Response) => void = () => {};
+    const fetchImpl: FetchLike = () =>
+      new Promise<Response>((resolve) => {
+        resolveLogin = resolve;
+      });
+    const session = sessionWith(fetchImpl);
+
+    const pending = session.login('reader@example.com', 'secret').catch((e: unknown) => e);
+    await flush();
+    session.logout();
+    resolveLogin(json({ accountInfo: { jwt: makeJwt(3600), singleSignToken: 'sst' } }));
+    const result = await pending;
+
+    expect(result).toBeInstanceOf(Error);
+    expect((result as Error).message).toBe('Login superseded');
+    expect(session.getState()).toEqual({ loggedIn: false, email: null });
+    expect(session.getClient()).toBeNull();
+  });
+
+  test('newer login wins over an older in-flight login', async () => {
+    const resolvers: Array<(response: Response) => void> = [];
+    const fetchImpl: FetchLike = () =>
+      new Promise<Response>((resolve) => {
+        resolvers.push(resolve);
+      });
+    const session = sessionWith(fetchImpl);
+    const ok = () => json({ accountInfo: { jwt: makeJwt(3600), singleSignToken: 'sst' } });
+
+    const older = session.login('old@example.com', 'secret').catch((e: unknown) => e);
+    const newer = session.login('new@example.com', 'secret');
+    await flush();
+    resolvers[1](ok());
+    await newer;
+    resolvers[0](ok());
+
+    expect(await older).toBeInstanceOf(Error);
+    expect(session.getState()).toEqual({ loggedIn: true, email: 'new@example.com' });
   });
 
   test('logout clears state', () => {

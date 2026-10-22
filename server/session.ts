@@ -16,7 +16,8 @@ export interface AuthState {
 export interface AuthApi {
   // Rejects with StorytelAuthError when Storytel refuses the credentials; any
   // other failure (network, timeout) rejects with a plain Error. Either way the
-  // current session is left as it was.
+  // current session is left as it was. Also rejects ('Login superseded') when
+  // logout/restore/another login ran before this one resolved.
   login(email: string, password: string): Promise<StoredCredentials>;
   // Starts a session from stored credentials without any network call; the
   // client logs in lazily on its first Storytel request.
@@ -39,8 +40,12 @@ export function createSession(
   let client: StorytelClient | null = null;
   let email: string | null = null;
   const listeners = new Set<() => void>();
+  // Bumped by every login/restore/logout, so a login that resolves after the
+  // session changed under it is dropped instead of overwriting the newer state.
+  let generation = 0;
 
   const logout = () => {
+    generation++;
     client = null;
     email = null;
   };
@@ -60,15 +65,20 @@ export function createSession(
 
   return {
     async login(loginEmail, password) {
+      const started = ++generation;
       const candidate = newClient();
       // On success the client holds the fresh Storytel JWT and the credentials.
       await candidate.login(loginEmail, password);
+      // A logout or another login happened meanwhile: the caller must not
+      // persist these credentials.
+      if (generation !== started) throw new Error('Login superseded');
       client = candidate;
       email = loginEmail.trim();
       return { email, encryptedPassword: encryptPassword(password.trim()) };
     },
 
     restore(creds) {
+      generation++;
       const restored = newClient();
       restored.setCredentials(creds.email, creds.encryptedPassword);
       client = restored;

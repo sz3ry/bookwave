@@ -248,6 +248,21 @@ describe('StorytelClient', () => {
     ]);
   });
 
+  test('restored client logs in before a URL-token request', async () => {
+    const { fetchImpl, calls } = router({
+      [LOGIN_PATH]: () =>
+        json({ accountInfo: { jwt: makeJwt(3600, 'fresh'), singleSignToken: 'sst-fresh' } }),
+      '/mp3streamRangeReq': () =>
+        new Response(null, { status: 302, headers: { location: 'https://cdn/legacy.mp3' } }),
+    });
+    const client = new StorytelClient({ fetch: fetchImpl });
+    client.setCredentials(uniqueEmail(), encryptPassword('secret'));
+
+    expect(await client.getStreamUrl('42')).toBe('https://cdn/legacy.mp3');
+    expect(calls.map((c) => c.url.pathname)).toEqual([LOGIN_PATH, '/mp3streamRangeReq']);
+    expect(calls[1].url.searchParams.get('token')).toBe('sst-fresh');
+  });
+
   test('stream URL comes from 302 Location', async () => {
     const { fetchImpl, calls } = router({
       '/assets/v2/consumables/c1/abook': () =>

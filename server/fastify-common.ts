@@ -90,7 +90,7 @@ let sessionFetch: FetchLike | undefined;
 
 // Test seam: routes.test.ts injects a fetch stub here before restoring a
 // session. Takes effect for clients created afterwards (login/restore).
-export function configureSession(options: { fetch?: FetchLike }): void {
+export function configureSessionForTests(options: { fetch?: FetchLike }): void {
   sessionFetch = options.fetch;
 }
 

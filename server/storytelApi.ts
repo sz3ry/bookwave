@@ -231,6 +231,13 @@ class StorytelClient {
     return this.pendingLogin;
   }
 
+  // URL-token endpoints carry singleSignToken in the URL and never pass through
+  // getApiBearer, so a restored client must log in before building them.
+  private async ensureLoggedIn(): Promise<void> {
+    const { jwt, singleSignToken } = this.loginData.accountInfo;
+    if (!jwt || !singleSignToken) await this.refreshLegacyLogin();
+  }
+
   private async loginWith(email: string, encryptedPassword: string): Promise<void> {
     let response: StorytelResponse<LoginData>;
     try {
@@ -1031,6 +1038,7 @@ class StorytelClient {
     }
 
     try {
+      await this.ensureLoggedIn();
       const legacyToken = this.loginData.accountInfo.singleSignToken;
       if (legacyToken) {
         const legacyUrls = [
@@ -1054,8 +1062,9 @@ class StorytelClient {
           }
         }
       }
-    } catch {
-      // Ignore legacy fallback failure
+    } catch (err: any) {
+      // Rejected credentials must reach the caller; anything else falls through.
+      if (err?.isLoginFailure) throw err;
     }
 
     // Try book-details as last resort
@@ -1091,10 +1100,10 @@ class StorytelClient {
   }
 
   async getStreamUrl(bookId: string): Promise<string> {
-    const url = `https://www.storytel.com/mp3streamRangeReq?startposition=0&programId=${bookId}&token=${encodeURIComponent(this.loginData.accountInfo.singleSignToken)}`;
-
     let response: StorytelResponse<unknown>;
     try {
+      await this.ensureLoggedIn();
+      const url = `https://www.storytel.com/mp3streamRangeReq?startposition=0&programId=${bookId}&token=${encodeURIComponent(this.loginData.accountInfo.singleSignToken)}`;
       response = await this.send({ url }, { auth: false });
     } catch (error: any) {
       if (error.isStorytelUnauthorized) throw error;
