@@ -110,9 +110,12 @@ export function DiscoverHome({ selectedBookId, onSelectBook }: DiscoverHomeProps
     }
   };
 
-  // Every row failed to load: show the page-level notice instead of an empty page.
+  // Every lazy row failed and no inline row has books: show the page-level
+  // notice instead of an empty page.
   const failedRows = Object.values(rowFailures);
-  const allRowsFailed = rows.length > 0 && failedRows.length === rows.length;
+  const lazyRowCount = rows.filter((row) => row.itemsUrl && row.items.length === 0).length;
+  const hasInlineItems = rows.some((row) => row.items.length > 0);
+  const allRowsFailed = lazyRowCount > 0 && failedRows.length >= lazyRowCount && !hasInlineItems;
   const shownError =
     error ?? (allRowsFailed ? { offline: failedRows.every((f) => f.offline) } : null);
 

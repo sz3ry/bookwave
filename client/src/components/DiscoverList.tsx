@@ -159,20 +159,23 @@ export function DiscoverList({
         <DiscoverNotice offline={error.offline} onRetry={() => load(nextPageToken ?? undefined)} />
       ) : loading ? (
         <DiscoverSpinner />
-      ) : items.length === 0 ? (
-        <p className="px-6 text-xs text-gray-500">{t('discover.empty')}</p>
       ) : (
-        nextPageToken && (
-          <div className="flex justify-center py-5">
-            <button
-              type="button"
-              onClick={() => load(nextPageToken)}
-              className="px-4 py-2 rounded-xl bg-white/[0.06] text-white text-xs font-semibold hover:bg-white/[0.1] transition-colors"
-            >
-              {t('discover.loadMore')}
-            </button>
-          </div>
-        )
+        <>
+          {items.length === 0 && !nextPageToken && (
+            <p className="px-6 text-xs text-gray-500">{t('discover.empty')}</p>
+          )}
+          {nextPageToken && (
+            <div className="flex justify-center py-5">
+              <button
+                type="button"
+                onClick={() => load(nextPageToken)}
+                className="px-4 py-2 rounded-xl bg-white/[0.06] text-white text-xs font-semibold hover:bg-white/[0.1] transition-colors"
+              >
+                {t('discover.loadMore')}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
