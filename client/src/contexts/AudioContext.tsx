@@ -16,7 +16,12 @@ import type { Chapter } from '../interfaces/chapters';
 import { generateAudioTracks } from '../utils/chapters';
 import i18n from '../i18n';
 import { createStorytelSource, type PlaybackSource } from '../playback/sources';
-import { locate, totalDurationMs } from '../playback/timeline';
+import { totalDurationMs } from '../playback/timeline';
+import {
+  bookSeconds as timelineSeconds,
+  nextTrackIndex,
+  planSeek,
+} from '../playback/trackNavigation';
 import { resolveStartPosition, type StoredPosition } from '../playback/positionSync';
 
 const readLocalPosition = async (storageKey: string): Promise<StoredPosition | null> => {
@@ -49,19 +54,13 @@ const writeLocalPosition = async (storageKey: string, position: number) => {
 // writes happen on every n-th of these ticks (`remoteWriteIntervalMs`).
 const LOCAL_POSITION_INTERVAL_MS = 15000;
 
-/**
- * Current position on the book timeline, in seconds. A single-track source
- * plays the whole book from one element, so book time is the element's time
- * (its track duration may still be unknown, so it never goes through `locate`).
- */
+/** Current position on the book timeline, in seconds (see `trackNavigation`). */
 const bookSeconds = (
   audio: HTMLAudioElement,
   source: PlaybackSource | null,
   trackIndex: number,
-): number => {
-  if (!source || source.tracks.length <= 1) return audio.currentTime;
-  return (source.tracks[trackIndex]?.startMs ?? 0) / 1000 + audio.currentTime;
-};
+): number =>
+  source ? timelineSeconds(source.tracks, trackIndex, audio.currentTime) : audio.currentTime;
 
 /** Start position in ms chosen from the local cache and the provider's position. */
 const chooseStartPosition = (
@@ -164,9 +163,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   // The source the `<audio>` element plays, and the track of it that is loaded.
   const sourceRef = useRef<PlaybackSource | null>(null);
   const trackIndexRef = useRef(0);
-  // Set while the element switches to another track of the same book: the
-  // offset to start the new track at once its metadata has loaded.
+  // Set while the element switches to another track of the same book (from
+  // the URL request until the new track's metadata has loaded): the offset to
+  // start it at, and whether it plays then. Element pause/time events of the
+  // old track are not the book's while it is set.
   const pendingTrackStartRef = useRef<{ offsetSeconds: number; play: boolean } | null>(null);
+  // The latest `markPaused`, for callbacks that keep a stable identity.
+  const markPausedRef = useRef<(writePosition?: boolean) => void>(() => {});
   // Discards a slow stream/track URL response once a newer load has taken over.
   const loadRequestIdRef = useRef(0);
 
@@ -203,12 +206,12 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       const audio = audioRef.current;
       if (!audio) return;
       const requestId = ++loadRequestIdRef.current;
+      pendingTrackStartRef.current = { offsetSeconds, play };
       try {
         const { url } = await source.resolveTrackUrl(index);
         if (requestId !== loadRequestIdRef.current) return;
 
         trackIndexRef.current = index;
-        pendingTrackStartRef.current = { offsetSeconds, play };
         audioSrcRef.current = url;
         setAudioSrc(url);
         audio.src = url;
@@ -216,9 +219,15 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         if (requestId !== loadRequestIdRef.current) return;
         console.error('Failed to load audio track:', err);
+        // The element still holds the previous track, which stays current
+        pendingTrackStartRef.current = null;
         setError(errorMessage(err));
         setIsLoading(false);
-        setIsPlaying(false);
+        if (audio.paused) {
+          markPausedRef.current();
+        } else {
+          audio.pause();
+        }
       }
     },
     [],
@@ -231,16 +240,24 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       const audio = audioRef.current;
       if (!audio) return false;
       const source = sourceRef.current;
-      if (!source || source.tracks.length <= 1) {
+      if (!source) {
         audio.currentTime = seconds;
         return false;
       }
-      const { index, offsetMs } = locate(source.tracks, seconds * 1000);
-      if (index === trackIndexRef.current) {
-        audio.currentTime = offsetMs / 1000;
+      // While a switch is pending the loaded track is on its way out, so any
+      // target needs a (new) track load
+      const pending = pendingTrackStartRef.current;
+      const plan = planSeek(source.tracks, pending ? -1 : trackIndexRef.current, seconds);
+      if (plan.kind === 'element') {
+        audio.currentTime = plan.seconds;
         return false;
       }
-      loadTrack(source, index, offsetMs / 1000, play ?? !audio.paused);
+      loadTrack(
+        source,
+        plan.index,
+        plan.offsetSeconds,
+        play ?? (pending ? pending.play : !audio.paused),
+      );
       return true;
     },
     [loadTrack],
@@ -514,6 +531,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       loadBook(activeBook, activeBookId, true);
       return;
     }
+    // During a track switch the old track must not restart: flip what the
+    // new track does once it has loaded instead.
+    const pendingSwitch = pendingTrackStartRef.current;
+    if (pendingSwitch) {
+      pendingSwitch.play = !pendingSwitch.play;
+      if (pendingSwitch.play) {
+        setIsPlaying(true);
+      } else {
+        if (!audioRef.current.paused) audioRef.current.pause();
+        markPausedRef.current();
+      }
+      return;
+    }
     if (isPlaying) {
       audioRef.current.pause();
     } else {
@@ -628,11 +658,10 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const onPause = () => {
-    // Switching to the next track of the same book is not a pause
-    if (pendingTrackStartRef.current) return;
+  // Bookkeeping of a stop: state, position, sync interval, analytics, tray
+  const markPaused = (writePosition: boolean = true) => {
     setIsPlaying(false);
-    updatePosition();
+    if (writePosition) updatePosition();
     if (positionUpdateIntervalRef.current) {
       clearInterval(positionUpdateIntervalRef.current);
       positionUpdateIntervalRef.current = null;
@@ -641,6 +670,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     if (window.trayControls?.updatePlayingState) {
       window.trayControls.updatePlayingState(false, activeBook?.book?.name || null);
     }
+  };
+  markPausedRef.current = markPaused;
+
+  const onPause = () => {
+    // Switching to another track of the same book is not a pause
+    if (pendingTrackStartRef.current) return;
+    // The element fires `pause` before `ended`: a track with a next one plays on
+    const audio = audioRef.current;
+    const source = sourceRef.current;
+    if (audio?.ended && source && nextTrackIndex(source.tracks, trackIndexRef.current) !== null) {
+      return;
+    }
+    markPaused();
   };
 
   const onTimeUpdate = () => {
@@ -696,8 +738,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const onEnded = () => {
     // A multi-track book plays on into its next track
     const source = sourceRef.current;
-    if (source && trackIndexRef.current < source.tracks.length - 1) {
-      loadTrack(source, trackIndexRef.current + 1, 0, true);
+    const next = source ? nextTrackIndex(source.tracks, trackIndexRef.current) : null;
+    if (source && next !== null) {
+      loadTrack(source, next, 0, true);
       return;
     }
     setIsPlaying(false);
@@ -784,6 +827,15 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         onError={(e) => {
           console.error('Audio error:', e);
           setIsLoading(false);
+          // A failed track switch: drop it (and any URL request still in
+          // flight) so the next attempt starts clean. The track index always
+          // matches the element's src, so it needs no change.
+          if (pendingTrackStartRef.current) {
+            pendingTrackStartRef.current = null;
+            loadRequestIdRef.current += 1;
+            markPaused(false);
+            return;
+          }
           setIsPlaying(false);
         }}
       />
