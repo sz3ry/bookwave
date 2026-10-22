@@ -30,6 +30,8 @@ export function DiscoverHome({ selectedBookId, onSelectBook }: DiscoverHomeProps
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<LoadError | null>(null);
   const [openList, setOpenList] = useState<{ title: string; itemsUrl: string } | null>(null);
+  const [rowFailures, setRowFailures] = useState<Record<string, LoadError>>({});
+  const [epoch, setEpoch] = useState(0);
   const seqRef = useRef(0);
 
   const loadPage = async (slug: string, token?: string) => {
@@ -85,16 +87,34 @@ export function DiscoverHome({ selectedBookId, onSelectBook }: DiscoverHomeProps
     setActiveSlug(slug);
     setRows([]);
     setNextPageToken(null);
+    reloadPage(slug);
+  };
+
+  // Row failures are reset (and rows remounted) whenever the page is reloaded.
+  const reloadPage = (slug: string) => {
+    setRowFailures({});
+    setEpoch((n) => n + 1);
     loadPage(slug);
   };
 
   const retry = () => {
     if (chips && activeSlug) {
-      loadPage(activeSlug);
+      // Resume a failed "Load more" instead of replacing the rows already shown.
+      if (rows.length > 0 && nextPageToken) {
+        loadPage(activeSlug, nextPageToken);
+      } else {
+        reloadPage(activeSlug);
+      }
     } else {
       loadChips();
     }
   };
+
+  // Every row failed to load: show the page-level notice instead of an empty page.
+  const failedRows = Object.values(rowFailures);
+  const allRowsFailed = rows.length > 0 && failedRows.length === rows.length;
+  const shownError =
+    error ?? (allRowsFailed ? { offline: failedRows.every((f) => f.offline) } : null);
 
   if (openList) {
     return (
@@ -133,16 +153,17 @@ export function DiscoverHome({ selectedBookId, onSelectBook }: DiscoverHomeProps
 
       {rows.map((row) => (
         <DiscoverRowView
-          key={`${activeSlug}:${row.id}`}
+          key={`${epoch}:${activeSlug}:${row.id}`}
           row={row}
           selectedBookId={selectedBookId}
           onSelectBook={onSelectBook}
+          onFailed={(failure) => setRowFailures((prev) => ({ ...prev, [row.id]: failure }))}
           onSeeAll={(itemsUrl) => setOpenList({ title: row.title, itemsUrl })}
         />
       ))}
 
-      {error ? (
-        <DiscoverNotice offline={error.offline} onRetry={retry} />
+      {shownError ? (
+        <DiscoverNotice offline={shownError.offline} onRetry={retry} />
       ) : loading ? (
         <DiscoverSpinner />
       ) : rows.length === 0 ? (
@@ -169,11 +190,13 @@ function DiscoverRowView({
   row,
   selectedBookId,
   onSelectBook,
+  onFailed,
   onSeeAll,
 }: {
   row: DiscoveryRow;
   selectedBookId: string | null;
   onSelectBook: (book: SearchResultBook) => void;
+  onFailed: (failure: LoadError) => void;
   onSeeAll: (itemsUrl: string) => void;
 }) {
   const { t } = useTranslation();
@@ -181,7 +204,9 @@ function DiscoverRowView({
     row.items.length > 0 || !row.itemsUrl ? row.items : null,
   );
 
-  // Lazy rows load their first page on mount.
+  // Lazy rows load their first page on mount. `onFailed` only calls a state setter,
+  // so it is left out of the deps to keep a parent re-render from restarting the request.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
     if (items || !row.itemsUrl) return;
     let cancelled = false;
@@ -191,7 +216,9 @@ function DiscoverRowView({
       })
       .catch((err) => {
         console.error('Discover row failed:', row.id, err);
-        if (!cancelled) setItems([]);
+        if (cancelled) return;
+        setItems([]);
+        onFailed({ offline: isOfflineError(err) });
       });
     return () => {
       cancelled = true;
