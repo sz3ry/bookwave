@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.2.0](https://github.com/sz3ry/bookwave/compare/v1.1.1...v1.2.0) (2026-10-22)
+
+
+### Features
+
+* **dashboard:** suggest the next part of finished series ([02d38a8](https://github.com/sz3ry/bookwave/commit/02d38a8a17af728b1d77a49b7f3c7a50edab5c45))
+* **discovery:** add Storytel explore and series client with a per-session cache ([7674697](https://github.com/sz3ry/bookwave/commit/7674697e9bb297079d8db235376138bcd49a5993))
+* **discovery:** expose explore pages, lists and series to the renderer ([d921556](https://github.com/sz3ry/bookwave/commit/d921556d786f83969ba020d6e0b34ce9d7500670))
+* **discovery:** mark upcoming audiobooks as coming soon ([60d0fd6](https://github.com/sz3ry/bookwave/commit/60d0fd6cfc7bb14285073d9db00643f6983a40d2))
+* **i18n:** follow the system language and remove the manual language picker ([3a18d6a](https://github.com/sz3ry/bookwave/commit/3a18d6a062b3ddcc6c6e110736cad5f25fb2b279))
+* **search:** show Storytel's front page with tabs and full lists on the empty search page ([e466209](https://github.com/sz3ry/bookwave/commit/e4662092433ab15065fc00190e8d783b560a237c))
+* **series:** show series parts with start-from-part-one and next-part actions ([3f011f7](https://github.com/sz3ry/bookwave/commit/3f011f706a96b946ef91be880b2caac303a49e87))
+
+
+### Bug Fixes
+
+* **api:** reject malformed discovery and book ids ([3533a8a](https://github.com/sz3ry/bookwave/commit/3533a8a3164f7a734791324ff27fdedead824f93))
+* **discovery:** hide the podcast and ebook tabs ([ee566c1](https://github.com/sz3ry/bookwave/commit/ee566c14c4edafaecae1e3e72d3576f8332ef72e))
+* **discovery:** keep chip probing errors visible and force kidsMode off ([c036c7a](https://github.com/sz3ry/bookwave/commit/c036c7a9ccc8a7258201392dbb71c6ff5546c73c))
+* **discovery:** keep tabs whose personalised rows Storytel answers with 404 ([5f2808a](https://github.com/sz3ry/bookwave/commit/5f2808a5d73633b2761c9275c413060e37c3eb02))
+* **discovery:** keep the front page when another tab fails ([50d19c3](https://github.com/sz3ry/bookwave/commit/50d19c3b4b639ff002cca3b57bebda749bc49401))
+* **discovery:** treat unreleased and locked audiobooks as unplayable ([527dbf4](https://github.com/sz3ry/bookwave/commit/527dbf45ec8f2ccbd0d84bfc7b6245e66effb592))
+* **i18n:** take the main process language in the renderer ([a57b20d](https://github.com/sz3ry/bookwave/commit/a57b20da9b0ee25c62dfe2ed6330f75979800894))
+* **search:** keep load more reachable and report failed lazy rows ([2def9f9](https://github.com/sz3ry/bookwave/commit/2def9f9904dc29e6aa188910732e55d519cd57bb))
+* **search:** mark unreleased audiobooks in search results and keep release dates on the right day ([dadd661](https://github.com/sz3ry/bookwave/commit/dadd661bbff4998150783bbc3a4484883d34835a))
+* **search:** resume failed front-page loads and report failed rows ([78b6b66](https://github.com/sz3ry/bookwave/commit/78b6b6655a081acb0341d7d229b716f9d350c771))
+* **search:** stop the tab bar from being squeezed and clipped ([08f4895](https://github.com/sz3ry/bookwave/commit/08f48950100828425354f1cedf1503ee03b69d52))
+* **series:** never show the previous book's series ([665a115](https://github.com/sz3ry/bookwave/commit/665a115baff14216b5a613da1d42dbeed559049f))
+* **series:** skip empty lookups, mark the next part as primary and clear the search handoff ([c1b76aa](https://github.com/sz3ry/bookwave/commit/c1b76aac8c407adeada205b4c11efad4beb669ae))
+
 ## [1.1.1](https://github.com/sz3ry/bookwave/compare/v1.1.0...v1.1.1) (2026-10-22)
 
 
