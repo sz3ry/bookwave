@@ -5,10 +5,13 @@ import { i18n } from '../i18n';
 export class UpdaterManager {
   private readonly mainWindow: BrowserWindow | null;
   private readonly isDev: boolean;
+  // Told before `quitAndInstall`, so the quit is not held (see `createQuitHold`)
+  private readonly onQuitForUpdate: () => void;
 
-  constructor(mainWindow: BrowserWindow | null, isDev: boolean) {
+  constructor(mainWindow: BrowserWindow | null, isDev: boolean, onQuitForUpdate = () => {}) {
     this.mainWindow = mainWindow;
     this.isDev = isDev;
+    this.onQuitForUpdate = onQuitForUpdate;
 
     // Configure auto-updater
     autoUpdater.autoDownload = false;
@@ -97,6 +100,7 @@ export class UpdaterManager {
     });
 
     if (result === 0) {
+      this.onQuitForUpdate();
       autoUpdater.quitAndInstall();
     }
   }

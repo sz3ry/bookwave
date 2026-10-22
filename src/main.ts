@@ -1,4 +1,11 @@
-import { app, BrowserWindow, protocol, safeStorage, session } from 'electron';
+import {
+  app,
+  autoUpdater as nativeAutoUpdater,
+  BrowserWindow,
+  protocol,
+  safeStorage,
+  session,
+} from 'electron';
 import { WindowManager } from './modules/window';
 import { TrayManager } from './modules/tray';
 import { ServerManager } from './modules/server';
@@ -8,6 +15,7 @@ import { AuthManager } from './modules/auth';
 import { AudiotekaAuthManager } from './modules/audiotekaAuth';
 import { openAudiotekaLogin } from './modules/audiotekaLogin';
 import { storeManager } from './modules/store';
+import { createQuitHold } from './modules/quitHold';
 import { i18n } from './i18n';
 import { handleMediaRequest, MEDIA_SCHEME, registerMediaScheme } from './modules/mediaProtocol';
 import type { FileResolver } from './modules/mediaProtocol';
@@ -134,7 +142,7 @@ async function initialize(): Promise<void> {
   ipcManager.setupHandlers();
 
   // Initialize auto-updater
-  updaterManager = new UpdaterManager(mainWindow, isDev);
+  updaterManager = new UpdaterManager(mainWindow, isDev, () => quitHold.markQuittingForUpdate());
   updaterManager.initialize();
 }
 
@@ -191,12 +199,17 @@ app.on('window-all-closed', async () => {
 // `app.quit()` closes the windows and then quits without `window-all-closed`;
 // hold the quit once so the position writes the renderer sent while its
 // window closed (see the audio context's `beforeunload`) reach the provider.
-let requestsSettledBeforeQuit = false;
+// A quit for an update is not held (see `createQuitHold`).
+const quitHold = createQuitHold(
+  () => serverManager?.settle(QUIT_SETTLE_TIMEOUT_MS) ?? Promise.resolve(),
+);
+// electron-updater emits this on Electron's updater right before its app.quit()
+nativeAutoUpdater.on('before-quit-for-update', () => quitHold.markQuittingForUpdate());
 app.on('will-quit', (event) => {
-  if (requestsSettledBeforeQuit || !serverManager) return;
-  requestsSettledBeforeQuit = true;
+  const wait = quitHold.begin();
+  if (!wait) return;
   event.preventDefault();
-  serverManager.settle(QUIT_SETTLE_TIMEOUT_MS).finally(() => app.quit());
+  wait.finally(() => app.quit());
 });
 
 app.on('activate', () => {
