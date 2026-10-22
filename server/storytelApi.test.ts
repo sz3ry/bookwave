@@ -391,3 +391,130 @@ describe('StorytelClient', () => {
     expect(body.items.c9.model.title).toBe('T');
   });
 });
+
+describe('StorytelClient explore', () => {
+  const rawBook = (id: string, type = 'abook', order?: number) => ({
+    id,
+    title: `Book ${id}`,
+    authors: [{ name: 'A' }],
+    formats: [{ type, cover: { url: `https://c/${id}` } }],
+    seriesInfo: order === undefined ? null : { id: '70705', name: 'Saga', orderInSeries: order },
+  });
+  const CHIPS_PATH = '/explore/frontpage/chips';
+  const homePage = {
+    title: 'Home',
+    nextPageToken: null,
+    contentBlocks: [{ id: 'r1', title: 'Row', items: [rawBook('1')] }],
+  };
+
+  test('getExplorePage sends the bearer, kidsMode and no store', async () => {
+    const { fetchImpl, calls } = router({
+      '/explore/pages/frontpage-sthp-pl': () => json(homePage),
+    });
+    const client = clientWithSession(fetchImpl);
+
+    const page = await client.getExplorePage('frontpage-sthp-pl');
+
+    expect(page.rows.map((r) => r.title)).toEqual(['Row']);
+    expect(calls).toHaveLength(1);
+    expect(`${calls[0].url.origin}${calls[0].url.pathname}`).toBe(
+      'https://api.storytel.net/explore/pages/frontpage-sthp-pl',
+    );
+    expect(calls[0].url.searchParams.get('kidsMode')).toBe('false');
+    expect(header(calls[0], 'authorization')).toStartWith('Bearer ');
+    expect(calls[0].url.searchParams.has('store')).toBe(false);
+  });
+
+  test('responses are cached per client instance', async () => {
+    const { fetchImpl, calls } = router({
+      '/explore/pages/home': () => json(homePage),
+    });
+    const client = clientWithSession(fetchImpl);
+
+    await client.getExplorePage('home');
+    await client.getExplorePage('home');
+    expect(calls).toHaveLength(1);
+
+    await clientWithSession(fetchImpl).getExplorePage('home');
+    expect(calls).toHaveLength(2);
+  });
+
+  test('getExploreList rejects foreign urls without fetching', async () => {
+    const { fetchImpl, calls } = router({});
+    const client = clientWithSession(fetchImpl);
+
+    await expect(client.getExploreList('https://evil.example/x')).rejects.toThrow();
+    await expect(client.getExploreList('http://api.storytel.net/explore/x')).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+  });
+
+  test('getExploreList returns audiobooks only', async () => {
+    const { fetchImpl } = router({
+      '/explore/list-resource/abc': () =>
+        json({ title: 'L', totalCount: 2, items: [rawBook('1'), rawBook('2', 'ebook')] }),
+    });
+    const list = await clientWithSession(fetchImpl).getExploreList(
+      'https://api.storytel.net/explore/list-resource/abc?kidsMode=false',
+    );
+    expect(list.items.map((i) => i.id)).toEqual(['1']);
+  });
+
+  test('getExploreChips drops chips without audiobooks', async () => {
+    const { fetchImpl, callsTo } = router({
+      [CHIPS_PATH]: () =>
+        json({
+          chips: [
+            { id: 'c1', label: 'Home', pageSlug: 'home' },
+            { id: 'c2', label: 'Ebooks', pageSlug: 'ebooks' },
+          ],
+        }),
+      '/explore/pages/home': () => json(homePage),
+      '/explore/pages/ebooks': () =>
+        json({
+          title: 'E',
+          contentBlocks: [{ id: 'r', title: 'Row', items: [rawBook('9', 'ebook')] }],
+        }),
+    });
+    const client = clientWithSession(fetchImpl);
+
+    const chips = await client.getExploreChips();
+    expect(chips).toEqual([{ id: 'c1', label: 'Home', pageSlug: 'home' }]);
+
+    await client.getExploreChips();
+    expect(callsTo('/explore/pages/home')).toHaveLength(1);
+    expect(callsTo('/explore/pages/ebooks')).toHaveLength(1);
+  });
+
+  test('getSeries follows pages up to the cap and keeps every format', async () => {
+    const { fetchImpl, callsTo } = router({
+      '/explore/lists/series/70705': ({ url }) => {
+        const n = Number(url.searchParams.get('nextPageToken') ?? 0);
+        return json({
+          title: 'Saga',
+          nextPageToken: String(n + 1),
+          items: [rawBook(`p${n}`, n % 2 ? 'ebook' : 'abook', n + 1)],
+        });
+      },
+    });
+    const series = await clientWithSession(fetchImpl).getSeries('70705');
+
+    const calls = callsTo('/explore/lists/series/70705');
+    expect(calls).toHaveLength(5);
+    const query = calls[0].url.searchParams;
+    expect(query.get('includeListDetails')).toBe('true');
+    expect(query.get('orderBy')).toBe('seriesOrder');
+    expect(query.get('kidsMode')).toBe('false');
+    expect(query.has('store')).toBe(false);
+    expect(calls[1].url.searchParams.get('nextPageToken')).toBe('1');
+    expect(series.title).toBe('Saga');
+    expect(series.items.map((i) => i.hasAbook)).toEqual([true, false, true, false, true]);
+  });
+
+  test('getSeries stops when there is no next page', async () => {
+    const { fetchImpl, callsTo } = router({
+      '/explore/lists/series/1': () => json({ title: 'S', nextPageToken: null, items: [] }),
+    });
+    await clientWithSession(fetchImpl).getSeries('1');
+    expect(callsTo('/explore/lists/series/1')).toHaveLength(1);
+  });
+});

@@ -6,6 +6,18 @@ import {
   type StorytelRequest,
   type StorytelResponse,
 } from './http/storytelFetch';
+import {
+  CACHE_TTL_MS,
+  createTtlCache,
+  type DiscoveryChip,
+  type DiscoveryItem,
+  type DiscoveryList,
+  type DiscoveryPage,
+  isAllowedExploreUrl,
+  playableOnly,
+  toDiscoveryList,
+  toDiscoveryPage,
+} from './discovery';
 import { encryptPassword } from './passwordCrypt';
 
 export { StorytelAuthError };
@@ -139,6 +151,9 @@ const DEFAULT_ACCEPT = 'application/json, text/plain, */*';
 
 const LOGIN_URL = 'https://www.storytel.com/api/login.action';
 
+const EXPLORE_BASE = 'https://api.storytel.net/explore';
+const SERIES_MAX_PAGES = 5;
+
 const BOOKMARK_ACCEPT = 'application/vnd.storytel.bookmark+json;v=2.0';
 
 function streamLocation(response: StorytelResponse<unknown>): string {
@@ -157,6 +172,9 @@ class StorytelClient {
   // In-flight re-login shared by concurrent requests, so a burst of requests
   // with an expired token sends one login.action, not one each.
   private pendingLogin?: Promise<void>;
+  // Explore responses by URL. Lives and dies with this client, so a new
+  // login (possibly another market) never sees a previous account's rows.
+  private exploreCache = createTtlCache<unknown>(CACHE_TTL_MS);
 
   constructor(options: StorytelClientOptions = {}) {
     this.request = createStorytelFetch(options.fetch);
@@ -1192,6 +1210,90 @@ class StorytelClient {
       if (error.isStorytelUnauthorized) throw error;
       throw new Error(`Failed to delete bookmark: ${error.message}`);
     }
+  }
+
+  // GET on an explore endpoint with the bearer only (no `store` param is
+  // needed), always with kidsMode=false. Cached per URL for an hour.
+  private async exploreGet<T>(url: string): Promise<T> {
+    const target = new URL(url);
+    if (!target.searchParams.has('kidsMode')) target.searchParams.set('kidsMode', 'false');
+    const key = target.toString();
+    const cached = this.exploreCache.get(key);
+    if (cached !== undefined) return cached as T;
+    const response = await this.send<T>(
+      { url: key, headers: { Accept: 'application/json' } },
+      { auth: true },
+    );
+    this.exploreCache.set(key, response.data);
+    return response.data;
+  }
+
+  // Front-page tabs that hold audiobooks. The first chip is the home page.
+  async getExploreChips(): Promise<DiscoveryChip[]> {
+    const data = await this.exploreGet<any>(`${EXPLORE_BASE}/frontpage/chips`);
+    const chips: DiscoveryChip[] = (Array.isArray(data?.chips) ? data.chips : [])
+      .filter((chip: any) => chip?.id && chip?.pageSlug)
+      .map((chip: any) => ({
+        id: String(chip.id),
+        label: String(chip.label ?? ''),
+        pageSlug: String(chip.pageSlug),
+      }));
+    const playable = await Promise.all(chips.map((chip) => this.chipHasAudiobooks(chip)));
+    return chips.filter((_, index) => playable[index]);
+  }
+
+  // A chip is kept when its page shows audiobooks. Inline rows are checked
+  // directly; a page made only of lazy rows is judged by its first row.
+  private async chipHasAudiobooks(chip: DiscoveryChip): Promise<boolean> {
+    try {
+      const page = await this.getExplorePage(chip.pageSlug);
+      if (page.rows.some((row) => row.items.length > 0)) return true;
+      const lazy = page.rows.find((row) => row.itemsUrl);
+      if (!lazy?.itemsUrl) return false;
+      return (await this.getExploreList(lazy.itemsUrl)).items.length > 0;
+    } catch (error: any) {
+      if (error.isStorytelUnauthorized) throw error;
+      return false;
+    }
+  }
+
+  async getExplorePage(pageSlug: string, nextPageToken?: string): Promise<DiscoveryPage> {
+    const url = new URL(`${EXPLORE_BASE}/pages/${encodeURIComponent(pageSlug)}`);
+    url.searchParams.set('kidsMode', 'false');
+    if (nextPageToken) url.searchParams.set('nextPageToken', nextPageToken);
+    return toDiscoveryPage(await this.exploreGet<any>(url.toString()));
+  }
+
+  // Audiobooks of a lazy row's list. Rejects URLs outside api.storytel.net/explore/.
+  async getExploreList(url: string, nextPageToken?: string): Promise<DiscoveryList> {
+    if (!isAllowedExploreUrl(url)) {
+      throw Object.assign(new Error('Not an explore URL'), { statusCode: 400 });
+    }
+    const target = new URL(url);
+    if (nextPageToken) target.searchParams.set('nextPageToken', nextPageToken);
+    const list = toDiscoveryList(await this.exploreGet<any>(target.toString()));
+    return { ...list, items: playableOnly(list.items) };
+  }
+
+  // Every part of a series in every format (the caller decides what is
+  // playable), in series order. Stops after SERIES_MAX_PAGES pages.
+  async getSeries(seriesId: string): Promise<{ title: string; items: DiscoveryItem[] }> {
+    let title = '';
+    const items: DiscoveryItem[] = [];
+    let token: string | undefined;
+    for (let page = 0; page < SERIES_MAX_PAGES; page++) {
+      const url = new URL(`${EXPLORE_BASE}/lists/series/${encodeURIComponent(seriesId)}`);
+      url.searchParams.set('includeListDetails', 'true');
+      url.searchParams.set('orderBy', 'seriesOrder');
+      url.searchParams.set('kidsMode', 'false');
+      if (token) url.searchParams.set('nextPageToken', token);
+      const list = toDiscoveryList(await this.exploreGet<any>(url.toString()));
+      title ||= list.title;
+      items.push(...list.items);
+      if (!list.nextPageToken) break;
+      token = list.nextPageToken;
+    }
+    return { title, items };
   }
 }
 
