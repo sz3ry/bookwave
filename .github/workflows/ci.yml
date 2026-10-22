@@ -22,7 +22,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Lint
-        run: bunx biome ci --formatter-enabled=false .
+        run: bunx biome ci .
 
       - name: Typecheck
         run: bun run typecheck
