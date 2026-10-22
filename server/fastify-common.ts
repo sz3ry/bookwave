@@ -550,6 +550,13 @@ fastify.post<{
 
       // Track this download
       activeDownloads.set(bookId, { controller });
+      // A cancel removes the entry at once and a new download of the same
+      // book may already own it; only remove the entry if it is still ours.
+      const untrack = () => {
+        if (activeDownloads.get(bookId)?.controller === controller) {
+          activeDownloads.delete(bookId);
+        }
+      };
 
       try {
         let lastLoggedStep = -1;
@@ -567,8 +574,7 @@ fastify.post<{
           },
         });
 
-        // Clean up
-        activeDownloads.delete(bookId);
+        untrack();
 
         reply.send({
           success: true,
@@ -576,8 +582,7 @@ fastify.post<{
           percentage: 100,
         });
       } catch (error: any) {
-        // Clean up on error
-        activeDownloads.delete(bookId);
+        untrack();
 
         // downloadToFile already removed the partial file
         if (controller.signal.aborted) {
