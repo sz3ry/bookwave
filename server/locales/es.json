@@ -205,8 +205,8 @@
     }
   },
   "welcome": {
-    "title": "¡Bienvenido a Storytel Player!",
-    "message": "Gracias por usar Storytel Player, una aplicación de escritorio de código abierto para tus audiolibros. ¡Únete a nuestra comunidad para mantenerte actualizado y compartir tus comentarios!",
+    "title": "¡Bienvenido a Bookwave!",
+    "message": "Gracias por usar Bookwave, una aplicación de escritorio de código abierto para tus audiolibros. ¡Únete a nuestra comunidad para mantenerte actualizado y compartir tus comentarios!",
     "starGithub": "Dar estrella en GitHub",
     "joinDiscord": "Unirse a Discord",
     "getStarted": "Empezar"

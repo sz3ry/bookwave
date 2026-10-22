@@ -205,8 +205,8 @@
     }
   },
   "welcome": {
-    "title": "Tervetuloa Storytel Playeriin!",
-    "message": "Kiitos, että käytät Storytel Playeria, avoimen lähdekoodin työpöytäsovellusta äänikirjoillesi. Liity yhteisöömme pysyäksesi ajan tasalla ja jakaaksesi palautetta!",
+    "title": "Tervetuloa Bookwaveen!",
+    "message": "Kiitos, että käytät Bookwavea, avoimen lähdekoodin työpöytäsovellusta äänikirjoillesi. Liity yhteisöömme pysyäksesi ajan tasalla ja jakaaksesi palautetta!",
     "starGithub": "Anna tähti GitHubissa",
     "joinDiscord": "Liity Discordiin",
     "getStarted": "Aloita"

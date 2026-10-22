@@ -205,8 +205,8 @@
     }
   },
   "welcome": {
-    "title": "Välkommen till Storytel Player!",
-    "message": "Tack för att du använder Storytel Player, en open-source skrivbordsapplikation för dina ljudböcker. Gå med i vår community för att hålla dig uppdaterad och dela feedback!",
+    "title": "Välkommen till Bookwave!",
+    "message": "Tack för att du använder Bookwave, en open-source skrivbordsapplikation för dina ljudböcker. Gå med i vår community för att hålla dig uppdaterad och dela feedback!",
     "starGithub": "Ge en stjärna på GitHub",
     "joinDiscord": "Gå med i Discord",
     "getStarted": "Kom igång"

@@ -34,7 +34,7 @@ export class TrayManager {
         this.tray = new Tray(trayIcon);
 
         this.updateMenu();
-        this.tray.setToolTip('Storytel Player');
+        this.tray.setToolTip('Bookwave');
 
         this.tray.on('double-click', () => {
             if (this.windowManager.isVisible()) {
@@ -101,7 +101,7 @@ export class TrayManager {
             label: i18n.t('tray.about'),
             click: () => {
                 const appInfo: string[] = [];
-                appInfo.push(`storytel-player@${app.getVersion()}\n`);
+                appInfo.push(`bookwave@${app.getVersion()}\n`);
                 for (const prop in process.versions) {
                     if (
                         prop === "node" ||
@@ -129,7 +129,7 @@ export class TrayManager {
                     label: i18n.t('settings.githubRepo'),
                     click: () =>
                         shell.openExternal(
-                            "https://github.com/debba/storytel-player"
+                            "https://github.com/sz3ry/bookwave"
                         ),
                 }
             ]

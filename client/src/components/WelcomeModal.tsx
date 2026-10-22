@@ -14,7 +14,7 @@ function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
   if (!isOpen) return null;
 
   const handleGithubClick = () => {
-    window.open('https://github.com/debba/storytel-player', '_blank', 'noopener,noreferrer');
+    window.open('https://github.com/sz3ry/bookwave', '_blank', 'noopener,noreferrer');
   };
 
   const handleDiscordClick = () => {

@@ -81,7 +81,7 @@ function BookView() {
         }
 
         return () => {
-            document.title = 'Storytel Player';
+            document.title = 'Bookwave';
         };
     }, [book]);
 

@@ -1,11 +1,10 @@
 {
-  "name": "storytel-player",
+  "name": "bookwave",
   "version": "1.4.1",
-  "email": "andrea@debbaweb.it",
-  "description": "Storytel Unofficial Player - Storytel audiobook player for desktop",
+  "description": "Bookwave — desktop audiobook player for Storytel",
   "repository": {
     "type": "git",
-    "url": "https://github.com/debba/storytel-player.git"
+    "url": "https://github.com/sz3ry/bookwave.git"
   },
   "main": "dist/electron/main.js",
   "homepage": "./",
@@ -14,7 +13,6 @@
     "server": "cd server && npm install && npm start",
     "client": "cd client && npm install && npm start",
     "build": "cd client && npm run build",
-    "build-win": "cd client && npm run build-win",
     "dev": "concurrently \"npm run server:dev\" \"npm run client\"",
     "server:dev": "cd server && npm install && npm run dev",
     "install-all": "npm install && cd server && npm install && cd ../client && npm install",
@@ -24,22 +22,15 @@
     "electron:dev": "npm run server:build && npm run electron:build && cross-env NODE_ENV=development electron .",
     "electron:debug": "npm run server:build && npm run electron:build && cross-env NODE_ENV=development IS_DEBUG=true electron .",
     "electron:pack": "electron-builder",
-    "electron:dist": "npm run build && npm run server:build && npm run electron:build && electron-builder",
-    "electron:dist:win": "npm run build && npm run server:build && npm run electron:build && electron-builder --windows --x64",
-    "electron:dist:linux:x64:pacman": "npm run build && npm run server:build && npm run electron:build && electron-builder --x64 -l pacman",
-    "electron:dist:linux:x64": "npm run build && npm run server:build && npm run electron:build && electron-builder --x64 -l tar.gz deb rpm AppImage",
-    "electron:dist:linux:arm64": "npm run build && npm run server:build && npm run electron:build && electron-builder --arm64 -l tar.gz deb rpm AppImage",
-    "electron:dist:linux:arm": "npm run build && npm run server:build && npm run electron:build && electron-builder --armv7l -l tar.gz deb rpm AppImage",
-    "electron:dist:linux": "npm run build && npm run server:build && npm run electron:build && electron-builder --linux",
-    "electron:dist:mac:x64": "npm run build && npm run server:build && npm run electron:build && electron-builder --mac --x64",
-    "electron:dist:mac:arm64": "npm run build && npm run server:build && npm run electron:build && electron-builder --mac --arm64",
     "preelectron:pack": "npm run build && npm run server:build && npm run electron:build",
     "preelectron": "npm run build && npm run server:build",
     "server:build": "cd server && npm run build",
     "clean": "rm -rf dist; rm -rf server/dist; rm -rf client/build",
-    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md && git add README.md CHANGELOG.md src/version.ts"
+    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md && git add README.md CHANGELOG.md src/version.ts",
+    "dist:linux": "npm run build && npm run server:build && npm run electron:build && electron-builder --linux",
+    "dist:win": "npm run build && npm run server:build && npm run electron:build && electron-builder --win"
   },
-  "author": "debba <andrea@debbaweb.it>",
+  "author": "Łukasz Wiśniewski <fr.luksus@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "dot-object": "^2.1.5",
@@ -70,8 +61,8 @@
     "typescript": "^5.9.3"
   },
   "build": {
-    "appId": "com.storytel.player",
-    "productName": "Storytel Player",
+    "appId": "pl.sz3ry.bookwave",
+    "productName": "Bookwave",
     "directories": {
       "output": "dist",
       "buildResources": "assets"
@@ -87,38 +78,42 @@
       "node_modules/**/*",
       "downloads/**/*"
     ],
-    "mac": {
-      "category": "public.app-category.audio",
-      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "assets/entitlements.mac.plist",
-      "entitlementsInherit": "assets/entitlements.mac.plist",
-      "notarize": true,
-      "publish": {
-        "provider": "github",
-        "releaseType": "draft"
-      }
-    },
     "win": {
-      "target": "nsis",
-      "verifyUpdateCodeSignature": false,
-      "publish": {
-        "provider": "github",
-        "releaseType": "draft"
-      }
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "verifyUpdateCodeSignature": false
     },
     "linux": {
       "category": "AudioVideo;Audio;Player",
       "target": [
-        "AppImage",
-        "deb"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "icon": "assets/icon.png",
-      "publish": {
+      "icon": "assets/icon.png"
+    },
+    "publish": [
+      {
         "provider": "github",
-        "releaseType": "draft"
+        "owner": "sz3ry",
+        "repo": "bookwave",
+        "releaseType": "release"
       }
-    }
+    ]
   }
 }

@@ -205,8 +205,8 @@
     }
   },
   "welcome": {
-    "title": "Willkommen bei Storytel Player!",
-    "message": "Vielen Dank, dass Sie Storytel Player verwenden, eine Open-Source-Desktop-Anwendung für Ihre Hörbücher. Treten Sie unserer Community bei, um auf dem Laufenden zu bleiben und Feedback zu teilen!",
+    "title": "Willkommen bei Bookwave!",
+    "message": "Vielen Dank, dass Sie Bookwave verwenden, eine Open-Source-Desktop-Anwendung für Ihre Hörbücher. Treten Sie unserer Community bei, um auf dem Laufenden zu bleiben und Feedback zu teilen!",
     "starGithub": "Stern auf GitHub",
     "joinDiscord": "Discord beitreten",
     "getStarted": "Loslegen"

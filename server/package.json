@@ -13,7 +13,6 @@
   "dependencies": {
     "@fastify/cors": "^11.1.0",
     "axios": "^1.6.0",
-    "crypto": "^1.0.1",
     "dotenv": "^17.2.2"
   },
   "devDependencies": {

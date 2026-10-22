@@ -184,7 +184,7 @@ function PlayerView() {
         void loadBookData();
 
         return () => {
-            document.title = 'Storytel Player';
+            document.title = 'Bookwave';
         };
     }, [activeConsumableId, book]);
 
