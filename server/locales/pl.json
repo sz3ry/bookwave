@@ -12,7 +12,12 @@
       "sessionExpired": "Sesja wygasła. Zaloguj się ponownie.",
       "invalidCredentials": "Nieprawidłowy e-mail lub hasło"
     },
-    "keyringUnavailable": "Nie znaleziono systemowego magazynu haseł, więc hasło nie zostanie zapisane. Przy następnym uruchomieniu Bookwave trzeba będzie zalogować się ponownie."
+    "keyringUnavailable": "Nie znaleziono systemowego magazynu haseł, więc hasło nie zostanie zapisane. Przy następnym uruchomieniu Bookwave trzeba będzie zalogować się ponownie.",
+    "audioteka": {
+      "button": "Zaloguj się na audioteka.com",
+      "waiting": "Czekam na zakończenie logowania w oknie audioteka.com...",
+      "failed": "Nie udało się zalogować do Audioteki. Spróbuj ponownie."
+    }
   },
   "dashboard": {
     "title": "Moja biblioteka",
@@ -113,7 +118,8 @@
     "save": "Zapisz",
     "saving": "Zapisywanie...",
     "delete": "Usuń",
-    "close": "Zamknij"
+    "close": "Zamknij",
+    "back": "Wstecz"
   },
   "bookCard": {
     "completed": "Ukończona",
@@ -188,7 +194,8 @@
     "confirmTitle": "Wylogowanie",
     "confirmMessage": "Czy na pewno chcesz się wylogować?",
     "confirmButton": "Wyloguj się",
-    "cancelButton": "Anuluj"
+    "cancelButton": "Anuluj",
+    "confirmProviderMessage": "Czy na pewno chcesz wylogować się z {{provider}}?"
   },
   "download": {
     "cancelTitle": "Anuluj pobieranie",
@@ -231,11 +238,14 @@
     "appearance": "Wygląd",
     "alwaysOnTop": "Okno zawsze na wierzchu",
     "alwaysOnTopDescription": "Okno pozostanie nad innymi oknami",
-    "account": "Konto",
-    "email": "E-mail",
-    "logout": "Wyloguj się",
     "developer": "Dla programistów",
-    "viewLogs": "Pokaż logi sesji"
+    "viewLogs": "Pokaż logi sesji",
+    "accounts": {
+      "title": "Konta",
+      "add": "Dodaj konto",
+      "logout": "Wyloguj",
+      "loginAgain": "Zaloguj się ponownie"
+    }
   },
   "logs": {
     "title": "Logi aplikacji",
@@ -305,5 +315,9 @@
     "startWith": "Zacznij od części {{n}}: {{title}}",
     "firstUnavailable": "Część {{n}} nie jest dostępna jako audiobook.",
     "parts": "Części tej serii"
+  },
+  "providers": {
+    "pickTitle": "Wybierz serwis",
+    "pickSubtitle": "Zaloguj się do serwisu z audiobookami, z którego chcesz korzystać"
   }
 }

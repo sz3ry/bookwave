@@ -12,7 +12,12 @@
       "sessionExpired": "Din session har gått ut. Vänligen logga in igen.",
       "invalidCredentials": "Fel e-postadress eller lösenord"
     },
-    "keyringUnavailable": "Ingen nyckelring hittades i systemet, så ditt lösenord sparas inte. Du måste logga in igen nästa gång du startar Bookwave."
+    "keyringUnavailable": "Ingen nyckelring hittades i systemet, så ditt lösenord sparas inte. Du måste logga in igen nästa gång du startar Bookwave.",
+    "audioteka": {
+      "button": "Logga in på audioteka.com",
+      "waiting": "Väntar på att du ska slutföra inloggningen i fönstret för audioteka.com...",
+      "failed": "Det gick inte att logga in på Audioteka. Försök igen."
+    }
   },
   "dashboard": {
     "title": "Mitt bibliotek",
@@ -111,7 +116,8 @@
     "save": "Spara",
     "saving": "Sparar...",
     "delete": "Ta bort",
-    "close": "Stäng"
+    "close": "Stäng",
+    "back": "Tillbaka"
   },
   "bookCard": {
     "completed": "Slutförd",
@@ -186,7 +192,8 @@
     "confirmTitle": "Bekräfta utloggning",
     "confirmMessage": "Är du säker på att du vill logga ut?",
     "confirmButton": "Logga ut",
-    "cancelButton": "Avbryt"
+    "cancelButton": "Avbryt",
+    "confirmProviderMessage": "Vill du verkligen logga ut från {{provider}}?"
   },
   "download": {
     "cancelTitle": "Avbryt nedladdning",
@@ -229,11 +236,14 @@
     "appearance": "Utseende",
     "alwaysOnTop": "Håll fönstret alltid överst",
     "alwaysOnTopDescription": "Fönstret kommer att stanna ovanför andra fönster",
-    "account": "Konto",
-    "email": "E-post",
-    "logout": "Logga ut",
     "developer": "Utvecklare",
-    "viewLogs": "Visa sessionsloggar"
+    "viewLogs": "Visa sessionsloggar",
+    "accounts": {
+      "title": "Konton",
+      "add": "Lägg till konto",
+      "logout": "Logga ut",
+      "loginAgain": "Logga in igen"
+    }
   },
   "logs": {
     "title": "Applikationsloggar",
@@ -301,5 +311,9 @@
     "startWith": "Börja med del {{n}}: {{title}}",
     "firstUnavailable": "Del {{n}} finns inte som ljudbok.",
     "parts": "Delar i serien"
+  },
+  "providers": {
+    "pickTitle": "Välj en tjänst",
+    "pickSubtitle": "Logga in på ljudboktjänsten du vill lyssna med"
   }
 }

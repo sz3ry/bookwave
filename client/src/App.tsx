@@ -11,6 +11,7 @@ import {
 } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LoginForm from './components/LoginForm';
+import ProviderPicker from './components/ProviderPicker';
 import Dashboard from './components/Dashboard';
 import PlayerView from './components/PlayerView';
 import storage from './utils/storage';
@@ -23,6 +24,7 @@ import TopBar from './components/TopBar';
 import PlayerBar from './components/PlayerBar';
 import SearchView from './components/SearchView';
 import { AudioProvider } from './contexts/AudioContext';
+import ProvidersContext, { useProvidersState } from './contexts/ProvidersContext';
 
 const useMemoryRouter = import.meta.env.VITE_REACT_APP_USE_MEMORY_ROUTER === 'true';
 const Router = useMemoryRouter ? MemoryRouter : BrowserRouter;
@@ -30,11 +32,9 @@ const Router = useMemoryRouter ? MemoryRouter : BrowserRouter;
 function AuthenticatedLayout({
   children,
   onOpenSettings,
-  onLogout,
 }: {
   children: React.ReactNode;
   onOpenSettings: () => void;
-  onLogout: () => void;
 }) {
   const location = useLocation();
   const isPlayerView = location.pathname.startsWith('/player/');
@@ -66,18 +66,21 @@ function AuthenticatedLayout({
 
 function App() {
   const { t } = useTranslation();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const providers = useProvidersState();
+  const { storytel, audioteka } = providers.value;
+  const isAuthenticated = storytel || audioteka;
   const [isLoading, setIsLoading] = useState(true);
   const [triggerLogout, setTriggerLogout] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // Which logout the confirm dialog is for; 'all' comes from the tray.
+  const [logoutTarget, setLogoutTarget] = useState<AuthProvider | 'all' | null>(null);
+  // Shows the Storytel login form while another provider is already logged in.
+  const [addingStorytel, setAddingStorytel] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
-    checkAuthStatus();
-
     // Listen for logout event from tray
     if (window.trayControls?.onLogout) {
       window.trayControls.onLogout(() => {
@@ -99,42 +102,34 @@ function App() {
 
   useEffect(() => {
     if (triggerLogout) {
-      setShowConfirmModal(true);
+      setLogoutTarget('all');
       setTriggerLogout(false);
     }
   }, [triggerLogout]);
 
-  // Mirrors the main-process auth state into the UI and the tray.
-  const applyLoggedOut = (expired: boolean) => {
-    setIsAuthenticated(false);
-    if (expired) {
-      setSessionExpired(true);
-    }
-    if (window.trayControls?.updateAuthState) {
-      window.trayControls.updateAuthState(false);
-    }
-  };
+  const { refresh, markExpired } = providers;
 
+  // Mirrors the logged-in state into the tray.
   useEffect(() => {
-    return window.electronAuth?.onExpired(() => applyLoggedOut(true));
-  }, []);
+    if (isLoading) return;
+    window.trayControls?.updateAuthState?.(isAuthenticated);
+  }, [isAuthenticated, isLoading]);
+
+  // A provider's session ended on its own. Stay in the app while the other
+  // provider is still logged in; otherwise fall back to the login screen.
+  useEffect(() => {
+    return window.electronAuth?.onExpired((provider) => {
+      markExpired(provider);
+      setSessionExpired(true);
+    });
+  }, [markExpired]);
 
   // `auth:expired` is dropped when no window exists, so re-read the state
   // whenever the window comes back into view.
   useEffect(() => {
-    const recheck = async () => {
+    const recheck = () => {
       if (document.visibilityState === 'hidden') return;
-      try {
-        const state = await window.electronAuth?.getState();
-        if (state && !state.loggedIn) {
-          setIsAuthenticated((was) => {
-            if (was) applyLoggedOut(true);
-            return false;
-          });
-        }
-      } catch (error) {
-        console.error('Auth state re-check failed:', error);
-      }
+      void refresh();
     };
     document.addEventListener('visibilitychange', recheck);
     window.addEventListener('focus', recheck);
@@ -142,26 +137,11 @@ function App() {
       document.removeEventListener('visibilitychange', recheck);
       window.removeEventListener('focus', recheck);
     };
-  }, []);
+  }, [refresh]);
 
-  const checkAuthStatus = async () => {
-    try {
-      const state = await window.electronAuth?.getState();
-      const authenticated = !!state?.loggedIn;
-      setIsAuthenticated(authenticated);
-      if (window.trayControls?.updateAuthState) {
-        window.trayControls.updateAuthState(authenticated);
-      }
-    } catch (error) {
-      console.error('Failed to read auth state:', error);
-      setIsAuthenticated(false);
-      if (window.trayControls?.updateAuthState) {
-        window.trayControls.updateAuthState(false);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  useEffect(() => {
+    refresh().finally(() => setIsLoading(false));
+  }, [refresh]);
 
   useEffect(() => {
     const checkFirstTime = async () => {
@@ -175,12 +155,10 @@ function App() {
     checkFirstTime();
   }, [isAuthenticated, isLoading]);
 
-  const handleLogin = () => {
-    setIsAuthenticated(true);
+  const handleLogin = async () => {
+    await refresh();
     setSessionExpired(false);
-    if (window.trayControls?.updateAuthState) {
-      window.trayControls.updateAuthState(true);
-    }
+    setAddingStorytel(false);
   };
 
   const handleWelcomeClose = async () => {
@@ -188,18 +166,16 @@ function App() {
     setShowWelcomeModal(false);
   };
 
-  const handleLogout = async () => {
+  const handleLogout = async (target: AuthProvider | 'all') => {
     try {
-      await window.electronAuth?.logout();
+      if (target !== 'audioteka') await window.electronAuth?.logout();
+      if (target !== 'storytel') await window.electronAuth?.audiotekaLogout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      setIsAuthenticated(false);
-      setShowConfirmModal(false);
+      setLogoutTarget(null);
       setShowSettingsModal(false);
-      if (window.trayControls?.updateAuthState) {
-        window.trayControls.updateAuthState(false);
-      }
+      await refresh();
     }
   };
 
@@ -212,60 +188,66 @@ function App() {
   }
 
   return (
-    <Router>
-      <AudioProvider>
-        {isAuthenticated ? (
-          <AuthenticatedLayout
-            onOpenSettings={() => setShowSettingsModal(true)}
-            onLogout={() => setShowConfirmModal(true)}
-          >
-            <Routes>
-              <Route
-                path="/"
-                element={
-                  <Dashboard
-                    onLogout={handleLogout}
-                    triggerLogout={triggerLogout}
-                    setTriggerLogout={setTriggerLogout}
-                  />
-                }
-              />
-              <Route path="/search" element={<SearchView />} />
-              <Route path="/player/:bookId" element={<PlayerView />} />
-              <Route path="/book/:bookId" element={<BookView />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+    <ProvidersContext.Provider value={providers.value}>
+      <Router>
+        <AudioProvider>
+          {isAuthenticated && addingStorytel ? (
+            <LoginForm onLogin={handleLogin} onBack={() => setAddingStorytel(false)} />
+          ) : isAuthenticated ? (
+            <AuthenticatedLayout onOpenSettings={() => setShowSettingsModal(true)}>
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <Dashboard
+                      onLogout={() => handleLogout('storytel')}
+                      triggerLogout={triggerLogout}
+                      setTriggerLogout={setTriggerLogout}
+                    />
+                  }
+                />
+                <Route path="/search" element={<SearchView />} />
+                <Route path="/player/:bookId" element={<PlayerView />} />
+                <Route path="/book/:bookId" element={<BookView />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
 
-            {/* Modals */}
-            <SettingsModal
-              isOpen={showSettingsModal}
-              onClose={() => setShowSettingsModal(false)}
-              onLogout={() => {
-                setShowSettingsModal(false);
-                setShowConfirmModal(true);
-              }}
-            />
-            <ConfirmLogoutModal
-              isOpen={showConfirmModal}
-              onConfirm={handleLogout}
-              onCancel={() => setShowConfirmModal(false)}
-            />
-            <WelcomeModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} />
-            <LogsModal isOpen={showLogsModal} onClose={() => setShowLogsModal(false)} />
-          </AuthenticatedLayout>
-        ) : (
-          <div className="min-h-screen bg-[#0A0A0A]">
-            <Routes>
-              <Route
-                path="/login"
-                element={<LoginForm onLogin={handleLogin} sessionExpired={sessionExpired} />}
+              {/* Modals */}
+              <SettingsModal
+                isOpen={showSettingsModal}
+                onClose={() => setShowSettingsModal(false)}
+                onLogout={(provider) => {
+                  setShowSettingsModal(false);
+                  setLogoutTarget(provider);
+                }}
+                onAddStorytel={() => {
+                  setShowSettingsModal(false);
+                  setAddingStorytel(true);
+                }}
               />
-              <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
-          </div>
-        )}
-      </AudioProvider>
-    </Router>
+              <ConfirmLogoutModal
+                isOpen={logoutTarget !== null}
+                provider={logoutTarget && logoutTarget !== 'all' ? logoutTarget : undefined}
+                onConfirm={() => logoutTarget && handleLogout(logoutTarget)}
+                onCancel={() => setLogoutTarget(null)}
+              />
+              <WelcomeModal isOpen={showWelcomeModal} onClose={handleWelcomeClose} />
+              <LogsModal isOpen={showLogsModal} onClose={() => setShowLogsModal(false)} />
+            </AuthenticatedLayout>
+          ) : (
+            <div className="min-h-screen bg-[#0A0A0A]">
+              <Routes>
+                <Route
+                  path="/login"
+                  element={<ProviderPicker onLogin={handleLogin} sessionExpired={sessionExpired} />}
+                />
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </Routes>
+            </div>
+          )}
+        </AudioProvider>
+      </Router>
+    </ProvidersContext.Provider>
   );
 }
 

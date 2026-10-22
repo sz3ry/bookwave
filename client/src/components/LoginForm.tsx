@@ -6,9 +6,11 @@ import { trackAction } from '../utils/api';
 interface LoginFormProps {
   onLogin: () => void;
   sessionExpired?: boolean;
+  /** Shows a back link, e.g. to return to the provider picker. */
+  onBack?: () => void;
 }
 
-function LoginForm({ onLogin, sessionExpired }: LoginFormProps) {
+function LoginForm({ onLogin, sessionExpired, onBack }: LoginFormProps) {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,6 +65,15 @@ function LoginForm({ onLogin, sessionExpired }: LoginFormProps) {
         <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
           <div className="max-w-md w-full space-y-8 p-8 bg-gray-900 rounded-lg shadow-lg border border-gray-800">
             <div>
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="text-sm text-gray-400 hover:text-white"
+                >
+                  {t('common.back')}
+                </button>
+              )}
               <div className="flex justify-center">
                 <img src={'assets/icon.png'} alt={'Bookwave'} className="w-12 h-12" />
               </div>

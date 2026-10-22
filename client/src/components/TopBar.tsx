@@ -2,6 +2,7 @@ import type React from 'react';
 import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useProviders } from '../contexts/ProvidersContext';
 
 interface TopBarProps {
   onOpenSettings: () => void;
@@ -14,6 +15,7 @@ export function TopBar({ onOpenSettings, searchQuery = '', onSearchChange }: Top
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { storytel } = useProviders();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const isSearchPage = location.pathname === '/search';
@@ -21,6 +23,7 @@ export function TopBar({ onOpenSettings, searchQuery = '', onSearchChange }: Top
 
   // Global Cmd+K / Ctrl+K focus shortcut
   useEffect(() => {
+    if (!storytel) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -32,7 +35,7 @@ export function TopBar({ onOpenSettings, searchQuery = '', onSearchChange }: Top
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSearchPage, navigate]);
+  }, [isSearchPage, navigate, storytel]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -98,52 +101,56 @@ export function TopBar({ onOpenSettings, searchQuery = '', onSearchChange }: Top
         <span>{t('dashboard.title', 'My Library')}</span>
       </button>
 
-      {/* 3. Search Field */}
-      <div className="flex-grow max-w-2xl mx-1 relative">
-        <div className="relative flex items-center h-11 rounded-[12px] bg-[#1A1A1A] border border-white/[0.08] focus-within:border-[#FF5100]/60 focus-within:ring-1 focus-within:ring-[#FF5100]/30 transition-all px-3.5 shadow-inner">
-          <svg
-            className="w-4 h-4 text-gray-400 mr-2.5 flex-shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={handleInputChange}
-            onFocus={handleInputFocus}
-            placeholder={t('search.placeholder', 'Search by title, author, or narrator...')}
-            className="w-full bg-transparent text-white placeholder-gray-500 text-sm focus:outline-none"
-          />
-          {searchQuery ? (
-            <button
-              onClick={handleClear}
-              className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 ml-1.5 transition-colors"
+      {/* 3. Search Field (searches the Storytel catalog only) */}
+      {storytel ? (
+        <div className="flex-grow max-w-2xl mx-1 relative">
+          <div className="relative flex items-center h-11 rounded-[12px] bg-[#1A1A1A] border border-white/[0.08] focus-within:border-[#FF5100]/60 focus-within:ring-1 focus-within:ring-[#FF5100]/30 transition-all px-3.5 shadow-inner">
+            <svg
+              className="w-4 h-4 text-gray-400 mr-2.5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          ) : (
-            <kbd className="hidden sm:inline-flex items-center text-[11px] font-semibold text-gray-500 bg-white/5 px-2 py-0.5 rounded border border-white/5 ml-1.5">
-              ⌘K
-            </kbd>
-          )}
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={handleInputChange}
+              onFocus={handleInputFocus}
+              placeholder={t('search.placeholder', 'Search by title, author, or narrator...')}
+              className="w-full bg-transparent text-white placeholder-gray-500 text-sm focus:outline-none"
+            />
+            {searchQuery ? (
+              <button
+                onClick={handleClear}
+                className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 ml-1.5 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            ) : (
+              <kbd className="hidden sm:inline-flex items-center text-[11px] font-semibold text-gray-500 bg-white/5 px-2 py-0.5 rounded border border-white/5 ml-1.5">
+                ⌘K
+              </kbd>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex-grow" />
+      )}
 
       {/* 5. Settings Button */}
       <button

@@ -4,11 +4,13 @@ import Modal from './Modal';
 
 interface ConfirmLogoutModalProps {
   isOpen: boolean;
+  /** Provider to name in the message; omit for the generic message (logs out of everything). */
+  provider?: AuthProvider;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-function ConfirmLogoutModal({ isOpen, onConfirm, onCancel }: ConfirmLogoutModalProps) {
+function ConfirmLogoutModal({ isOpen, provider, onConfirm, onCancel }: ConfirmLogoutModalProps) {
   const { t } = useTranslation();
 
   if (!isOpen) return null;
@@ -16,7 +18,13 @@ function ConfirmLogoutModal({ isOpen, onConfirm, onCancel }: ConfirmLogoutModalP
   return (
     <Modal isOpen={isOpen} onClose={onCancel} title={t('logout.confirmTitle')}>
       <div className="flex flex-col">
-        <p className="text-gray-300 mb-6">{t('logout.confirmMessage')}</p>
+        <p className="text-gray-300 mb-6">
+          {provider
+            ? t('logout.confirmProviderMessage', {
+                provider: provider === 'storytel' ? 'Storytel' : 'Audioteka',
+              })
+            : t('logout.confirmMessage')}
+        </p>
         <div className="flex justify-end space-x-3 mt-4">
           <button
             onClick={onCancel}

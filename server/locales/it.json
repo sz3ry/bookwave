@@ -12,7 +12,12 @@
       "sessionExpired": "La tua sessione è scaduta. Effettua nuovamente il login.",
       "invalidCredentials": "Indirizzo email o password non corretti"
     },
-    "keyringUnavailable": "Nessun portachiavi di sistema trovato, quindi la tua password non verrà salvata. Dovrai accedere di nuovo al prossimo avvio di Bookwave."
+    "keyringUnavailable": "Nessun portachiavi di sistema trovato, quindi la tua password non verrà salvata. Dovrai accedere di nuovo al prossimo avvio di Bookwave.",
+    "audioteka": {
+      "button": "Accedi su audioteka.com",
+      "waiting": "In attesa che termini l'accesso nella finestra di audioteka.com...",
+      "failed": "Impossibile accedere ad Audioteka. Riprova."
+    }
   },
   "dashboard": {
     "title": "La mia libreria",
@@ -111,7 +116,8 @@
     "save": "Salva",
     "saving": "Salvataggio...",
     "delete": "Elimina",
-    "close": "Chiudi"
+    "close": "Chiudi",
+    "back": "Indietro"
   },
   "bookCard": {
     "completed": "Completato",
@@ -186,7 +192,8 @@
     "confirmTitle": "Conferma Logout",
     "confirmMessage": "Sei sicuro di voler effettuare il logout?",
     "confirmButton": "Logout",
-    "cancelButton": "Annulla"
+    "cancelButton": "Annulla",
+    "confirmProviderMessage": "Vuoi davvero uscire da {{provider}}?"
   },
   "download": {
     "cancelTitle": "Annulla Download",
@@ -229,11 +236,14 @@
     "appearance": "Aspetto",
     "alwaysOnTop": "Mantieni finestra sempre in primo piano",
     "alwaysOnTopDescription": "La finestra rimarrà sopra le altre finestre",
-    "account": "Account",
-    "email": "Email",
-    "logout": "Esci",
     "developer": "Sviluppatore",
-    "viewLogs": "Visualizza Log di Sessione"
+    "viewLogs": "Visualizza Log di Sessione",
+    "accounts": {
+      "title": "Account",
+      "add": "Aggiungi account",
+      "logout": "Esci",
+      "loginAgain": "Accedi di nuovo"
+    }
   },
   "logs": {
     "title": "Log di Sistema",
@@ -301,5 +311,9 @@
     "startWith": "Inizia dalla parte {{n}}: {{title}}",
     "firstUnavailable": "La parte {{n}} non è disponibile come audiolibro.",
     "parts": "Parti di questa serie"
+  },
+  "providers": {
+    "pickTitle": "Scegli un servizio",
+    "pickSubtitle": "Accedi al servizio di audiolibri con cui vuoi ascoltare"
   }
 }

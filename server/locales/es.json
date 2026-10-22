@@ -12,7 +12,12 @@
       "sessionExpired": "Tu sesión ha expirado. Por favor, inicia sesión de nuevo.",
       "invalidCredentials": "Correo electrónico o contraseña incorrectos"
     },
-    "keyringUnavailable": "No se encontró ningún llavero del sistema, así que tu contraseña no se guardará. Tendrás que volver a iniciar sesión la próxima vez que abras Bookwave."
+    "keyringUnavailable": "No se encontró ningún llavero del sistema, así que tu contraseña no se guardará. Tendrás que volver a iniciar sesión la próxima vez que abras Bookwave.",
+    "audioteka": {
+      "button": "Iniciar sesión en audioteka.com",
+      "waiting": "Esperando a que termines de iniciar sesión en la ventana de audioteka.com...",
+      "failed": "No se pudo iniciar sesión en Audioteka. Inténtalo de nuevo."
+    }
   },
   "dashboard": {
     "title": "Mi Biblioteca",
@@ -111,7 +116,8 @@
     "save": "Guardar",
     "saving": "Guardando...",
     "delete": "Eliminar",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "back": "Atrás"
   },
   "bookCard": {
     "completed": "Completado",
@@ -186,7 +192,8 @@
     "confirmTitle": "Confirmar cierre de sesión",
     "confirmMessage": "¿Estás seguro de que quieres cerrar sesión?",
     "confirmButton": "Cerrar sesión",
-    "cancelButton": "Cancelar"
+    "cancelButton": "Cancelar",
+    "confirmProviderMessage": "¿Seguro que quieres cerrar sesión en {{provider}}?"
   },
   "download": {
     "cancelTitle": "Cancelar descarga",
@@ -229,11 +236,14 @@
     "appearance": "Apariencia",
     "alwaysOnTop": "Mantener la ventana siempre visible",
     "alwaysOnTopDescription": "La ventana se mantendrá por encima de otras ventanas",
-    "account": "Cuenta",
-    "email": "Correo electrónico",
-    "logout": "Cerrar sesión",
     "developer": "Desarrollador",
-    "viewLogs": "Ver registros de sesión"
+    "viewLogs": "Ver registros de sesión",
+    "accounts": {
+      "title": "Cuentas",
+      "add": "Añadir cuenta",
+      "logout": "Cerrar sesión",
+      "loginAgain": "Iniciar sesión de nuevo"
+    }
   },
   "logs": {
     "title": "Registros de la aplicación",
@@ -301,5 +311,9 @@
     "startWith": "Empezar por la parte {{n}}: {{title}}",
     "firstUnavailable": "La parte {{n}} no está disponible como audiolibro.",
     "parts": "Partes de esta serie"
+  },
+  "providers": {
+    "pickTitle": "Elige un servicio",
+    "pickSubtitle": "Inicia sesión en el servicio de audiolibros con el que quieras escuchar"
   }
 }

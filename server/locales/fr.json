@@ -12,7 +12,12 @@
       "sessionExpired": "Votre session a expiré. Veuillez vous reconnecter.",
       "invalidCredentials": "Adresse e-mail ou mot de passe incorrect"
     },
-    "keyringUnavailable": "Aucun trousseau de clés système n'a été trouvé, votre mot de passe ne sera donc pas enregistré. Vous devrez vous reconnecter au prochain démarrage de Bookwave."
+    "keyringUnavailable": "Aucun trousseau de clés système n'a été trouvé, votre mot de passe ne sera donc pas enregistré. Vous devrez vous reconnecter au prochain démarrage de Bookwave.",
+    "audioteka": {
+      "button": "Se connecter sur audioteka.com",
+      "waiting": "En attente de la fin de la connexion dans la fenêtre audioteka.com...",
+      "failed": "Impossible de se connecter à Audioteka. Veuillez réessayer."
+    }
   },
   "dashboard": {
     "title": "Ma Bibliothèque",
@@ -111,7 +116,8 @@
     "save": "Enregistrer",
     "saving": "Enregistrement...",
     "delete": "Supprimer",
-    "close": "Fermer"
+    "close": "Fermer",
+    "back": "Retour"
   },
   "bookCard": {
     "completed": "Terminé",
@@ -186,7 +192,8 @@
     "confirmTitle": "Confirmer la déconnexion",
     "confirmMessage": "Êtes-vous sûr de vouloir vous déconnecter ?",
     "confirmButton": "Se déconnecter",
-    "cancelButton": "Annuler"
+    "cancelButton": "Annuler",
+    "confirmProviderMessage": "Voulez-vous vraiment vous déconnecter de {{provider}} ?"
   },
   "download": {
     "cancelTitle": "Annuler le téléchargement",
@@ -229,11 +236,14 @@
     "appearance": "Apparence",
     "alwaysOnTop": "Garder la fenêtre toujours au premier plan",
     "alwaysOnTopDescription": "La fenêtre restera au-dessus des autres fenêtres",
-    "account": "Compte",
-    "email": "E-mail",
-    "logout": "Se déconnecter",
     "developer": "Développeur",
-    "viewLogs": "Afficher les journaux de session"
+    "viewLogs": "Afficher les journaux de session",
+    "accounts": {
+      "title": "Comptes",
+      "add": "Ajouter un compte",
+      "logout": "Se déconnecter",
+      "loginAgain": "Se reconnecter"
+    }
   },
   "logs": {
     "title": "Journaux de l'application",
@@ -301,5 +311,9 @@
     "startWith": "Commencer par le tome {{n}} : {{title}}",
     "firstUnavailable": "Le tome {{n}} n'est pas disponible en livre audio.",
     "parts": "Tomes de cette série"
+  },
+  "providers": {
+    "pickTitle": "Choisir un service",
+    "pickSubtitle": "Connectez-vous au service de livres audio avec lequel vous voulez écouter"
   }
 }

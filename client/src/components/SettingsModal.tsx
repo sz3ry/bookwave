@@ -2,38 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import LogsModal from './LogsModal';
 import Modal from './Modal';
+import AccountsSection from './AccountsSection';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogout: () => void;
+  onLogout: (provider: AuthProvider) => void;
+  onAddStorytel: () => void;
 }
 
-function SettingsModal({ isOpen, onClose, onLogout }: SettingsModalProps) {
+function SettingsModal({ isOpen, onClose, onLogout, onAddStorytel }: SettingsModalProps) {
   const { t } = useTranslation();
-  const [email, setEmail] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
   const [alwaysOnTop, setAlwaysOnTop] = useState<boolean>(false);
   const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
-      fetchAccountInfo();
       fetchAlwaysOnTopSetting();
     }
   }, [isOpen]);
-
-  const fetchAccountInfo = async () => {
-    try {
-      setLoading(true);
-      const state = await window.electronAuth?.getState();
-      setEmail(state?.email ?? '');
-    } catch (error) {
-      console.error('Failed to fetch account info:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchAlwaysOnTopSetting = async () => {
     try {
@@ -146,30 +133,7 @@ function SettingsModal({ isOpen, onClose, onLogout }: SettingsModalProps) {
             </div>
           </div>
 
-          {/* Account Section */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-400 uppercase mb-3">
-              {t('settings.account')}
-            </h3>
-            <div className="border-t border-gray-700 mb-3"></div>
-
-            {/* Account Info */}
-            <div className="bg-gray-800 rounded-md p-4 mb-3">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-400 mb-1">{t('settings.email')}</span>
-                <span className="text-white font-medium">
-                  {loading ? t('common.loading') : email || '-'}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={onLogout}
-              className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
-            >
-              {t('settings.logout')}
-            </button>
-          </div>
+          <AccountsSection onLogout={onLogout} onAddStorytel={onAddStorytel} />
         </div>
       </Modal>
 

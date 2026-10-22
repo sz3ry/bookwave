@@ -12,7 +12,12 @@
       "sessionExpired": "Istuntosi on vanhentunut. Kirjaudu sisään uudelleen.",
       "invalidCredentials": "Virheellinen sähköpostiosoite tai salasana"
     },
-    "keyringUnavailable": "Järjestelmän avainnippua ei löytynyt, joten salasanaasi ei tallenneta. Sinun täytyy kirjautua uudelleen seuraavalla kerralla, kun käynnistät Bookwaven."
+    "keyringUnavailable": "Järjestelmän avainnippua ei löytynyt, joten salasanaasi ei tallenneta. Sinun täytyy kirjautua uudelleen seuraavalla kerralla, kun käynnistät Bookwaven.",
+    "audioteka": {
+      "button": "Kirjaudu osoitteessa audioteka.com",
+      "waiting": "Odotetaan, että kirjautuminen audioteka.com-ikkunassa valmistuu...",
+      "failed": "Kirjautuminen Audiotekaan epäonnistui. Yritä uudelleen."
+    }
   },
   "dashboard": {
     "title": "Kirjastoni",
@@ -111,7 +116,8 @@
     "save": "Tallenna",
     "saving": "Tallennetaan...",
     "delete": "Poista",
-    "close": "Sulje"
+    "close": "Sulje",
+    "back": "Takaisin"
   },
   "bookCard": {
     "completed": "Kuunneltu",
@@ -186,7 +192,8 @@
     "confirmTitle": "Vahvista uloskirjautuminen",
     "confirmMessage": "Haluatko varmasti kirjautua ulos?",
     "confirmButton": "Kirjaudu ulos",
-    "cancelButton": "Peruuta"
+    "cancelButton": "Peruuta",
+    "confirmProviderMessage": "Haluatko varmasti kirjautua ulos palvelusta {{provider}}?"
   },
   "download": {
     "cancelTitle": "Peruuta lataus",
@@ -229,11 +236,14 @@
     "appearance": "Ulkoasu",
     "alwaysOnTop": "Pidä ikkuna aina päällimmäisenä",
     "alwaysOnTopDescription": "Ikkuna pysyy muiden ikkunoiden päällä",
-    "account": "Tili",
-    "email": "Sähköposti",
-    "logout": "Kirjaudu ulos",
     "developer": "Kehittäjä",
-    "viewLogs": "Näytä istuntolokit"
+    "viewLogs": "Näytä istuntolokit",
+    "accounts": {
+      "title": "Tilit",
+      "add": "Lisää tili",
+      "logout": "Kirjaudu ulos",
+      "loginAgain": "Kirjaudu uudelleen"
+    }
   },
   "logs": {
     "title": "Sovelluslokit",
@@ -301,5 +311,9 @@
     "startWith": "Aloita osasta {{n}}: {{title}}",
     "firstUnavailable": "Osa {{n}} ei ole saatavilla äänikirjana.",
     "parts": "Sarjan osat"
+  },
+  "providers": {
+    "pickTitle": "Valitse palvelu",
+    "pickSubtitle": "Kirjaudu äänikirjapalveluun, jolla haluat kuunnella"
   }
 }

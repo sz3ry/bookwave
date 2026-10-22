@@ -12,7 +12,12 @@
       "sessionExpired": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
       "invalidCredentials": "E-Mail-Adresse oder Passwort ist falsch"
     },
-    "keyringUnavailable": "Es wurde kein System-Schlüsselbund gefunden, daher wird dein Passwort nicht gespeichert. Beim nächsten Start von Bookwave musst du dich erneut anmelden."
+    "keyringUnavailable": "Es wurde kein System-Schlüsselbund gefunden, daher wird dein Passwort nicht gespeichert. Beim nächsten Start von Bookwave musst du dich erneut anmelden.",
+    "audioteka": {
+      "button": "Auf audioteka.com anmelden",
+      "waiting": "Warte, bis du die Anmeldung im Fenster von audioteka.com abgeschlossen hast...",
+      "failed": "Die Anmeldung bei Audioteka ist fehlgeschlagen. Bitte versuche es erneut."
+    }
   },
   "dashboard": {
     "title": "Meine Bibliothek",
@@ -111,7 +116,8 @@
     "save": "Speichern",
     "saving": "Wird gespeichert...",
     "delete": "Löschen",
-    "close": "Schließen"
+    "close": "Schließen",
+    "back": "Zurück"
   },
   "bookCard": {
     "completed": "Abgeschlossen",
@@ -186,7 +192,8 @@
     "confirmTitle": "Abmelden bestätigen",
     "confirmMessage": "Möchten Sie sich wirklich abmelden?",
     "confirmButton": "Abmelden",
-    "cancelButton": "Abbrechen"
+    "cancelButton": "Abbrechen",
+    "confirmProviderMessage": "Möchtest du dich wirklich von {{provider}} abmelden?"
   },
   "download": {
     "cancelTitle": "Download abbrechen",
@@ -229,11 +236,14 @@
     "appearance": "Erscheinungsbild",
     "alwaysOnTop": "Fenster immer im Vordergrund halten",
     "alwaysOnTopDescription": "Das Fenster bleibt über anderen Fenstern",
-    "account": "Konto",
-    "email": "E-Mail",
-    "logout": "Abmelden",
     "developer": "Entwickler",
-    "viewLogs": "Sitzungsprotokolle anzeigen"
+    "viewLogs": "Sitzungsprotokolle anzeigen",
+    "accounts": {
+      "title": "Konten",
+      "add": "Konto hinzufügen",
+      "logout": "Abmelden",
+      "loginAgain": "Erneut anmelden"
+    }
   },
   "logs": {
     "title": "Anwendungsprotokolle",
@@ -301,5 +311,9 @@
     "startWith": "Mit Teil {{n}} beginnen: {{title}}",
     "firstUnavailable": "Teil {{n}} ist nicht als Hörbuch verfügbar.",
     "parts": "Teile dieser Reihe"
+  },
+  "providers": {
+    "pickTitle": "Dienst auswählen",
+    "pickSubtitle": "Melde dich beim Hörbuchdienst an, mit dem du hören möchtest"
   }
 }

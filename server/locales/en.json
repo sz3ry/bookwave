@@ -12,7 +12,12 @@
       "sessionExpired": "Your session has expired. Please sign in again.",
       "invalidCredentials": "Incorrect email or password"
     },
-    "keyringUnavailable": "No system keyring found, so your password won't be saved. You'll need to log in again next time you start Bookwave."
+    "keyringUnavailable": "No system keyring found, so your password won't be saved. You'll need to log in again next time you start Bookwave.",
+    "audioteka": {
+      "button": "Log in on audioteka.com",
+      "waiting": "Waiting for you to finish logging in in the audioteka.com window...",
+      "failed": "Could not log in to Audioteka. Please try again."
+    }
   },
   "dashboard": {
     "title": "My Library",
@@ -111,7 +116,8 @@
     "save": "Save",
     "saving": "Saving...",
     "delete": "Delete",
-    "close": "Close"
+    "close": "Close",
+    "back": "Back"
   },
   "bookCard": {
     "completed": "Completed",
@@ -186,7 +192,8 @@
     "confirmTitle": "Confirm Logout",
     "confirmMessage": "Are you sure you want to logout?",
     "confirmButton": "Logout",
-    "cancelButton": "Cancel"
+    "cancelButton": "Cancel",
+    "confirmProviderMessage": "Are you sure you want to log out of {{provider}}?"
   },
   "download": {
     "cancelTitle": "Cancel Download",
@@ -229,11 +236,14 @@
     "appearance": "Appearance",
     "alwaysOnTop": "Keep window always on top",
     "alwaysOnTopDescription": "Window will stay above other windows",
-    "account": "Account",
-    "email": "Email",
-    "logout": "Logout",
     "developer": "Developer",
-    "viewLogs": "View Session Logs"
+    "viewLogs": "View Session Logs",
+    "accounts": {
+      "title": "Accounts",
+      "add": "Add account",
+      "logout": "Log out",
+      "loginAgain": "Log in again"
+    }
   },
   "logs": {
     "title": "Application Logs",
@@ -301,5 +311,9 @@
     "startWith": "Start with part {{n}}: {{title}}",
     "firstUnavailable": "Part {{n}} is not available as an audiobook.",
     "parts": "Parts in this series"
+  },
+  "providers": {
+    "pickTitle": "Choose a service",
+    "pickSubtitle": "Sign in to the audiobook service you want to listen with"
   }
 }
