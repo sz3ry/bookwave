@@ -201,7 +201,7 @@ function App() {
                   path="/"
                   element={
                     <Dashboard
-                      onLogout={() => handleLogout('storytel')}
+                      onLogout={handleLogout}
                       triggerLogout={triggerLogout}
                       setTriggerLogout={setTriggerLogout}
                     />

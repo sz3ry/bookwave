@@ -60,7 +60,8 @@ async function loadAudiotekaBooks(): Promise<LibraryBook[]> {
 }
 
 interface DashboardProps {
-  onLogout: () => void;
+  /** Logs out of the given provider, or of every provider. */
+  onLogout: (target: ProviderId | 'all') => void;
   triggerLogout?: boolean;
   setTriggerLogout?: (value: boolean) => void;
 }
@@ -300,7 +301,7 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
         <ErrorState
           error={t('dashboard.loadError')}
           onRetry={() => window.location.reload()}
-          onLogout={onLogout}
+          onLogout={() => onLogout(failed.length === 1 ? failed[0] : 'all')}
         />
       </div>
     );
