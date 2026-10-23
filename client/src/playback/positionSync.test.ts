@@ -3,6 +3,7 @@ import {
   resolveStartPosition,
   type StoredPosition,
   shouldRecheckRemote,
+  shouldWriteRemote,
   storedPosition,
 } from './positionSync';
 
@@ -144,5 +145,26 @@ describe('resume re-check', () => {
     expect(resolveStartPosition(current, { positionMs: 1_399_654, device: 'Bookwave' }).kind).toBe(
       'use',
     );
+  });
+});
+
+describe('shouldWriteRemote', () => {
+  test('a paused, untouched ask book never pushes its position', () => {
+    expect(shouldWriteRemote('ask', 1_399_654, 1_399_654)).toBe(false);
+    // Float rounding of the element time stays within the tolerance
+    expect(shouldWriteRemote('ask', 1_400_400, 1_399_654)).toBe(false);
+  });
+
+  test('an ask book Bookwave moved is sent', () => {
+    expect(shouldWriteRemote('ask', 1_460_000, 1_399_654)).toBe(true);
+    expect(shouldWriteRemote('ask', 1_300_000, 1_399_654)).toBe(true);
+  });
+
+  test('without a known remote value the position is sent', () => {
+    expect(shouldWriteRemote('ask', 5000, undefined)).toBe(true);
+  });
+
+  test('Storytel always sends', () => {
+    expect(shouldWriteRemote('newest', 1_399_654, 1_399_654)).toBe(true);
   });
 });

@@ -75,3 +75,20 @@ export function shouldRecheckRemote(options: {
   if (policy !== 'ask' || switching || awaitingStart) return false;
   return lastCheckAt === null || now - lastCheckAt >= minIntervalMs;
 }
+
+/**
+ * Whether a position is sent to the provider. An `ask` source sends only a
+ * position Bookwave itself moved since the last sync: one within `toleranceMs`
+ * of `remoteSeen` is what the provider already had, and resending it would
+ * overwrite a newer position another device stored meanwhile. `newest`
+ * sources (Storytel) always send.
+ */
+export function shouldWriteRemote(
+  policy: 'newest' | 'ask',
+  positionMs: number,
+  remoteSeen: number | undefined,
+  toleranceMs = 1000,
+): boolean {
+  if (policy !== 'ask' || remoteSeen === undefined) return true;
+  return Math.abs(positionMs - remoteSeen) > toleranceMs;
+}

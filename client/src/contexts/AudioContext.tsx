@@ -37,6 +37,7 @@ import {
 import {
   resolveStartPosition,
   shouldRecheckRemote,
+  shouldWriteRemote,
   type StoredPosition,
   storedPosition,
 } from '../playback/positionSync';
@@ -272,13 +273,20 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   );
 
   // Remote write of the active (or just replaced) book; on success the local
-  // position records the written value as seen.
-  const writeRemote = useCallback(async (source: PlaybackSource, position: number) => {
-    await source.writeRemotePosition(position);
-    if (source.conflictPolicy !== 'ask') return;
-    if (sourceRef.current === source) remoteSeenRef.current = position;
-    await writeLocalPosition(source.positionStorageKey, position, position);
-  }, []);
+  // position records the written value as seen. An `ask` book only sends a
+  // position Bookwave moved since the last sync (`shouldWriteRemote`), so a
+  // paused, untouched book never overwrites another device's newer position.
+  const writeRemote = useCallback(
+    async (source: PlaybackSource, position: number) => {
+      // Read before the first await: a book switch replaces `sourceRef` next
+      if (!shouldWriteRemote(source.conflictPolicy, position, remoteSeenFor(source))) return;
+      await source.writeRemotePosition(position);
+      if (source.conflictPolicy !== 'ask') return;
+      if (sourceRef.current === source) remoteSeenRef.current = position;
+      await writeLocalPosition(source.positionStorageKey, position, position);
+    },
+    [remoteSeenFor],
+  );
 
   // Position synchronization helper
   const updatePosition = useCallback(
@@ -1223,7 +1231,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         if (position > 0) {
           writeLocalPosition(source.positionStorageKey, position, remoteSeenFor(source));
           if (source.conflictPolicy === 'ask') {
-            source.writeRemotePosition(position).catch(() => {});
+            writeRemote(source, position).catch(() => {});
           }
         }
       }
@@ -1239,7 +1247,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         clearInterval(sleepTimerIntervalRef.current);
       }
     };
-  }, [positionToSave, remoteSeenFor]);
+  }, [positionToSave, remoteSeenFor, writeRemote]);
 
   return (
     <AudioContext.Provider
