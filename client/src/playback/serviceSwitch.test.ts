@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { planServiceSwitch } from './serviceSwitch';
+import { planServiceSwitch, shouldSavePosition } from './serviceSwitch';
 
 describe('planServiceSwitch', () => {
   test('switch saves the position before restoring the other service', () => {
@@ -35,5 +35,19 @@ describe('planServiceSwitch', () => {
     expect(
       planServiceSwitch({ from: null, to: 'audioteka', playing: false, hasActiveBook: false }),
     ).toEqual(['restoreLastSession']);
+  });
+});
+
+describe('shouldSavePosition', () => {
+  test('does not save before the start position is applied', () => {
+    expect(shouldSavePosition({ startApplied: false, position: 120_000 })).toBe(false);
+  });
+
+  test('does not save position 0', () => {
+    expect(shouldSavePosition({ startApplied: true, position: 0 })).toBe(false);
+  });
+
+  test('saves once the start position is applied', () => {
+    expect(shouldSavePosition({ startApplied: true, position: 120_000 })).toBe(true);
   });
 });

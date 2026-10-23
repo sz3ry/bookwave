@@ -25,7 +25,11 @@ import {
   type PlaybackSource,
 } from '../playback/sources';
 import { isAudiotekaSession, isStorytelSession, lastSessionKey } from '../playback/lastSession';
-import { planServiceSwitch, type ServiceSwitchStep } from '../playback/serviceSwitch';
+import {
+  planServiceSwitch,
+  type ServiceSwitchStep,
+  shouldSavePosition,
+} from '../playback/serviceSwitch';
 import { useProviders } from './ProvidersContext';
 import PositionConflictModal, { type PositionConflict } from '../components/PositionConflictModal';
 import { totalDurationMs } from '../playback/timeline';
@@ -271,6 +275,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   // Set when a service switch pauses the playing element: the switch saves the
   // position and updates the tray itself, so that one `pause` event is not a stop.
   const ignoreNextPauseRef = useRef(false);
+  // True once the loaded book's saved start position has been applied; until
+  // then the element reads the track start, which is not the book's position.
+  const startAppliedRef = useRef(false);
 
   useEffect(() => {
     activeBookIdRef.current = activeBookId;
@@ -503,6 +510,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
       if (sourceRef.current !== source || !audioRef.current) return false;
       const switched = seekBook(Math.floor(chosenPosition / 1000), play);
+      // A switch to another track is pending now, which `positionToSave` honours
+      startAppliedRef.current = true;
       if (!switched) {
         setCurrentTime(bookSeconds(audioRef.current, source, trackIndexRef.current));
       }
@@ -706,6 +715,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     pendingTrackStartRef.current = null;
     trackRemoteRef.current = false;
     awaitingStartPositionRef.current = true;
+    startAppliedRef.current = false;
     urlRetriesRef.current = { index: -1, at: [] };
     remoteSeenRef.current = undefined;
     isPlayingRef.current = false;
@@ -973,6 +983,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     const source = sourceRef.current;
     if (!audio || !source || !audioSrcRef.current) return;
     const position = positionToSave(audio, source);
+    if (!shouldSavePosition({ startApplied: startAppliedRef.current, position })) return;
     await writeLocalPosition(source.positionStorageKey, position, remoteSeenFor(source));
     writeRemote(source, position).catch((err) => {
       console.warn('Failed to sync position to API, kept locally', err);
@@ -1022,6 +1033,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
             ignoreNextPauseRef.current = true;
             audio.pause();
           }
+          // The bookkeeping of a normal pause (state, sync interval, analytics,
+          // tray); the position is the next step's, after the start check
+          markPausedRef.current(false);
         } else if (step === 'savePosition') {
           await saveActivePosition();
         } else if (step === 'clearActiveBook') {
@@ -1214,7 +1228,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   markPausedRef.current = markPaused;
 
   const onPause = () => {
-    // A service switch saves the position and updates the tray itself
+    // A service switch already did the pause bookkeeping and saves the position
     if (ignoreNextPauseRef.current) {
       ignoreNextPauseRef.current = false;
       return;

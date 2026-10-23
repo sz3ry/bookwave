@@ -22,3 +22,12 @@ export function planServiceSwitch(input: {
   steps.push('restoreLastSession');
   return steps;
 }
+
+/**
+ * Whether a switch saves the active book's position: not before the saved start
+ * position has been applied (the element still reads the track start then), and
+ * never 0, the same guard a book change uses.
+ */
+export function shouldSavePosition(input: { startApplied: boolean; position: number }): boolean {
+  return input.startApplied && input.position > 0;
+}
