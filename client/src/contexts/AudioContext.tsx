@@ -89,8 +89,9 @@ const URL_RETRY_LIMIT = 2;
 const URL_RETRY_WINDOW_MS = 10_000;
 
 // Resuming a paused `ask` book asks the provider for its position again (the
-// phone may have moved it), at most this often, and stops waiting for the
-// answer after the timeout: local playback never depends on the provider.
+// phone may have moved it), at most this often. Both that re-check and the
+// first read on open stop waiting for the answer after the timeout: local
+// playback never depends on the provider.
 const REMOTE_RECHECK_INTERVAL_MS = 10_000;
 const REMOTE_RECHECK_TIMEOUT_MS = 5000;
 
@@ -449,7 +450,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     async (source: PlaybackSource, play: boolean): Promise<boolean> => {
       let remote: Awaited<ReturnType<PlaybackSource['readRemotePosition']>> = null;
       try {
-        remote = await source.readRemotePosition();
+        // An `ask` source opens from the local position when the provider does
+        // not answer in time, as on the resume re-check. Storytel keeps waiting
+        // for its answer, as it always did.
+        const read = source.readRemotePosition();
+        remote = await (source.conflictPolicy === 'ask'
+          ? withTimeout(read, REMOTE_RECHECK_TIMEOUT_MS)
+          : read);
       } catch (err) {
         console.warn('Failed to fetch remote position, will use local cache', err);
       }
