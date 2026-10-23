@@ -174,4 +174,152 @@ describe('Audioteka routes', () => {
     const res = await fastify.inject({ method: 'GET', url: '/api/bookshelf' });
     expect(res.statusCode).toBe(401);
   });
+
+  const hit = (id: string) => ({
+    id,
+    name: `Book ${id}`,
+    image_url: `https://atkcdn.audioteka.com/${id}.jpg`,
+    tracks_duration_in_ms: 1000,
+    is_available_in_subscription: true,
+    cycle_type: null,
+    kind: 'Audiobook - pełny',
+    authors: [{ id: 'auth-1', value: 'Andrzej Sapkowski' }],
+    lectors: [],
+    categories: [],
+  });
+  const algolia =
+    (hits: unknown[], status = 200) =>
+    (seen: Seen) => {
+      if (seen.path === '/v2/me/algolia') {
+        return json({
+          index: 'prod_lite_pl_catalog',
+          select_facets: [{ name: 'shelf_only', value: 'false' }],
+          restrict_facets: [{ name: 'catalog', value: 'cat-1' }],
+        });
+      }
+      if (seen.path.startsWith('/1/indexes/')) return json({ hits }, status);
+      return json({});
+    };
+
+  test('search returns Club results', async () => {
+    useFetch(algolia([hit('h1'), { ...hit('h2'), is_available_in_subscription: false }]));
+    login();
+    const res = await fastify.inject({ method: 'GET', url: '/api/audioteka/search?q=sapkowski' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().results.map((b: { id: string }) => b.id)).toEqual(['h1']);
+  });
+
+  test('empty query makes no call', async () => {
+    const calls = useFetch(() => json({}));
+    login();
+    const res = await fastify.inject({ method: 'GET', url: '/api/audioteka/search?q=%20' });
+    expect(res.json()).toEqual({ results: [] });
+    expect(calls).toHaveLength(0);
+  });
+
+  test('rejected search key answers 503', async () => {
+    useFetch(algolia([], 403));
+    login();
+    const res = await fastify.inject({ method: 'GET', url: '/api/audioteka/search?q=x' });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ code: 'SEARCH_UNAVAILABLE' });
+  });
+
+  test('discovery chips and page', async () => {
+    useFetch(() => json({}));
+    login();
+    const chips = await fastify.inject({ method: 'GET', url: '/api/audioteka/discovery/chips' });
+    expect(chips.json()).toEqual([{ id: 'home', label: '', pageSlug: 'home' }]);
+    const other = await fastify.inject({ method: 'GET', url: '/api/audioteka/discovery/page/x' });
+    expect(other.statusCode).toBe(404);
+  });
+
+  test('discovery list rejects other urls', async () => {
+    const calls = useFetch(() => json({}));
+    login();
+    for (const url of ['https://evil', 'section:abc', 'author:']) {
+      const res = await fastify.inject({
+        method: 'GET',
+        url: `/api/audioteka/discovery/list?url=${encodeURIComponent(url)}`,
+      });
+      expect(res.statusCode).toBe(400);
+    }
+    const bad = await fastify.inject({
+      method: 'GET',
+      url: '/api/audioteka/discovery/list?url=cycle:abc&nextPageToken=x',
+    });
+    expect(bad.statusCode).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
+  test('discovery list pages an author', async () => {
+    const calls = useFetch(({ path: p }) => {
+      if (p === '/v2/me') return json({ id: 'u1', catalog: 'cat-1' });
+      return json({ page: 2, pages: 2, total: 1, _embedded: { 'app:product': [hit('h1')] } });
+    });
+    login();
+    const res = await fastify.inject({
+      method: 'GET',
+      url: '/api/audioteka/discovery/list?url=author:a-1&nextPageToken=2',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items.map((b: { id: string }) => b.id)).toEqual(['h1']);
+    expect(calls.some((c) => c.path === '/v2/authors/a-1/products')).toBe(true);
+  });
+
+  test('series and book details validate ids', async () => {
+    const calls = useFetch(() => json({}));
+    login();
+    for (const url of [
+      '/api/audioteka/discovery/series/nope',
+      '/api/audioteka/book-details/nope',
+    ]) {
+      const res = await fastify.inject({ method: 'GET', url });
+      expect(res.statusCode).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  test('library add sends AddToFavourites and answers success', async () => {
+    const calls = useFetch(() => json({}));
+    login();
+    const add = await fastify.inject({
+      method: 'POST',
+      url: '/api/audioteka/library/add',
+      payload: { id: ID },
+    });
+    expect(add.json()).toEqual({ success: true });
+    const remove = await fastify.inject({
+      method: 'POST',
+      url: '/api/audioteka/library/remove',
+      payload: { id: ID },
+    });
+    expect(remove.json()).toEqual({ success: true });
+    const names = calls.filter((c) => c.path === '/v2/commands').map((c) => c.body);
+    expect(names[0]).toMatchObject({ name: 'AddToFavourites', product_id: ID });
+    expect(names[1]).toMatchObject({ name: 'RemoveFromFavourites', product_id: ID });
+    const bad = await fastify.inject({
+      method: 'POST',
+      url: '/api/audioteka/library/add',
+      payload: { id: 'x' },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  test('catalogue routes need an Audioteka session', async () => {
+    audiotekaAuth.logout();
+    for (const [method, url] of [
+      ['GET', '/api/audioteka/search?q=a'],
+      ['GET', '/api/audioteka/discovery/chips'],
+      ['GET', '/api/audioteka/discovery/page/home'],
+      ['GET', '/api/audioteka/discovery/list?url=cycle:a'],
+      ['GET', `/api/audioteka/discovery/series/${ID}`],
+      ['GET', `/api/audioteka/book-details/${ID}`],
+      ['POST', '/api/audioteka/library/add'],
+      ['POST', '/api/audioteka/library/remove'],
+    ] as const) {
+      const res = await fastify.inject({ method, url });
+      expect(res.statusCode).toBe(401);
+    }
+  });
 });
