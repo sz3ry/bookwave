@@ -1,16 +1,30 @@
 import { appLogger } from '../logger';
 import type { FetchLike } from '../http';
+import { CACHE_TTL_MS, createTtlCache } from '../storytel/discovery';
+import {
+  type CatalogBook,
+  type DiscoveryList,
+  type DiscoveryRow,
+  type DiscoverySeries,
+  embeddedList,
+  toCatalogBooks,
+  toHomeRows,
+  toProductBook,
+  toSeries,
+} from './catalog';
 import {
   type AudiotekaBook,
   type AudiotekaLibraryEntry,
   type AudiotekaRemotePosition,
   type AudiotekaTrack,
+  embeddedItems,
   isListenable,
   mergeLibrary,
   toAudiotekaBook,
   toRemotePosition,
   toTimeline,
 } from './mapping';
+import { searchAlgolia } from './search';
 
 const API_BASE = 'https://api-audioteka.audioteka.com';
 const FALLBACK_APP_VERSION = '3.55.0';
@@ -18,6 +32,8 @@ const DEVICE_NAME = 'Bookwave';
 const REFRESH_MARGIN_MS = 7 * 24 * 60 * 60 * 1000;
 const LICENSE_CONCURRENCY = 4;
 const LIST_QUERY = '?page=1&limit=100';
+const LIST_PAGE_SIZE = 20;
+const CYCLE_QUERY = 'page=1&limit=100';
 
 export interface AudiotekaCredentials {
   deviceId: string;
@@ -66,8 +82,27 @@ interface ApiResponse {
   data: unknown;
 }
 
+export interface AudiotekaBookPage {
+  book: CatalogBook;
+  // In favourites, on the shelf or recently played.
+  inLibrary: boolean;
+  // Only favourites can be removed from the library.
+  removable: boolean;
+  recommendedAfter: CatalogBook[];
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const facetFilters = (facets: unknown): string[] =>
+  (Array.isArray(facets) ? facets : []).flatMap((facet) =>
+    isRecord(facet) && typeof facet.name === 'string' && typeof facet.value === 'string'
+      ? [`${facet.name}:'${facet.value}'`]
+      : [],
+  );
+
+const containsId = (list: unknown, id: string): boolean =>
+  embeddedItems(list).some((item) => isRecord(item) && item.id === id);
 
 export class AudiotekaClient {
   private credentials: AudiotekaCredentials;
@@ -77,6 +112,11 @@ export class AudiotekaClient {
   private readonly onCredentialsRejected: () => void;
   private refreshing: Promise<void> | null = null;
   private userAgent: Promise<string> | null = null;
+  private catalogId: Promise<string> | null = null;
+  // Catalogue responses by path (home screen, lists, cycles, recommendations,
+  // search settings). Lives and dies with this client, so another account
+  // never sees them.
+  private catalogCache = createTtlCache<unknown>(CACHE_TTL_MS);
 
   constructor(opts: AudiotekaClientOptions) {
     this.credentials = { ...opts.credentials };
@@ -166,6 +206,156 @@ export class AudiotekaClient {
 
   async startPlayback(id: string): Promise<void> {
     await this.command({ name: 'StartPlayback', audiobook_id: id });
+  }
+
+  async getHomeRows(): Promise<DiscoveryRow[]> {
+    return toHomeRows(await this.cachedGet('/v2/me/screen'));
+  }
+
+  // `author:<id>` pages an author's books. Home rows (`section:<id>`) have no
+  // list behind them: their section endpoint only repeats the row's items.
+  async getList(itemsUrl: string, page: number): Promise<DiscoveryList> {
+    const pageNumber = Number.isInteger(page) && page >= 1 ? page : 1;
+    if (itemsUrl.startsWith('author:')) {
+      const authorId = itemsUrl.slice('author:'.length);
+      if (!authorId) throw new AudiotekaHttpError('Audioteka list has no author id', 400);
+      const catalog = await this.getCatalogId();
+      const data = await this.cachedGet(
+        `/v2/authors/${encodeURIComponent(authorId)}/products?catalog=${encodeURIComponent(catalog)}&page=${pageNumber}&limit=${LIST_PAGE_SIZE}`,
+      );
+      const products = embeddedList(data, 'app:product');
+      const pages = isRecord(data) && typeof data.pages === 'number' ? data.pages : pageNumber;
+      const total = isRecord(data) && typeof data.total === 'number' ? data.total : 0;
+      // The products list carries no author entity; take the name from a book.
+      const title =
+        products
+          .flatMap((product) => toProductBook(product)?.authorRefs ?? [])
+          .find((ref) => ref.id === authorId)?.name ?? '';
+      return {
+        title,
+        totalCount: total,
+        items: toCatalogBooks(products),
+        nextPageToken: pageNumber < pages ? String(pageNumber + 1) : null,
+      };
+    }
+    if (itemsUrl.startsWith('section:')) {
+      throw new AudiotekaHttpError('Audioteka home rows have no full list', 404);
+    }
+    throw new AudiotekaHttpError(`Unknown Audioteka list ${itemsUrl}`, 400);
+  }
+
+  async search(query: string): Promise<CatalogBook[]> {
+    const text = query.trim();
+    if (!text) return [];
+    const settings = await this.cachedGet('/v2/me/algolia');
+    if (!isRecord(settings) || typeof settings.index !== 'string' || !settings.index) {
+      throw new Error('Audioteka returned no search index');
+    }
+    const filters = [
+      ...facetFilters(settings.restrict_facets),
+      ...facetFilters(settings.select_facets),
+    ].join(' AND ');
+    return toCatalogBooks(
+      await searchAlgolia(text, { index: settings.index, filters }, this.fetchImpl),
+    );
+  }
+
+  async getBookPage(id: string): Promise<AudiotekaBookPage> {
+    const encoded = encodeURIComponent(id);
+    const [detail, favourites, shelf, recent, recommended] = await Promise.all([
+      this.get(`/v2/audiobooks/${encoded}`),
+      this.get(`/v2/me/favourites${LIST_QUERY}`),
+      this.get(`/v2/me/shelf${LIST_QUERY}`),
+      this.get(`/v2/me/recently-played${LIST_QUERY}`),
+      // Recommendations are extra: a failure leaves the list empty.
+      this.cachedGet(`/v2/me/recommended-after/${encoded}`).catch(() => null),
+    ]);
+    const book = toProductBook(detail);
+    if (!book || !isRecord(detail)) {
+      throw new Error(`Audioteka returned an unreadable audiobook ${id}`);
+    }
+    const description = typeof detail.description === 'string' ? detail.description : '';
+    if (description) book.description = description;
+    const category = embeddedList(detail, 'app:category')[0];
+    if (isRecord(category) && typeof category.name === 'string' && category.name) {
+      book.category = category.name;
+    }
+    const series = embeddedList(detail, 'app:contained-in').find(
+      (cycle) => isRecord(cycle) && cycle.cycle_type === 'series' && typeof cycle.id === 'string',
+    );
+    if (isRecord(series) && typeof series.id === 'string') {
+      book.seriesInfo = {
+        id: series.id,
+        name: typeof series.name === 'string' ? series.name : '',
+        orderInSeries: await this.orderInCycle(series.id, id),
+      };
+    }
+    const removable = containsId(favourites, id);
+    return {
+      book,
+      inLibrary: removable || containsId(shelf, id) || containsId(recent, id),
+      removable,
+      recommendedAfter: toCatalogBooks(embeddedList(recommended, 'app:product')),
+    };
+  }
+
+  async getSeries(cycleId: string, currentId?: string): Promise<DiscoverySeries | null> {
+    const catalog = encodeURIComponent(await this.getCatalogId());
+    const encoded = encodeURIComponent(cycleId);
+    const [cycle, products] = await Promise.all([
+      this.cachedGet(`/v2/cycles/${encoded}?catalog=${catalog}`),
+      this.cachedGet(`/v2/cycles/${encoded}/products?catalog=${catalog}&${CYCLE_QUERY}`),
+    ]);
+    return toSeries(cycle, embeddedList(products, 'app:product'), currentId);
+  }
+
+  async addToLibrary(id: string): Promise<void> {
+    await this.command({ name: 'AddToFavourites', product_id: id });
+  }
+
+  async removeFromLibrary(id: string): Promise<void> {
+    await this.command({ name: 'RemoveFromFavourites', product_id: id });
+  }
+
+  // 1-based position of a book in a series cycle; null when it cannot be read.
+  private async orderInCycle(cycleId: string, bookId: string): Promise<number | null> {
+    try {
+      const catalog = encodeURIComponent(await this.getCatalogId());
+      const products = await this.cachedGet(
+        `/v2/cycles/${encodeURIComponent(cycleId)}/products?catalog=${catalog}&${CYCLE_QUERY}`,
+      );
+      const index = embeddedList(products, 'app:product').findIndex(
+        (product) => isRecord(product) && product.id === bookId,
+      );
+      return index === -1 ? null : index + 1;
+    } catch {
+      return null;
+    }
+  }
+
+  // The account's catalogue id, needed by author and cycle endpoints.
+  private getCatalogId(): Promise<string> {
+    if (!this.catalogId) {
+      this.catalogId = this.get('/v2/me').then((me) => {
+        if (!isRecord(me) || typeof me.catalog !== 'string' || !me.catalog) {
+          throw new Error('Audioteka returned no catalogue id');
+        }
+        return me.catalog;
+      });
+      // A failed lookup is retried on the next call.
+      this.catalogId.catch(() => {
+        this.catalogId = null;
+      });
+    }
+    return this.catalogId;
+  }
+
+  private async cachedGet(path: string): Promise<unknown> {
+    const cached = this.catalogCache.get(path);
+    if (cached !== undefined) return cached;
+    const data = await this.get(path);
+    this.catalogCache.set(path, data);
+    return data;
   }
 
   private async command(body: Record<string, unknown>): Promise<void> {

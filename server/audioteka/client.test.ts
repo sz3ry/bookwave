@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import type { FetchLike } from '../http';
 import { redactLogData } from '../logger';
-import { AudiotekaClient, type AudiotekaCredentials, AudiotekaUnauthorizedError } from './client';
+import {
+  AudiotekaClient,
+  type AudiotekaCredentials,
+  AudiotekaHttpError,
+  AudiotekaUnauthorizedError,
+} from './client';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -378,5 +383,237 @@ describe('log redaction', () => {
       deviceId: '***',
       name: 'RefreshToken',
     });
+  });
+});
+
+describe('AudiotekaClient catalogue', () => {
+  const club = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    name: `Book ${id}`,
+    image_url: `https://atkcdn.audioteka.com/${id}.jpg`,
+    tracks_duration_in_ms: 1000,
+    is_available_in_subscription: true,
+    cycle_type: null,
+    kind: 'Audiobook - pełny',
+    authors: [{ id: 'auth-1', value: 'Andrzej Sapkowski' }],
+    lectors: [],
+    categories: [],
+    ...extra,
+  });
+  const products = (items: unknown[], page = 1, pages = 1, total = items.length) =>
+    json({ page, pages, total, _embedded: { 'app:product': items } });
+  const me: Handler = () => json({ id: 'u1', catalog: 'cat-1' });
+
+  test('search reads index and filters from /v2/me/algolia', async () => {
+    const { fetchImpl, calls } = stubFetch({
+      [CONFIG]: config(),
+      'GET /v2/me/algolia': () =>
+        json({
+          index: 'prod_lite_pl_catalog',
+          select_facets: [{ name: 'shelf_only', value: 'false' }],
+          restrict_facets: [{ name: 'catalog', value: 'cat-1' }],
+        }),
+      'POST /1/indexes/prod_lite_pl_catalog/query': (call) => {
+        expect(call.body).toEqual({
+          query: 'sapkowski',
+          filters: "catalog:'cat-1' AND shelf_only:'false'",
+          hitsPerPage: 50,
+        });
+        // The Audioteka bearer never goes to Algolia.
+        expect(call.headers.authorization).toBeUndefined();
+        return json({
+          hits: [club('h1'), club('h2', { is_available_in_subscription: false })],
+        });
+      },
+    });
+    const { client } = makeClient(fetchImpl);
+
+    const results = await client.search('sapkowski');
+
+    expect(results.map((book) => book.id)).toEqual(['h1']);
+    await client.search('sapkowski');
+    // The Algolia settings are cached; each search still queries Algolia.
+    expect(calls.filter((c) => c.path === '/v2/me/algolia')).toHaveLength(1);
+    expect(calls.filter((c) => c.path.startsWith('/1/indexes/'))).toHaveLength(2);
+  });
+
+  test('getList pages an author list', async () => {
+    const urls: string[] = [];
+    const base = stubFetch({
+      [CONFIG]: config(),
+      'GET /v2/me': me,
+      'GET /v2/authors/auth-1/products': [
+        () => products([club('b1'), club('b2', { is_available_in_subscription: false })], 1, 2, 31),
+        () => products([club('b3')], 2, 2, 31),
+      ],
+    });
+    const fetchImpl: FetchLike = (input, init) => {
+      urls.push(String(input));
+      return base.fetchImpl(input, init);
+    };
+    const { client } = makeClient(fetchImpl);
+
+    const first = await client.getList('author:auth-1', 1);
+    expect(first).toEqual({
+      title: 'Andrzej Sapkowski',
+      totalCount: 31,
+      items: [expect.objectContaining({ id: 'b1' })],
+      nextPageToken: '2',
+    });
+    const second = await client.getList('author:auth-1', 2);
+    expect(second.items.map((book) => book.id)).toEqual(['b3']);
+    expect(second.nextPageToken).toBe(null);
+
+    const authorUrls = urls.filter((url) => url.includes('/v2/authors/'));
+    expect(authorUrls.map((url) => new URL(url).search)).toEqual([
+      '?catalog=cat-1&page=1&limit=20',
+      '?catalog=cat-1&page=2&limit=20',
+    ]);
+    // Cached: the same page again makes no request.
+    await client.getList('author:auth-1', 1);
+    expect(urls.filter((url) => url.includes('/v2/authors/'))).toHaveLength(2);
+  });
+
+  test('getList rejects section lists and unknown lists', async () => {
+    const { fetchImpl } = stubFetch({ [CONFIG]: config() });
+    const { client } = makeClient(fetchImpl);
+    const section = await client.getList('section:audioteka-new-audiobooks-pl', 1).catch((e) => e);
+    expect(section).toBeInstanceOf(AudiotekaHttpError);
+    expect(section.status).toBe(404);
+    const unknown = await client.getList('cycle:x', 1).catch((e) => e);
+    expect(unknown).toBeInstanceOf(AudiotekaHttpError);
+  });
+
+  test('getHomeRows caches the screen', async () => {
+    const { fetchImpl, calls } = stubFetch({
+      [CONFIG]: config(),
+      'GET /v2/me/screen': () =>
+        json({
+          _embedded: {
+            'app:screen-section': [
+              {
+                id: 'new',
+                type: 'product-grid',
+                title: 'Nowości',
+                _embedded: { 'app:product': [club('b1')] },
+              },
+            ],
+          },
+        }),
+    });
+    const { client } = makeClient(fetchImpl);
+
+    const rows = await client.getHomeRows();
+    await client.getHomeRows();
+
+    expect(rows.map((row) => [row.id, row.items.length])).toEqual([['new', 1]]);
+    expect(calls.filter((c) => c.path === '/v2/me/screen')).toHaveLength(1);
+  });
+
+  const detail = (id: string) =>
+    json({
+      id,
+      name: 'Upadek gigantów',
+      description: 'Pierwszy tom trylogii.',
+      image_url: 'https://atkcdn.audioteka.com/b1.jpg',
+      tracks_duration_in_ms: 5000,
+      is_available_in_subscription: true,
+      kind: 'Audiobook - pełny',
+      content_language: 'pl',
+      _embedded: {
+        'app:author': [{ id: 'auth-2', name: 'Ken Follett' }],
+        'app:lector': [{ id: 'l1', name: 'Lektor' }],
+        'app:category': [
+          { id: 'c1', name: 'Powieść historyczna' },
+          { id: 'c2', name: 'Literatura piękna' },
+        ],
+        'app:contained-in': [
+          { id: 'gen-1', name: 'Bestsellery', cycle_type: 'generic' },
+          { id: 'ser-1', name: 'Stulecie. Seria', cycle_type: 'series' },
+        ],
+      },
+    });
+
+  const bookPageHandlers = (favourites: unknown[]): Record<string, Handler | Handler[]> => ({
+    [CONFIG]: config(),
+    'GET /v2/me': me,
+    'GET /v2/audiobooks/b1': () => detail('b1'),
+    'GET /v2/me/favourites': () => products(favourites),
+    'GET /v2/me/shelf': () => products([]),
+    'GET /v2/me/recently-played': () => products([club('b1')]),
+    'GET /v2/me/recommended-after/b1': () =>
+      products([club('r1'), club('r2', { is_available_in_subscription: false })]),
+    'GET /v2/cycles/ser-1/products': () => products([club('b0'), club('b1'), club('b2')]),
+  });
+
+  test('getBookPage marks favourites removable', async () => {
+    const { fetchImpl } = stubFetch(bookPageHandlers([club('b1')]));
+    const { client } = makeClient(fetchImpl);
+
+    const page = await client.getBookPage('b1');
+
+    expect(page.inLibrary).toBe(true);
+    expect(page.removable).toBe(true);
+    expect(page.recommendedAfter.map((book) => book.id)).toEqual(['r1']);
+    expect(page.book).toMatchObject({
+      id: 'b1',
+      title: 'Upadek gigantów',
+      description: 'Pierwszy tom trylogii.',
+      category: 'Powieść historyczna',
+      authors: 'Ken Follett',
+      authorRefs: [{ id: 'auth-2', name: 'Ken Follett' }],
+      seriesInfo: { id: 'ser-1', name: 'Stulecie. Seria', orderInSeries: 2 },
+      hasAbook: true,
+      language: 'pl',
+    });
+  });
+
+  test('getBookPage: recently played only is in the library but not removable', async () => {
+    const { fetchImpl } = stubFetch(bookPageHandlers([]));
+    const { client } = makeClient(fetchImpl);
+
+    const page = await client.getBookPage('b1');
+
+    expect(page.inLibrary).toBe(true);
+    expect(page.removable).toBe(false);
+  });
+
+  test('getSeries maps a series cycle', async () => {
+    const { fetchImpl } = stubFetch({
+      [CONFIG]: config(),
+      'GET /v2/me': me,
+      'GET /v2/cycles/ser-1': () => json({ id: 'ser-1', name: 'Stulecie', cycle_type: 'series' }),
+      'GET /v2/cycles/ser-1/products': () => products([club('b0'), club('b1'), club('b2')]),
+    });
+    const { client } = makeClient(fetchImpl);
+
+    const series = await client.getSeries('ser-1', 'b1');
+
+    expect(series?.parts.map((part) => part.id)).toEqual(['b0', 'b1', 'b2']);
+    expect(series?.next?.id).toBe('b2');
+  });
+
+  test('addToLibrary sends AddToFavourites', async () => {
+    const bodies: unknown[] = [];
+    const { fetchImpl } = stubFetch({
+      [CONFIG]: config(),
+      'command:AddToFavourites': (call) => {
+        bodies.push(call.body);
+        return json({});
+      },
+      'command:RemoveFromFavourites': (call) => {
+        bodies.push(call.body);
+        return json({});
+      },
+    });
+    const { client } = makeClient(fetchImpl);
+
+    await client.addToLibrary('b1');
+    await client.removeFromLibrary('b1');
+
+    expect(bodies).toEqual([
+      { name: 'AddToFavourites', product_id: 'b1' },
+      { name: 'RemoveFromFavourites', product_id: 'b1' },
+    ]);
   });
 });

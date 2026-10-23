@@ -190,6 +190,8 @@ export interface SearchResultBook {
   language?: string;
   languageName?: string;
   seriesInfo?: SeriesInfo;
+  // Authors with ids, so an author name can open the author's list.
+  authorRefs?: { id: string; name: string }[];
 }
 
 export interface SeriesInfo {
