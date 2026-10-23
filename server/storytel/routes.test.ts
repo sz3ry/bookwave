@@ -1,35 +1,16 @@
-import { afterAll, afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { createDownloadsIndex } from './downloadsIndex';
 import type { FetchLike } from './fetch';
 import { encryptPassword } from './passwordCrypt';
 
-// fastify-common creates its downloads directory and the logger reads its log
-// file at import time, so point both at a temporary directory first.
-// The variables are restored afterwards so other test files do not see them.
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bookwave-routes-'));
-const testEnv = {
-  IS_ELECTRON: 'true',
-  DOWNLOAD_PATH: tmpDir,
-  USER_DATA_PATH: tmpDir,
-  NODE_ENV: 'production', // silences the Fastify request logger
-};
-const savedEnv = Object.fromEntries(Object.keys(testEnv).map((key) => [key, process.env[key]]));
-Object.assign(process.env, testEnv);
-
-const {
-  default: fastify,
+import fastify, {
   auth,
   configureSessionForTests,
   resolveDownloadedFile,
-} = await import('../fastify-common');
-
-for (const [key, value] of Object.entries(savedEnv)) {
-  if (value === undefined) delete process.env[key];
-  else process.env[key] = value;
-}
+  testDir as tmpDir,
+} from '../testServer';
 
 const LOGIN_PATH = '/api/login.action';
 const BOOKSHELF_PATH = '/libraries/bookshelf';
@@ -97,10 +78,6 @@ afterEach(() => {
 
 // Not closed: bun shares one fastify-common instance across test files (the first
 // file to import it fixes DOWNLOAD_PATH/USER_DATA_PATH), and later files inject into it.
-afterAll(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
-});
-
 describe('routes', () => {
   test('routes return 401 without session', async () => {
     const response = await fastify.inject({ method: 'GET', url: '/api/bookshelf' });
