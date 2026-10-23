@@ -82,11 +82,9 @@ function App() {
 
   useEffect(() => {
     // Listen for logout event from tray
-    if (window.trayControls?.onLogout) {
-      window.trayControls.onLogout(() => {
-        setTriggerLogout(true);
-      });
-    }
+    const unsubscribeTrayLogout = window.trayControls?.onLogout?.(() => {
+      setTriggerLogout(true);
+    });
 
     // Global keyboard shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -97,7 +95,10 @@ function App() {
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      unsubscribeTrayLogout?.();
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   useEffect(() => {

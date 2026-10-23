@@ -44,16 +44,25 @@ contextBridge.exposeInMainWorld('electronWindow', {
   isAlwaysOnTop: (): Promise<boolean> => ipcRenderer.invoke('window-is-always-on-top'),
 });
 
-// Tray Controls API
+// Tray Controls API. The `on*` subscriptions return an unsubscribe function,
+// so a re-run React effect does not pile up listeners.
 contextBridge.exposeInMainWorld('trayControls', {
-  onPlayPause: (callback: () => void): void => {
-    ipcRenderer.on('tray-play-pause', callback);
+  onPlayPause: (callback: () => void): (() => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('tray-play-pause', listener);
+    return () => {
+      ipcRenderer.removeListener('tray-play-pause', listener);
+    };
   },
   onSetSpeed: (callback: (_event: IpcRendererEvent, speed: number) => void): void => {
     ipcRenderer.on('tray-set-speed', callback);
   },
-  onLogout: (callback: () => void): void => {
-    ipcRenderer.on('tray-logout', callback);
+  onLogout: (callback: () => void): (() => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('tray-logout', listener);
+    return () => {
+      ipcRenderer.removeListener('tray-logout', listener);
+    };
   },
   updatePlayingState: (isPlaying: boolean, bookTitle: string): void => {
     ipcRenderer.send('update-playing-state', { isPlaying, bookTitle });

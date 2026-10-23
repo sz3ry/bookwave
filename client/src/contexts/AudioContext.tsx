@@ -1209,14 +1209,12 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Tray play/pause listeners
+  // Tray play/pause: subscribed once, always calls the latest play/pause
   useEffect(() => {
-    if (window.trayControls?.onPlayPause) {
-      window.trayControls.onPlayPause(() => {
-        togglePlayPause();
-      });
-    }
-  }, [togglePlayPause]);
+    return window.trayControls?.onPlayPause?.(() => {
+      togglePlayPauseRef.current();
+    });
+  }, []);
 
   // Cleanup on unmount & save on window close
   useEffect(() => {
