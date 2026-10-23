@@ -27,8 +27,8 @@ bookwave/
 │   │   └── i18n.ts      # i18next configuration
 │   └── package.json
 ├── server/          # Fastify backend server
-│   ├── storytelApi.ts   # Storytel API integration
-│   ├── session.ts       # In-process Storytel session (one account)
+│   ├── fastify-common.ts # Entrypoint: Fastify app, sessions, shared routes
+│   ├── storytel/        # Storytel client, session, downloads and routes
 │   ├── audioteka/       # Audioteka client, session and `/api/audioteka/*` routes
 │   ├── locales/         # Translation files
 │   └── package.json
@@ -176,7 +176,7 @@ There is no browser mode: the app only runs inside Electron (from the Electron-o
 ### API Integration
 
 - Backend API calls go through `client/src/utils/api.ts`
-- Storytel API integration is in `server/storytelApi.ts`
+- Storytel API integration is in `server/storytel/client.ts`
 - Handle errors gracefully with user feedback
 
 ### IPC Communication
@@ -192,7 +192,7 @@ There is no browser mode: the app only runs inside Electron (from the Electron-o
 
 - **Security**: The renderer never sees a Storytel or Audioteka token, the
   password, or the Audioteka refresh id and device id. Tokens live in memory in the
-  in-process server sessions (`server/session.ts`, `server/audioteka/session.ts`);
+  in-process server sessions (`server/storytel/session.ts`, `server/audioteka/session.ts`);
   app logs mask tokens, the account email and login replies
 - **Authentication**: The main process's `AuthManager` (`src/modules/auth.ts`) logs
   in through the session and stores the credentials encrypted with Electron
