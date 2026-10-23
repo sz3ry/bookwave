@@ -1,8 +1,8 @@
-import type { AudiotekaLibraryEntry } from '../interfaces/library';
+import type { AudiotekaLibraryEntry, ProviderId } from '../interfaces/library';
 
 /**
- * `last_played_session` (restored on launch) holds the last book that was
- * loaded, in one of two shapes:
+ * `last_played_session:<provider>` (one per service, restored on launch) holds the last
+ * book that was loaded, in one of two shapes:
  * - Storytel: `{ book, bookId, consumableId }` (the original, untagged shape);
  * - Audioteka: `{ provider: 'audioteka', entry }`, the library entry only
  *   (display fields and the audiobook id; no token, refresh id or device id).
@@ -65,4 +65,16 @@ export function isAudiotekaSession(saved: unknown): saved is AudiotekaSession {
   if (typeof saved !== 'object' || saved === null) return false;
   const session = saved as Record<string, unknown>;
   return session.provider === 'audioteka' && isAudiotekaEntry(session.entry);
+}
+
+/** Store key of the last session of one service. */
+export const lastSessionKey = (provider: ProviderId): string => `last_played_session:${provider}`;
+
+/** Assigns the legacy single `last_played_session` record to its provider, or null for garbage. */
+export function migrateLegacySession(
+  legacy: unknown,
+): { provider: ProviderId; record: StorytelSession | AudiotekaSession } | null {
+  if (isAudiotekaSession(legacy)) return { provider: 'audioteka', record: legacy };
+  if (isStorytelSession(legacy)) return { provider: 'storytel', record: legacy };
+  return null;
 }

@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { isAudiotekaSession, isStorytelSession } from './lastSession';
+import {
+  isAudiotekaSession,
+  isStorytelSession,
+  lastSessionKey,
+  migrateLegacySession,
+} from './lastSession';
 
 const AUDIOTEKA_ID = '0f8c5a52-1111-4222-8333-944445555666';
 
@@ -80,5 +85,30 @@ describe('isAudiotekaSession', () => {
     expect(isAudiotekaSession({ entry: audiotekaEntry })).toBe(false);
     expect(isAudiotekaSession(null)).toBe(false);
     expect(isAudiotekaSession('audioteka')).toBe(false);
+  });
+});
+
+describe('migrateLegacySession', () => {
+  test('migrateLegacySession assigns an Audioteka record', () => {
+    const record = { provider: 'audioteka', entry: audiotekaEntry };
+    expect(migrateLegacySession(record)).toEqual({ provider: 'audioteka', record });
+  });
+
+  test('migrateLegacySession assigns a Storytel record', () => {
+    const record = { book: null, bookId: '123456', consumableId: 'aB3dE' };
+    expect(migrateLegacySession(record)).toEqual({ provider: 'storytel', record });
+  });
+
+  test('migrateLegacySession rejects garbage', () => {
+    expect(migrateLegacySession(null)).toBeNull();
+    expect(migrateLegacySession('x')).toBeNull();
+    expect(migrateLegacySession({ bookId: AUDIOTEKA_ID })).toBeNull();
+  });
+});
+
+describe('lastSessionKey', () => {
+  test('is per provider', () => {
+    expect(lastSessionKey('storytel')).toBe('last_played_session:storytel');
+    expect(lastSessionKey('audioteka')).toBe('last_played_session:audioteka');
   });
 });
