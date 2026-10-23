@@ -617,6 +617,30 @@ describe('AudiotekaClient catalogue', () => {
     expect(page.removable).toBe(false);
   });
 
+  test('getBookPage tolerates a failed library list', async () => {
+    const handlers = bookPageHandlers([club('b1')]);
+    handlers['GET /v2/me/shelf'] = () => json({}, 500);
+    const { fetchImpl } = stubFetch(handlers);
+    const { client } = makeClient(fetchImpl);
+
+    const page = await client.getBookPage('b1');
+
+    expect(page.inLibrary).toBe(true);
+    expect(page.removable).toBe(true);
+  });
+
+  test('getBookPage: a failed favourites list is not removable', async () => {
+    const handlers = bookPageHandlers([]);
+    handlers['GET /v2/me/favourites'] = () => json({}, 500);
+    const { fetchImpl } = stubFetch(handlers);
+    const { client } = makeClient(fetchImpl);
+
+    const page = await client.getBookPage('b1');
+
+    expect(page.inLibrary).toBe(true);
+    expect(page.removable).toBe(false);
+  });
+
   test('getBookPage caches book data for an hour', async () => {
     const { fetchImpl, calls } = stubFetch(bookPageHandlers([]));
     let clock = NOW;
@@ -680,7 +704,11 @@ describe('AudiotekaClient catalogue', () => {
   });
 
   test('unauthorized during getBookPage propagates', async () => {
-    for (const failing of ['GET /v2/me/recommended-after/b1', 'GET /v2/cycles/ser-1/products']) {
+    for (const failing of [
+      'GET /v2/me/recommended-after/b1',
+      'GET /v2/cycles/ser-1/products',
+      'GET /v2/me/favourites',
+    ]) {
       const handlers = bookPageHandlers([]);
       // The extra lookups hit an expired session whose refresh is rejected.
       handlers[failing] = () => json({}, 401);

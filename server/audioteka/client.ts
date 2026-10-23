@@ -305,11 +305,13 @@ export class AudiotekaClient {
 
   async getBookPage(id: string): Promise<AudiotekaBookPage> {
     const encoded = encodeURIComponent(id);
+    // A failed library list only hides membership it would have shown: the page
+    // still renders, and a failed favourites list makes the book not removable.
     const [book, favourites, shelf, recent, recommended] = await Promise.all([
       this.getCatalogBook(id),
-      this.get(`/v2/me/favourites${LIST_QUERY}`),
-      this.get(`/v2/me/shelf${LIST_QUERY}`),
-      this.get(`/v2/me/recently-played${LIST_QUERY}`),
+      this.get(`/v2/me/favourites${LIST_QUERY}`).catch(unlessUnauthorized(null)),
+      this.get(`/v2/me/shelf${LIST_QUERY}`).catch(unlessUnauthorized(null)),
+      this.get(`/v2/me/recently-played${LIST_QUERY}`).catch(unlessUnauthorized(null)),
       // Recommendations are extra: a failure leaves the list empty.
       this.cachedGet(`/v2/me/recommended-after/${encoded}`).catch(unlessUnauthorized(null)),
     ]);
