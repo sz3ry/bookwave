@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/sz3ry/bookwave/compare/v1.4.0...v1.5.0) (2026-10-23)
+
+
+### Features
+
+* replace the storytel logo with the bookwave icon ([f0bbdfc](https://github.com/sz3ry/bookwave/commit/f0bbdfc4a409beb0e6b1d98b6ae17de577a831d0))
+
+
+### Bug Fixes
+
+* crop the tray icon so it fills the tray slot ([c42f19f](https://github.com/sz3ry/bookwave/commit/c42f19fe9031d76d0f5669bd9663c4961443a521))
+
 ## [1.4.0](https://github.com/sz3ry/bookwave/compare/v1.3.0...v1.4.0) (2026-10-23)
 
 
