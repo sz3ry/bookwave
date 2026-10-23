@@ -234,8 +234,8 @@ service at a time (no merged library): the **active service**, chosen in Setting
   `book-details/:id`, `series-info/:id`, `POST library/add|remove`. Recommendation and
   book responses are cached per session for 1 h (`server/cache.ts`)
 - **Club only**: Audioteka search, rows, lists, author lists and recommendations keep
-  only audiobooks with `is_available_in_subscription === true` (`hasAbook` in
-  `server/audioteka/catalog.ts`); rows left empty are not shown
+  only audiobooks with `is_available_in_subscription === true` (`toCatalogBook` /
+  `toCatalogBooks` in `server/audioteka/catalog.ts`, the single filter); rows left empty are not shown
 - **Search (Algolia)**: Audioteka search goes through Algolia, not the app API. The
   application id and search key are public constants in `server/audioteka/search.ts`,
   copied by hand from the audioteka.com `_next/static/chunks` file that calls
@@ -245,7 +245,10 @@ service at a time (no merged library): the **active service**, chosen in Setting
   keeps working. Refresh the constants from the bundle then
 - **Catalog adapter** (`client/src/catalog/`): `CatalogApi` is the one interface the
   UI uses; `useCatalog()` returns the Storytel or Audioteka adapter for the active
-  service. Components never branch on the provider for catalogue calls. Book pages
+  service. Search and Discover never branch on the provider; book pages and the
+  Dashboard still do for route-bound or library-specific data (Storytel shelf entries,
+  Audioteka library entries, series lookups). A book page whose route service is not
+  the active one redirects to `/`. Book pages
   are `/book/:bookId` (Storytel) and `/book/audioteka/:bookId` (Audioteka)
 - **User-Agent version gate**: the Audioteka API rejects outdated app versions, so
   the client sends `Audioteka/<current_version> (3550) Android/14 (Phone;Pixel 8)`
@@ -259,8 +262,9 @@ service at a time (no merged library): the **active service**, chosen in Setting
   position moved more than 1 s from the last remote-seen value (so an untouched
   book never overwrites a newer position from another device). When the remote and
   local positions differ by more than 30 s the user is asked which to use
-- **Limits**: Audioteka has no offline downloads, favourite toggling or bookmarks
-  (download controls are hidden); these stay Storytel-only
+- **Limits**: Audioteka has no offline downloads or bookmarks (download controls are
+  hidden); these stay Storytel-only. Library add/remove on Audioteka is favourites
+  (`AddToFavourites` / `RemoveFromFavourites`); only favourites are removable
 - **Last session**: one record per service under `last_played_session:<provider>`
   (`lastSessionKey` in `client/src/playback/lastSession.ts`). Storytel keeps the shape
   `{ book, bookId, consumableId }`; an Audioteka book is stored as

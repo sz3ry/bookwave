@@ -23,15 +23,15 @@ Audioteka accounts sign in on the real audioteka.com page, opened in a Bookwave 
 ## Features
 
 - **Library**: browse your Storytel bookshelf with cover art, progress tracking and status filters
-- **Catalog search**: search the whole catalog by title, author or narrator (Ctrl+K), scoped to your Storytel market
-- **Discover**: Storytel's front page with its tabs and rows, right next to catalog search
+- **Catalog search**: search the active service's catalog by title, author or narrator (Ctrl+K); Storytel results are scoped to your account's market
+- **Discover**: the active service's front page with its tabs and rows, right next to catalog search
 - **Series hints**: see whether a book is part 1 of a series or which part comes next, and jump to it
 - **Continue series**: a row on the dashboard that offers the next part of series you have finished
 - **Player**: chapters, bookmarks, playback speed, sleep timer, multiple audio tracks and automatic resume
 - **Background playback**: a persistent mini-player with play/pause, skip, speed, chapters and sleep timer
 - **Offline listening**: download Storytel audiobooks for offline playback
 - **Audioteka**: discover, search, author lists, book pages with series and recommendations, adding to and removing from your library, with position sync to your other devices (Bookwave asks which position to use when they differ by more than 30 seconds)
-- **One service at a time**: if you are logged in to both, pick the active service in Settings; switching saves your position and resumes the other service's last book
+- **One service at a time**: if you are logged in to both, pick the active service in Settings; switching saves your position and shows the other service's last book, paused
 - **Desktop integration**: system tray and single instance lock
 - **Internationalization**: English, German, Spanish, Finnish, French, Italian, Polish and Swedish, with the interface language following your operating system
 - **Logging**: HTTP and action logs, exportable for debugging, with automatic rotation
@@ -39,7 +39,8 @@ Audioteka accounts sign in on the real audioteka.com page, opened in a Bookwave 
 ## Audioteka limits
 
 - only Club audiobooks are shown (search, Discover, lists and recommendations)
-- no offline downloads, favouriting or bookmarks: these stay Storytel-only
+- no offline downloads or bookmarks: these stay Storytel-only
+- adding to and removing from your library uses Audioteka favourites; books on your shelf or recently played show as in your library but can be removed only when they are favourites
 - search depends on a public Audioteka search key; if Audioteka changes it, search shows as unavailable until Bookwave is updated
 - books you cannot listen to are greyed out
 
