@@ -18,19 +18,9 @@ export class TrayManager {
   }
 
   create(): void {
-    let iconPath: string;
-
-    if (process.platform === 'darwin') {
-      iconPath = path.join(__dirname, '../../../assets/tray-icon-mac.png');
-    } else {
-      iconPath = path.join(__dirname, '../../../assets/tray-icon.png');
-    }
-
-    const trayIcon = nativeImage.createFromPath(iconPath);
-    if (process.platform === 'darwin') {
-      trayIcon.setTemplateImage(true);
-    }
-
+    const trayIcon = nativeImage.createFromPath(
+      path.join(__dirname, '../../../assets/tray-icon.png'),
+    );
     this.tray = new Tray(trayIcon);
 
     this.updateMenu();
