@@ -482,13 +482,16 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
             <p className="text-gray-400 text-xs max-w-sm mx-auto mb-5">
               {t('dashboard.emptyLibrary', 'Your library appears to be empty.')}
             </p>
-            <button
-              type="button"
-              onClick={() => navigate('/search')}
-              className="px-5 py-2.5 rounded-xl bg-[#FF5100] text-white text-xs font-bold shadow-lg shadow-[#FF5100]/30 hover:brightness-110 active:scale-95 transition-all"
-            >
-              {t('dashboard.exploreCatalog', 'Explore the catalog (⌘K)')}
-            </button>
+            {/* The catalog is Storytel's; Audioteka has no search in Bookwave. */}
+            {hasStorytel && (
+              <button
+                type="button"
+                onClick={() => navigate('/search')}
+                className="px-5 py-2.5 rounded-xl bg-[#FF5100] text-white text-xs font-bold shadow-lg shadow-[#FF5100]/30 hover:brightness-110 active:scale-95 transition-all"
+              >
+                {t('dashboard.exploreCatalog', 'Explore the catalog (⌘K)')}
+              </button>
+            )}
           </div>
         ) : filteredBooks.length === 0 ? (
           <div className="text-center py-16 bg-[#141414] border border-white/[0.06] rounded-3xl p-8 space-y-3 max-w-lg mx-auto shadow-xl">
