@@ -201,8 +201,8 @@ There is no browser mode: the app only runs inside Electron (from the Electron-o
   Audioteka has its own `AudiotekaAuthManager` (`src/modules/audiotekaAuth.ts`):
   the user signs in on the real audioteka.com page in a Bookwave window
   (`src/modules/audiotekaLogin.ts`), so the password never reaches Bookwave; only
-  the refresh id and device id are kept, encrypted with `safeStorage` under the
-  `auth.audioteka` key
+  the device id, refresh id, access token and its expiry are kept, encrypted with
+  `safeStorage` under the `auth.audioteka` key
 - **Single Instance**: App uses single instance lock (one app instance at a time)
 - **Updates**: Electron updater is integrated for auto-updates
 - **Offline Mode**: Support for downloading audiobooks for offline playback

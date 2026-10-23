@@ -18,7 +18,7 @@ Bookwave checks for updates on startup and can install them automatically.
 
 Accounts created through Google or Apple sign-in cannot log in directly. Set a password in the Storytel account panel first, then sign in to Bookwave with your email and that password.
 
-Audioteka accounts sign in on the real audioteka.com page, opened in a Bookwave window. Bookwave never sees or stores your Audioteka password, only a refresh token and device id, encrypted with your operating system's keyring.
+Audioteka accounts sign in on the real audioteka.com page, opened in a Bookwave window. Bookwave never sees or stores your Audioteka password, only its session tokens (refresh and access token) and a device id, encrypted with your operating system's keyring.
 
 ## Features
 
