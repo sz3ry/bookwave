@@ -27,6 +27,9 @@ const memoryStore = (initial: Record<string, string>) => {
     set: async (key: string, value: string) => {
       data[key] = value;
     },
+    remove: async (key: string) => {
+      delete data[key];
+    },
   };
 };
 
@@ -111,7 +114,6 @@ describe('resolveAndPersistActive', () => {
     const store = memoryStore({ last_played_session: JSON.stringify(audiotekaLegacy) });
     await resolveAndPersistActive(store, both);
     expect(store.data['last_played_session:audioteka']).toBe(JSON.stringify(audiotekaLegacy));
-    expect(store.data.last_played_session).toBeDefined();
 
     const newer = JSON.stringify({
       ...audiotekaLegacy,
@@ -123,6 +125,13 @@ describe('resolveAndPersistActive', () => {
     });
     await resolveAndPersistActive(filled, both);
     expect(filled.data['last_played_session:audioteka']).toBe(newer);
+  });
+
+  test('removes the legacy key after copying', async () => {
+    const store = memoryStore({ last_played_session: JSON.stringify(storytelLegacy) });
+    expect(await resolveAndPersistActive(store, both)).toBe('storytel');
+    expect(store.data['last_played_session:storytel']).toBe(JSON.stringify(storytelLegacy));
+    expect('last_played_session' in store.data).toBe(false);
   });
 
   test('persists the resolved service only when nothing is stored', async () => {

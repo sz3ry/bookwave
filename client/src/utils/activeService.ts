@@ -29,6 +29,7 @@ export const LEGACY_SESSION_KEY = 'last_played_session';
 export interface KeyValueStore {
   get: (key: string) => Promise<unknown>;
   set: (key: string, value: string) => Promise<unknown>;
+  remove: (key: string) => Promise<unknown>;
 }
 
 const parseStored = (raw: unknown): unknown => {
@@ -45,21 +46,25 @@ const asProviderId = (value: unknown): ProviderId | null =>
 
 /**
  * Resolves the active service and runs the store side effects: copies the legacy
- * single last session into its per-service key when that slot is empty (the legacy
- * key stays until the player reads the new keys), and persists the resolved service
- * only when none is stored, so a stored choice survives a temporary logout.
+ * single last session into its per-service key when that slot is empty, then removes
+ * the legacy key (nothing reads it any more) once its owner hint has served to pick a
+ * service, and persists the resolved service only when none is stored, so a stored
+ * choice survives a temporary logout.
  */
 export async function resolveAndPersistActive(
   store: KeyValueStore,
   login: { storytel: boolean; audioteka: boolean },
 ): Promise<ProviderId | null> {
   const stored = asProviderId(parseStored(await store.get(ACTIVE_SERVICE_KEY)));
-  const legacySession = parseStored(await store.get(LEGACY_SESSION_KEY));
+  const legacyRaw = await store.get(LEGACY_SESSION_KEY);
+  const legacySession = parseStored(legacyRaw);
   const legacy = migrateLegacySession(legacySession);
   if (legacy && !(await store.get(lastSessionKey(legacy.provider)))) {
     await store.set(lastSessionKey(legacy.provider), JSON.stringify(legacy.record));
   }
   const active = resolveActiveService({ stored, ...login, legacySession });
+  // Kept while nobody is logged in: its owner still picks the service at the next login
+  if (legacyRaw != null && active) await store.remove(LEGACY_SESSION_KEY);
   if (active && !stored) await store.set(ACTIVE_SERVICE_KEY, JSON.stringify(active));
   return active;
 }

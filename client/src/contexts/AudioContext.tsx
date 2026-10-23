@@ -24,7 +24,8 @@ import {
   fetchAudiotekaBook,
   type PlaybackSource,
 } from '../playback/sources';
-import { isAudiotekaSession, isStorytelSession } from '../playback/lastSession';
+import { isAudiotekaSession, isStorytelSession, lastSessionKey } from '../playback/lastSession';
+import { planServiceSwitch, type ServiceSwitchStep } from '../playback/serviceSwitch';
 import { useProviders } from './ProvidersContext';
 import PositionConflictModal, { type PositionConflict } from '../components/PositionConflictModal';
 import { totalDurationMs } from '../playback/timeline';
@@ -189,7 +190,12 @@ const PLAYBACK_RATES = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 export function AudioProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   // Mounted only once the provider login state is known (App waits for it)
-  const { audioteka: audiotekaLoggedIn } = useProviders();
+  const {
+    active: activeService,
+    storytel: storytelLoggedIn,
+    audioteka: audiotekaLoggedIn,
+  } = useProviders();
+  const storytelLoggedInRef = useRef(storytelLoggedIn);
   const audiotekaLoggedInRef = useRef(audiotekaLoggedIn);
   const positionUpdateIntervalRef = useRef<any>(null);
   const sleepTimerIntervalRef = useRef<any>(null);
@@ -262,12 +268,16 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const markPausedRef = useRef<(writePosition?: boolean) => void>(() => {});
   // Discards a slow stream/track URL response once a newer load has taken over.
   const loadRequestIdRef = useRef(0);
+  // Set when a service switch pauses the playing element: the switch saves the
+  // position and updates the tray itself, so that one `pause` event is not a stop.
+  const ignoreNextPauseRef = useRef(false);
 
   useEffect(() => {
     activeBookIdRef.current = activeBookId;
     audioSrcRef.current = audioSrc;
     isPlayingRef.current = isPlaying;
     activeAudiotekaEntryRef.current = activeAudiotekaEntry;
+    storytelLoggedInRef.current = storytelLoggedIn;
     audiotekaLoggedInRef.current = audiotekaLoggedIn;
   });
 
@@ -680,6 +690,31 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   const shouldAutoPlayRef = useRef<boolean>(true);
 
+  // Stops and completely tears down the element stream and its playback state.
+  const teardownElement = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.removeAttribute('src');
+      audioRef.current.load();
+    }
+    if (positionUpdateIntervalRef.current) {
+      clearInterval(positionUpdateIntervalRef.current);
+      positionUpdateIntervalRef.current = null;
+    }
+
+    trackIndexRef.current = 0;
+    pendingTrackStartRef.current = null;
+    trackRemoteRef.current = false;
+    awaitingStartPositionRef.current = true;
+    urlRetriesRef.current = { index: -1, at: [] };
+    remoteSeenRef.current = undefined;
+    isPlayingRef.current = false;
+    audioSrcRef.current = null;
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setAudioSrc(null);
+  }, []);
+
   // Leaves the current book before another one loads: flushes its position,
   // closes a conflict prompt it opened and tears down the element stream.
   const releaseCurrentBook = useCallback(
@@ -706,30 +741,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Stop and completely tear down the previous audio element stream
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.removeAttribute('src');
-        audioRef.current.load();
-      }
-      if (positionUpdateIntervalRef.current) {
-        clearInterval(positionUpdateIntervalRef.current);
-        positionUpdateIntervalRef.current = null;
-      }
-
-      trackIndexRef.current = 0;
-      pendingTrackStartRef.current = null;
-      trackRemoteRef.current = false;
-      awaitingStartPositionRef.current = true;
-      urlRetriesRef.current = { index: -1, at: [] };
-      remoteSeenRef.current = undefined;
-      isPlayingRef.current = false;
-      audioSrcRef.current = null;
-      setIsPlaying(false);
-      setCurrentTime(0);
-      setAudioSrc(null);
+      teardownElement();
     },
-    [settlePositionConflict, writeRemote, remoteSeenFor, positionToSave],
+    [settlePositionConflict, teardownElement, writeRemote, remoteSeenFor, positionToSave],
   );
 
   // Main book loader
@@ -764,7 +778,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
       // Persist session to local storage for quick restore
       storage
-        .set('last_played_session', JSON.stringify({ book: validBook, bookId, consumableId }))
+        .set(lastSessionKey('storytel'), JSON.stringify({ book: validBook, bookId, consumableId }))
         .catch(() => {});
 
       const knownDurationSec = validBook?.abook?.time ? validBook.abook.time / 1000000 : 0;
@@ -832,7 +846,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
       // Persist session to local storage for quick restore (display fields only)
       storage
-        .set('last_played_session', JSON.stringify({ provider: 'audioteka', entry }))
+        .set(lastSessionKey('audioteka'), JSON.stringify({ provider: 'audioteka', entry }))
         .catch(() => {});
 
       const requestId = ++loadRequestIdRef.current;
@@ -880,26 +894,31 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     [refreshChapters, releaseCurrentBook, resumeWithRemoteCheck],
   );
 
-  // Restore previous session on launch
-  useEffect(() => {
-    const restoreSession = async () => {
+  // Shows the last book of a service, paused and not loaded yet (Play loads it).
+  // Resolves with its name for the tray, or null when nothing was restored.
+  const restoreLastSession = useCallback(
+    async (provider: ProviderId): Promise<string | null> => {
       try {
-        const raw = await storage.get('last_played_session');
-        if (!raw) return;
+        const loggedIn =
+          provider === 'audioteka' ? audiotekaLoggedInRef.current : storytelLoggedInRef.current;
+        // Logged out: keep the book for a launch that is logged in
+        if (!loggedIn || activeBookIdRef.current) return null;
+        const key = lastSessionKey(provider);
+        const raw = await storage.get(key);
+        if (!raw || activeBookIdRef.current) return null;
         const saved = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        if (isAudiotekaSession(saved)) {
-          // Logged out of Audioteka: keep the book for a launch that is logged in
-          if (!audiotekaLoggedInRef.current || activeBookIdRef.current) return;
+        if (provider === 'audioteka' && isAudiotekaSession(saved)) {
           // The state of an Audioteka book that is not loaded yet: Play loads
           // it through `loadAudiotekaBook`, which checks the remote position.
           const { entry } = saved;
+          const book = audiotekaEntryToBookEntity(entry);
           sourceRef.current = null;
           trackIndexRef.current = 0;
           activeAudiotekaEntryRef.current = entry;
           setActiveSource(null);
           setActiveProvider('audioteka');
           setActiveAudiotekaEntry(entry);
-          setActiveBook(audiotekaEntryToBookEntity(entry));
+          setActiveBook(book);
           activeBookIdRef.current = entry.id;
           setActiveBookId(entry.id);
           setActiveConsumableId(entry.id);
@@ -909,41 +928,129 @@ export function AudioProvider({ children }: { children: ReactNode }) {
           if (local && activeBookIdRef.current === entry.id && !audioSrcRef.current) {
             setCurrentTime(Math.floor(local.position / 1000));
           }
-          return;
+          return book.book?.name || null;
         }
-        if (!isStorytelSession(saved)) {
-          // Neither shape (an Audioteka id in the Storytel shape from an earlier build): drop it
-          await storage.remove('last_played_session');
-          return;
+        if (provider !== 'storytel' || !isStorytelSession(saved)) {
+          // Not this service's shape (an Audioteka id in the Storytel shape from an earlier build): drop it
+          await storage.remove(key);
+          return null;
         }
-        if (!activeBookIdRef.current) {
-          const book = (saved.book as BookShelfEntity | null | undefined) || null;
-          const source = createStorytelSource(book, saved.bookId);
-          sourceRef.current = source;
-          trackIndexRef.current = 0;
-          setActiveSource(source);
-          setActiveProvider('storytel');
-          setActiveBook(book);
-          activeBookIdRef.current = saved.bookId;
-          setActiveBookId(saved.bookId);
-          const cid = saved.consumableId || saved.bookId;
-          setActiveConsumableId(cid);
-          const savedDurationSec = book?.abook?.time ? book.abook.time / 1000000 : 0;
-          if (savedDurationSec > 0) {
-            setDuration(savedDurationSec);
-          }
-          refreshChapters(source, savedDurationSec);
-          const local = await readLocalPosition(source.positionStorageKey);
-          if (local) {
-            setCurrentTime(Math.floor(local.position / 1000));
-          }
+        const book = (saved.book as BookShelfEntity | null | undefined) || null;
+        const source = createStorytelSource(book, saved.bookId);
+        sourceRef.current = source;
+        trackIndexRef.current = 0;
+        setActiveSource(source);
+        setActiveProvider('storytel');
+        setActiveAudiotekaEntry(null);
+        setActiveBook(book);
+        activeBookIdRef.current = saved.bookId;
+        setActiveBookId(saved.bookId);
+        const cid = saved.consumableId || saved.bookId;
+        setActiveConsumableId(cid);
+        const savedDurationSec = book?.abook?.time ? book.abook.time / 1000000 : 0;
+        if (savedDurationSec > 0) {
+          setDuration(savedDurationSec);
         }
+        refreshChapters(source, savedDurationSec);
+        const local = await readLocalPosition(source.positionStorageKey);
+        if (local && sourceRef.current === source && !audioSrcRef.current) {
+          setCurrentTime(Math.floor(local.position / 1000));
+        }
+        return book?.book?.name || null;
       } catch (err) {
         console.warn('Failed to restore last played session:', err);
+        return null;
       }
-    };
-    restoreSession();
-  }, [refreshChapters]);
+    },
+    [refreshChapters],
+  );
+
+  // Saves the active book's position through the same path as a pause: the
+  // local write completes first, then the provider's remote write runs on.
+  // A book shown but not loaded (no stream) has nothing newer to save.
+  const saveActivePosition = useCallback(async () => {
+    const audio = audioRef.current;
+    const source = sourceRef.current;
+    if (!audio || !source || !audioSrcRef.current) return;
+    const position = positionToSave(audio, source);
+    await writeLocalPosition(source.positionStorageKey, position, remoteSeenFor(source));
+    writeRemote(source, position).catch((err) => {
+      console.warn('Failed to sync position to API, kept locally', err);
+    });
+  }, [positionToSave, remoteSeenFor, writeRemote]);
+
+  // Drops the active book of the service being left; in-flight loads of it are discarded.
+  const clearActiveBook = useCallback(() => {
+    settlePositionConflict(null);
+    teardownElement();
+    loadRequestIdRef.current += 1;
+    audiotekaLoadingIdRef.current = null;
+    sourceRef.current = null;
+    activeAudiotekaEntryRef.current = null;
+    activeBookIdRef.current = null;
+    setActiveSource(null);
+    setActiveProvider(null);
+    setActiveAudiotekaEntry(null);
+    setActiveBook(null);
+    setActiveBookId(null);
+    setActiveConsumableId(null);
+    setDuration(0);
+    setChapters([]);
+    setError(null);
+    setIsLoading(false);
+  }, [settlePositionConflict, teardownElement]);
+
+  // Runs the steps of one service switch (see `planServiceSwitch`) in order.
+  const runServiceSwitch = useCallback(
+    async (from: ProviderId | null, to: ProviderId) => {
+      const audio = audioRef.current;
+      const steps: ServiceSwitchStep[] = planServiceSwitch({
+        from,
+        to,
+        playing:
+          isPlayingRef.current ||
+          !!pendingTrackStartRef.current?.play ||
+          !!(audio && !audio.paused),
+        hasActiveBook: !!activeBookIdRef.current || !!audiotekaLoadingIdRef.current,
+      });
+      let restoredName: string | null = null;
+      for (const step of steps) {
+        if (step === 'pause') {
+          const pending = pendingTrackStartRef.current;
+          if (pending) pending.play = false;
+          if (audio && !audio.paused) {
+            ignoreNextPauseRef.current = true;
+            audio.pause();
+          }
+        } else if (step === 'savePosition') {
+          await saveActivePosition();
+        } else if (step === 'clearActiveBook') {
+          clearActiveBook();
+        } else {
+          restoredName = await restoreLastSession(to);
+        }
+      }
+      if (from !== null && steps.length > 0) {
+        window.trayControls?.updatePlayingState?.(false, restoredName);
+      }
+    },
+    [saveActivePosition, clearActiveBook, restoreLastSession],
+  );
+
+  // Follows the active service: the first value restores its last book, a
+  // change switches. Switches run one after another, never interleaved.
+  const runServiceSwitchRef = useRef(runServiceSwitch);
+  runServiceSwitchRef.current = runServiceSwitch;
+  const previousServiceRef = useRef<ProviderId | null>(null);
+  const serviceSwitchQueueRef = useRef<Promise<void>>(Promise.resolve());
+  useEffect(() => {
+    if (!activeService) return;
+    const from = previousServiceRef.current;
+    previousServiceRef.current = activeService;
+    serviceSwitchQueueRef.current = serviceSwitchQueueRef.current
+      .then(() => runServiceSwitchRef.current(from, activeService))
+      .catch((err) => console.warn('Failed to switch the active service:', err));
+  }, [activeService]);
 
   const togglePlayPause = useCallback(() => {
     if (!audioRef.current) return;
@@ -1107,6 +1214,11 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   markPausedRef.current = markPaused;
 
   const onPause = () => {
+    // A service switch saves the position and updates the tray itself
+    if (ignoreNextPauseRef.current) {
+      ignoreNextPauseRef.current = false;
+      return;
+    }
     // Switching to another track of the same book is not a pause
     if (pendingTrackStartRef.current) return;
     // The element fires `pause` before `ended`: a track with a next one plays on
