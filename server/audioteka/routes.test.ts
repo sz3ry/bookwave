@@ -1,35 +1,9 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import type { FetchLike } from '../http';
-
-// fastify-common reads env and creates directories at import time (see
-// server/storytel/routes.test.ts); restore the variables afterwards.
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bookwave-audioteka-routes-'));
-const testEnv = {
-  IS_ELECTRON: 'true',
-  DOWNLOAD_PATH: tmpDir,
-  USER_DATA_PATH: tmpDir,
-  NODE_ENV: 'production',
-};
-const savedEnv = Object.fromEntries(Object.keys(testEnv).map((key) => [key, process.env[key]]));
-Object.assign(process.env, testEnv);
-
-const {
-  default: fastify,
-  audiotekaAuth,
-  configureAudiotekaForTests,
-} = await import('../fastify-common');
-
-for (const [key, value] of Object.entries(savedEnv)) {
-  if (value === undefined) delete process.env[key];
-  else process.env[key] = value;
-}
+import fastify, { audiotekaAuth, configureAudiotekaForTests } from '../testServer';
 
 afterAll(() => {
   audiotekaAuth.logout();
-  fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 const ID = '0a1b2c3d-0000-4000-8000-0123456789ab';
