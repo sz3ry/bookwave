@@ -19,6 +19,7 @@
 bookwave/
 ├── client/          # React frontend application
 │   ├── src/
+│   │   ├── catalog/     # CatalogApi: the active service's search, Discover, series, book page
 │   │   ├── components/  # React components
 │   │   ├── hooks/       # Custom React hooks
 │   │   ├── playback/    # Provider-neutral playback: timeline, position sync, sources
@@ -29,7 +30,9 @@ bookwave/
 ├── server/          # Fastify backend server
 │   ├── fastify-common.ts # Entrypoint: Fastify app, sessions, shared routes
 │   ├── storytel/        # Storytel client, session, downloads and routes
-│   ├── audioteka/       # Audioteka client, session and `/api/audioteka/*` routes
+│   ├── cache.ts         # In-memory TTL cache (1 h) shared by both clients
+│   ├── audioteka/       # Audioteka client, session, catalog.ts (product mapping),
+│   │                    # search.ts (Algolia) and `/api/audioteka/*` routes
 │   ├── locales/         # Translation files
 │   └── package.json
 ├── src/             # Electron main process
@@ -209,13 +212,41 @@ There is no browser mode: the app only runs inside Electron (from the Electron-o
 
 ## Providers
 
-Storytel is the original provider; Audioteka is a second one.
+Storytel is the original provider; Audioteka is a second one. Bookwave shows one
+service at a time (no merged library): the **active service**, chosen in Settings
+(Service section), drives the library, search, Discover, book pages and the player.
+- **Active service**: `ProvidersContext` exposes `active` / `setActive`; the choice is
+  stored under `activeService` (`client/src/utils/activeService.ts`). At startup
+  `resolveAndPersistActive` keeps the stored service while it is still logged in, else
+  the owner of the legacy last session, else the only logged-in one (Storytel when both);
+  a stored choice survives a temporary logout. Two accounts stay logged in; switching
+  makes no login call and no reload
+- **Switching** (`client/src/playback/serviceSwitch.ts`): pause, save the current
+  position locally (not before the start position was applied, never 0), clear the
+  active book, then restore the other service's last session
 - **Storytel**: routes (`/api/*` without a provider segment), local keys
-  (`pos:<consumableId>`, `last_played_session`, `downloads-index.json`) and the
-  stored `auth.credentials` are unchanged
+  (`pos:<consumableId>`, `downloads-index.json`) and the stored `auth.credentials`
+  are unchanged
 - **Audioteka**: routes live under `/api/audioteka/*` (`server/audioteka/routes.ts`),
   local positions under `pos:audioteka:<audiobookId>`. The client lives in
   `server/audioteka/client.ts`; read it before touching Audioteka code
+- **Audioteka catalogue routes**: `search`, `discovery/chips|page/:slug|list|series/:id`,
+  `book-details/:id`, `series-info/:id`, `POST library/add|remove`. Recommendation and
+  book responses are cached per session for 1 h (`server/cache.ts`)
+- **Club only**: Audioteka search, rows, lists, author lists and recommendations keep
+  only audiobooks with `is_available_in_subscription === true` (`hasAbook` in
+  `server/audioteka/catalog.ts`); rows left empty are not shown
+- **Search (Algolia)**: Audioteka search goes through Algolia, not the app API. The
+  application id and search key are public constants in `server/audioteka/search.ts`,
+  copied by hand from the audioteka.com `_next/static/chunks` file that calls
+  `initIndex`; they never reach the renderer and are not scraped at runtime. If
+  Audioteka rotates the key, Algolia answers 401/403 and the route returns
+  `503 { code: 'SEARCH_UNAVAILABLE' }`; the UI shows "search unavailable" and the rest
+  keeps working. Refresh the constants from the bundle then
+- **Catalog adapter** (`client/src/catalog/`): `CatalogApi` is the one interface the
+  UI uses; `useCatalog()` returns the Storytel or Audioteka adapter for the active
+  service. Components never branch on the provider for catalogue calls. Book pages
+  are `/book/:bookId` (Storytel) and `/book/audioteka/:bookId` (Audioteka)
 - **User-Agent version gate**: the Audioteka API rejects outdated app versions, so
   the client sends `Audioteka/<current_version> (3550) Android/14 (Phone;Pixel 8)`
   with `<current_version>` read from `GET /v2/apps/config/android`
@@ -228,12 +259,14 @@ Storytel is the original provider; Audioteka is a second one.
   position moved more than 1 s from the last remote-seen value (so an untouched
   book never overwrites a newer position from another device). When the remote and
   local positions differ by more than 30 s the user is asked which to use
-- **Limits in this version**: Audioteka has no search or discover, offline
-  downloads, favourite toggling or bookmarks
-- **Last session**: `last_played_session` keeps the Storytel shape
+- **Limits**: Audioteka has no offline downloads, favourite toggling or bookmarks
+  (download controls are hidden); these stay Storytel-only
+- **Last session**: one record per service under `last_played_session:<provider>`
+  (`lastSessionKey` in `client/src/playback/lastSession.ts`). Storytel keeps the shape
   `{ book, bookId, consumableId }`; an Audioteka book is stored as
-  `{ provider: 'audioteka', entry }` (library entry, no secrets) and restored on
-  launch only while Audioteka is logged in (`client/src/playback/lastSession.ts`)
+  `{ provider: 'audioteka', entry }` (library entry, no secrets). The old single
+  `last_played_session` is copied into its service's key on first launch and then
+  removed
 
 ## Git Repository
 
