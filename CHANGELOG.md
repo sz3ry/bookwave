@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.3.0](https://github.com/sz3ry/bookwave/compare/v1.2.0...v1.3.0) (2026-10-23)
+
+
+### Features
+
+* **audioteka:** add API client with rotating token refresh ([bdcb980](https://github.com/sz3ry/bookwave/commit/bdcb980fa5417623eac662c1a6c80e78deae8906))
+* **audioteka:** add response mappers for library, tracks and positions ([c7bcc73](https://github.com/sz3ry/bookwave/commit/c7bcc73f44ec4be4269c6fca5f6e0e7646303503))
+* **audioteka:** add session and api routes ([41a16d3](https://github.com/sz3ry/bookwave/commit/41a16d3ab61334c815d8b89ae2e415f1233552c0))
+* **audioteka:** log in through the audioteka.com page and keep the session ([09cfd72](https://github.com/sz3ry/bookwave/commit/09cfd722bc1fabe601fc067379fa06888bc39d1b))
+* **audioteka:** play audioteka books with position sync ([fb14fe2](https://github.com/sz3ry/bookwave/commit/fb14fe274aaeeaf6e25ce95ec0a884cd4cf3a8dc))
+* **dashboard:** prompt to log in again when a provider session expires ([d2e8a7b](https://github.com/sz3ry/bookwave/commit/d2e8a7bf2071e205a4b63f5027764aeedf67032e))
+* pick the service at first login and manage accounts in settings ([4737066](https://github.com/sz3ry/bookwave/commit/4737066e5ea202406371321963c3a78c6b24215a))
+* **player:** add timeline, track url cache and position conflict rule ([4739028](https://github.com/sz3ry/bookwave/commit/47390284d4603fdcf1f1e35e3a2d4f428cac6373))
+* show one library across services with source badges ([18d699a](https://github.com/sz3ry/bookwave/commit/18d699aaa1cd1aafd1f77bedb302ad8bc9bbd09e))
+
+
+### Bug Fixes
+
+* **audioteka:** keep persisting rotations during a second login ([5e5f2e8](https://github.com/sz3ry/bookwave/commit/5e5f2e8d98c16b2fd5561fb81413ee3c00531bda))
+* **audioteka:** keep remote-seen and flush the position on quit ([66259af](https://github.com/sz3ry/bookwave/commit/66259afd72d5e61b644d594bd395dd5232c7c036))
+* **audioteka:** re-check the remote position when resuming a paused book ([9723318](https://github.com/sz3ry/bookwave/commit/9723318ed2d4b9cff19041973cf44e9a65955896))
+* **audioteka:** send only positions Bookwave moved to the remote ([217db9e](https://github.com/sz3ry/bookwave/commit/217db9eae736b9d970610db0371182e35bd7b8ed))
+* **dashboard:** log out the provider whose library failed to load ([dcb7a97](https://github.com/sz3ry/bookwave/commit/dcb7a97ea3595691351dea8896cdbbc255e845f5))
+* **dashboard:** show the explore button only with a Storytel account ([bec43ac](https://github.com/sz3ry/bookwave/commit/bec43acea4182a2d832557746f15e24aa0c435bc))
+* **player:** keep a newer local position after a remote write ([e00d623](https://github.com/sz3ry/bookwave/commit/e00d623d572d6652f678ddac48e2558469cb095f))
+* **player:** keep multi-track switches consistent across boundaries and errors ([2bec873](https://github.com/sz3ry/bookwave/commit/2bec873fef1e057c1de5af02b78e6f889f94156d))
+* **player:** restore the last audioteka book on launch ([08cfae9](https://github.com/sz3ry/bookwave/commit/08cfae967e3f9cda75f136d4a5c48f76c721d829))
+* **player:** stop waiting for the Audioteka position on open after a timeout ([769f42f](https://github.com/sz3ry/bookwave/commit/769f42fe3b40ca40b88d3cea879c502705c95f92))
+* **player:** unsubscribe tray play-pause and logout listeners ([932778f](https://github.com/sz3ry/bookwave/commit/932778f66722b6f028174461e3011ef102c3c062))
+* **updater:** skip the quit hold when quitting to install an update ([4d06f58](https://github.com/sz3ry/bookwave/commit/4d06f58ac23a7dbae865199ccf6fcba0e137e66b))
+
 ## [1.2.0](https://github.com/sz3ry/bookwave/compare/v1.1.1...v1.2.0) (2026-10-22)
 
 
