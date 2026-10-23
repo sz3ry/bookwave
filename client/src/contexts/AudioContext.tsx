@@ -18,12 +18,14 @@ import { generateAudioTracks } from '../utils/chapters';
 import { audiotekaEntryToBookEntity } from '../utils/helpers';
 import i18n from '../i18n';
 import {
+  audiotekaPositionKey,
   createAudiotekaSource,
   createStorytelSource,
   fetchAudiotekaBook,
   type PlaybackSource,
 } from '../playback/sources';
-import { isStorytelSession } from '../playback/lastSession';
+import { isAudiotekaSession, isStorytelSession } from '../playback/lastSession';
+import { useProviders } from './ProvidersContext';
 import PositionConflictModal, { type PositionConflict } from '../components/PositionConflictModal';
 import { totalDurationMs } from '../playback/timeline';
 import {
@@ -186,6 +188,9 @@ const PLAYBACK_RATES = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
 export function AudioProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  // Mounted only once the provider login state is known (App waits for it)
+  const { audioteka: audiotekaLoggedIn } = useProviders();
+  const audiotekaLoggedInRef = useRef(audiotekaLoggedIn);
   const positionUpdateIntervalRef = useRef<any>(null);
   const sleepTimerIntervalRef = useRef<any>(null);
 
@@ -263,6 +268,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     audioSrcRef.current = audioSrc;
     isPlayingRef.current = isPlaying;
     activeAudiotekaEntryRef.current = activeAudiotekaEntry;
+    audiotekaLoggedInRef.current = audiotekaLoggedIn;
   });
 
   const remoteSeenFor = useCallback(
@@ -799,8 +805,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     [refreshChapters, releaseCurrentBook, resumePlayback],
   );
 
-  // Audioteka book loader. Never written to `last_played_session`, which
-  // stays Storytel-only: an Audioteka book is not restored on launch.
+  // Audioteka book loader
   const loadAudiotekaBook = useCallback(
     async (entry: AudiotekaLibraryEntry, autoPlay: boolean = true) => {
       shouldAutoPlayRef.current = autoPlay;
@@ -824,6 +829,11 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       audiotekaLoadingIdRef.current = entry.id;
       setDuration(entry.durationMs / 1000);
       setChapters([]);
+
+      // Persist session to local storage for quick restore (display fields only)
+      storage
+        .set('last_played_session', JSON.stringify({ provider: 'audioteka', entry }))
+        .catch(() => {});
 
       const requestId = ++loadRequestIdRef.current;
       setIsLoading(true);
@@ -877,8 +887,32 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         const raw = await storage.get('last_played_session');
         if (!raw) return;
         const saved = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (isAudiotekaSession(saved)) {
+          // Logged out of Audioteka: keep the book for a launch that is logged in
+          if (!audiotekaLoggedInRef.current || activeBookIdRef.current) return;
+          // The state of an Audioteka book that is not loaded yet: Play loads
+          // it through `loadAudiotekaBook`, which checks the remote position.
+          const { entry } = saved;
+          sourceRef.current = null;
+          trackIndexRef.current = 0;
+          activeAudiotekaEntryRef.current = entry;
+          setActiveSource(null);
+          setActiveProvider('audioteka');
+          setActiveAudiotekaEntry(entry);
+          setActiveBook(audiotekaEntryToBookEntity(entry));
+          activeBookIdRef.current = entry.id;
+          setActiveBookId(entry.id);
+          setActiveConsumableId(entry.id);
+          setDuration(entry.durationMs / 1000);
+          setChapters([]);
+          const local = await readLocalPosition(audiotekaPositionKey(entry.id));
+          if (local && activeBookIdRef.current === entry.id && !audioSrcRef.current) {
+            setCurrentTime(Math.floor(local.position / 1000));
+          }
+          return;
+        }
         if (!isStorytelSession(saved)) {
-          // Not a Storytel book (an Audioteka id from an earlier build): drop it
+          // Neither shape (an Audioteka id in the Storytel shape from an earlier build): drop it
           await storage.remove('last_played_session');
           return;
         }

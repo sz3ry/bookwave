@@ -229,8 +229,11 @@ Storytel is the original provider; Audioteka is a second one.
   book never overwrites a newer position from another device). When the remote and
   local positions differ by more than 30 s the user is asked which to use
 - **Limits in this version**: Audioteka has no search or discover, offline
-  downloads, favourite toggling or bookmarks; `last_played_session` is
-  Storytel-only
+  downloads, favourite toggling or bookmarks
+- **Last session**: `last_played_session` keeps the Storytel shape
+  `{ book, bookId, consumableId }`; an Audioteka book is stored as
+  `{ provider: 'audioteka', entry }` (library entry, no secrets) and restored on
+  launch only while Audioteka is logged in (`client/src/playback/lastSession.ts`)
 
 ## Git Repository
 

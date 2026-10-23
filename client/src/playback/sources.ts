@@ -128,6 +128,9 @@ export async function fetchAudiotekaPosition(id: string): Promise<RemotePosition
   return response.data ?? null;
 }
 
+/** Where this device keeps an Audioteka book's position (ms). */
+export const audiotekaPositionKey = (id: string): string => `pos:audioteka:${id}`;
+
 /**
  * An Audioteka book: many MP3 tracks played as one continuous timeline,
  * positions under `pos:audioteka:<id>` (ms) and the account's playback
@@ -173,7 +176,7 @@ export function createAudiotekaSource(
   return {
     provider: 'audioteka',
     bookKey: id,
-    positionStorageKey: `pos:audioteka:${id}`,
+    positionStorageKey: audiotekaPositionKey(id),
     tracks: timeline,
 
     async resolveTrackUrl(index) {

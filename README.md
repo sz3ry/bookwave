@@ -42,7 +42,6 @@ This first version of Audioteka support is limited:
 - no favouriting and no bookmarks
 - Club books that are not on your shelf show up only through recently played or favourites
 - books you cannot listen to are greyed out
-- on launch Bookwave restores the last Storytel book only, never an Audioteka one
 
 ## Development
 
