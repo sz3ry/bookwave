@@ -101,6 +101,8 @@ export async function audiotekaCandidates(
         timestamp: b.lastActivity,
       }),
     )
+    // `lastActivity` is the position saved on this device only (Audioteka's
+    // library carries no listening time), so books concluded elsewhere rank last.
     .sort((a, b) => timeOf(b) - timeOf(a))
     .slice(0, MAX_SERIES);
   const infos = await mapWithConcurrency(recent, concurrency, (candidate) =>

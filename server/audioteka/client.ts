@@ -6,6 +6,7 @@ import {
   type DiscoveryList,
   type DiscoveryRow,
   type DiscoverySeries,
+  type SeriesInfo,
   embeddedList,
   toCatalogBooks,
   toHomeRows,
@@ -148,6 +149,9 @@ export class AudiotekaClient {
   // search settings). Lives and dies with this client, so another account
   // never sees them.
   private catalogCache = createTtlCache<unknown>(CACHE_TTL_MS);
+  // Book-level part of a book page by id (details, category, series). Library
+  // membership is per account and changes, so it is never cached here.
+  private readonly bookCache: ReturnType<typeof createTtlCache<CatalogBook>>;
 
   constructor(opts: AudiotekaClientOptions) {
     this.credentials = { ...opts.credentials };
@@ -155,6 +159,7 @@ export class AudiotekaClient {
     this.now = opts.now ?? Date.now;
     this.onCredentialsChanged = opts.onCredentialsChanged;
     this.onCredentialsRejected = opts.onCredentialsRejected;
+    this.bookCache = createTtlCache<CatalogBook>(CACHE_TTL_MS, () => this.now());
   }
 
   // Concurrent callers share one in-flight refresh.
@@ -300,14 +305,33 @@ export class AudiotekaClient {
 
   async getBookPage(id: string): Promise<AudiotekaBookPage> {
     const encoded = encodeURIComponent(id);
-    const [detail, favourites, shelf, recent, recommended] = await Promise.all([
-      this.get(`/v2/audiobooks/${encoded}`),
+    const [book, favourites, shelf, recent, recommended] = await Promise.all([
+      this.getCatalogBook(id),
       this.get(`/v2/me/favourites${LIST_QUERY}`),
       this.get(`/v2/me/shelf${LIST_QUERY}`),
       this.get(`/v2/me/recently-played${LIST_QUERY}`),
       // Recommendations are extra: a failure leaves the list empty.
       this.cachedGet(`/v2/me/recommended-after/${encoded}`).catch(unlessUnauthorized(null)),
     ]);
+    const removable = containsId(favourites, id);
+    return {
+      book: { ...book },
+      inLibrary: removable || containsId(shelf, id) || containsId(recent, id),
+      removable,
+      recommendedAfter: toCatalogBooks(embeddedList(recommended, 'app:product')),
+    };
+  }
+
+  /** A book's series, from the cached book data; no library lists are read. */
+  async getSeriesInfo(id: string): Promise<SeriesInfo | null> {
+    return (await this.getCatalogBook(id)).seriesInfo ?? null;
+  }
+
+  // Book details with category and series, cached for an hour per book.
+  private async getCatalogBook(id: string): Promise<CatalogBook> {
+    const cached = this.bookCache.get(id);
+    if (cached) return cached;
+    const detail = await this.get(`/v2/audiobooks/${encodeURIComponent(id)}`);
     const book = toProductBook(detail);
     if (!book || !isRecord(detail)) {
       throw new Error(`Audioteka returned an unreadable audiobook ${id}`);
@@ -328,13 +352,8 @@ export class AudiotekaClient {
         orderInSeries: await this.orderInCycle(series.id, id),
       };
     }
-    const removable = containsId(favourites, id);
-    return {
-      book,
-      inLibrary: removable || containsId(shelf, id) || containsId(recent, id),
-      removable,
-      recommendedAfter: toCatalogBooks(embeddedList(recommended, 'app:product')),
-    };
+    this.bookCache.set(id, book);
+    return book;
   }
 
   async getSeries(cycleId: string, currentId?: string): Promise<DiscoverySeries | null> {

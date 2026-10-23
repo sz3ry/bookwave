@@ -267,12 +267,24 @@ describe('Audioteka routes', () => {
     expect(calls.some((c) => c.path === '/v2/authors/a-1/products')).toBe(true);
   });
 
+  test('series info reads only the audiobook', async () => {
+    const calls = useFetch(({ path: p }) =>
+      p === `/v2/audiobooks/${ID}` ? json({ ...hit(ID), description: '' }) : json({}),
+    );
+    login();
+    const res = await fastify.inject({ method: 'GET', url: `/api/audioteka/series-info/${ID}` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ seriesInfo: null });
+    expect(calls.map((c) => c.path).filter((p) => p.startsWith('/v2/me/'))).toEqual([]);
+  });
+
   test('series and book details validate ids', async () => {
     const calls = useFetch(() => json({}));
     login();
     for (const url of [
       '/api/audioteka/discovery/series/nope',
       '/api/audioteka/book-details/nope',
+      '/api/audioteka/series-info/nope',
     ]) {
       const res = await fastify.inject({ method: 'GET', url });
       expect(res.statusCode).toBe(400);
@@ -315,6 +327,7 @@ describe('Audioteka routes', () => {
       ['GET', '/api/audioteka/discovery/list?url=cycle:a'],
       ['GET', `/api/audioteka/discovery/series/${ID}`],
       ['GET', `/api/audioteka/book-details/${ID}`],
+      ['GET', `/api/audioteka/series-info/${ID}`],
       ['POST', '/api/audioteka/library/add'],
       ['POST', '/api/audioteka/library/remove'],
     ] as const) {

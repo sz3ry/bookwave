@@ -4,12 +4,30 @@ import type {
   DiscoveryPage,
   DiscoverySeries,
   SearchResponse,
+  SeriesInfo,
 } from '../interfaces/books';
 import api from '../utils/api';
 import { searchResultToAudiotekaEntry } from '../utils/helpers';
 import { type BookPageData, type CatalogApi, toSeriesInfo } from './types';
 
 const BASE = '/audioteka';
+
+// A book's series does not change during a session: the Dashboard's
+// "continue series" asks again on every visit, so each book is fetched once.
+// A failed lookup is dropped so it is retried.
+const seriesInfoCache = new Map<string, Promise<SeriesInfo | null>>();
+
+function cachedSeriesInfo(id: string): Promise<SeriesInfo | null> {
+  let pending = seriesInfoCache.get(id);
+  if (!pending) {
+    pending = api
+      .get<{ seriesInfo: unknown }>(`${BASE}/series-info/${encodeURIComponent(id)}`)
+      .then((res) => toSeriesInfo(res.data?.seriesInfo));
+    seriesInfoCache.set(id, pending);
+    pending.catch(() => seriesInfoCache.delete(id));
+  }
+  return pending;
+}
 
 export const audiotekaCatalog: CatalogApi = {
   provider: 'audioteka',
@@ -35,10 +53,7 @@ export const audiotekaCatalog: CatalogApi = {
       await api.get<DiscoverySeries>(`${BASE}/discovery/series/${encodeURIComponent(id)}${query}`)
     ).data;
   },
-  seriesInfo: async (id) =>
-    toSeriesInfo(
-      (await api.get(`${BASE}/book-details/${encodeURIComponent(id)}`)).data?.book?.seriesInfo,
-    ),
+  seriesInfo: cachedSeriesInfo,
   bookPage: async (id) =>
     (await api.get<BookPageData>(`${BASE}/book-details/${encodeURIComponent(id)}`)).data,
   addToLibrary: async (id) => {

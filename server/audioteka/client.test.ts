@@ -617,6 +617,68 @@ describe('AudiotekaClient catalogue', () => {
     expect(page.removable).toBe(false);
   });
 
+  test('getBookPage caches book data for an hour', async () => {
+    const { fetchImpl, calls } = stubFetch(bookPageHandlers([]));
+    let clock = NOW;
+    const client = new AudiotekaClient({
+      credentials: {
+        deviceId: 'dev-1',
+        refreshId: 'refresh-0',
+        token: 'token-0',
+        expiresAt: new Date(NOW + 60 * DAY).toISOString(),
+      },
+      fetch: fetchImpl,
+      now: () => clock,
+      onCredentialsChanged: () => {},
+      onCredentialsRejected: () => {},
+    });
+    const bookCalls = () =>
+      calls.filter((c) => c.path === '/v2/audiobooks/b1' || c.path.startsWith('/v2/cycles/'))
+        .length;
+
+    const first = await client.getBookPage('b1');
+    const fetched = bookCalls();
+    clock += 30 * 60 * 1000;
+    const second = await client.getBookPage('b1');
+    expect(bookCalls()).toBe(fetched);
+    expect(second.book).toEqual(first.book);
+    expect(second.recommendedAfter).toEqual(first.recommendedAfter);
+    expect(await client.getSeriesInfo('b1')).toEqual(first.book.seriesInfo ?? null);
+    expect(bookCalls()).toBe(fetched);
+
+    clock += 31 * 60 * 1000;
+    await client.getBookPage('b1');
+    expect(calls.filter((c) => c.path === '/v2/audiobooks/b1')).toHaveLength(2);
+  });
+
+  test('getSeriesInfo reads only the book, not the library lists', async () => {
+    const { fetchImpl, calls } = stubFetch(bookPageHandlers([]));
+    const { client } = makeClient(fetchImpl);
+
+    expect(await client.getSeriesInfo('b1')).toEqual({
+      id: 'ser-1',
+      name: 'Stulecie. Seria',
+      orderInSeries: 2,
+    });
+    expect(calls.some((c) => c.path.startsWith('/v2/me/'))).toBe(false);
+  });
+
+  test('library membership is fresh after addToLibrary', async () => {
+    const handlers = bookPageHandlers([]);
+    handlers['GET /v2/me/favourites'] = [() => products([]), () => products([club('b1')])];
+    handlers['GET /v2/me/recently-played'] = () => products([]);
+    handlers['command:AddToFavourites'] = () => json({});
+    const { fetchImpl } = stubFetch(handlers);
+    const { client } = makeClient(fetchImpl);
+
+    const before = await client.getBookPage('b1');
+    expect(before.inLibrary).toBe(false);
+    await client.addToLibrary('b1');
+    const after = await client.getBookPage('b1');
+    expect(after.inLibrary).toBe(true);
+    expect(after.removable).toBe(true);
+  });
+
   test('unauthorized during getBookPage propagates', async () => {
     for (const failing of ['GET /v2/me/recommended-after/b1', 'GET /v2/cycles/ser-1/products']) {
       const handlers = bookPageHandlers([]);

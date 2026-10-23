@@ -85,16 +85,37 @@ describe('audiotekaCatalog', () => {
     });
   });
 
-  test('seriesInfo reads the Audioteka book page', async () => {
-    responses[`get /api/audioteka/book-details/${BOOK_ID}`] = {
-      book: { ...hit, seriesInfo: { id: 'cycle-1', name: 'Wiedźmin', orderInSeries: 1 } },
-      inLibrary: false,
-      removable: false,
-      recommendedAfter: [],
+  test('seriesInfo reads the series-info endpoint', async () => {
+    responses[`get /api/audioteka/series-info/${BOOK_ID}`] = {
+      seriesInfo: { id: 'cycle-1', name: 'Wiedźmin', orderInSeries: 1 },
     };
     const info = await audiotekaCatalog.seriesInfo(BOOK_ID);
     expect(info).toEqual({ id: 'cycle-1', name: 'Wiedźmin', orderInSeries: 1 });
-    expect(calls.map((c) => c.url)).toEqual([`/api/audioteka/book-details/${BOOK_ID}`]);
+    expect(calls.map((c) => c.url)).toEqual([`/api/audioteka/series-info/${BOOK_ID}`]);
+  });
+
+  test('seriesInfo is fetched once per book per session', async () => {
+    const id = '11111111-2222-4333-8444-555555555555';
+    responses[`get /api/audioteka/series-info/${id}`] = { seriesInfo: null };
+    expect(await audiotekaCatalog.seriesInfo(id)).toBeNull();
+    expect(await audiotekaCatalog.seriesInfo(id)).toBeNull();
+    expect(calls).toHaveLength(1);
+  });
+
+  test('a failed seriesInfo lookup is retried', async () => {
+    const id = '99999999-2222-4333-8444-555555555555';
+    const bridge = (globalThis as { window: { electronApi: Record<string, unknown> } }).window
+      .electronApi;
+    const get = bridge.get;
+    bridge.get = async () => {
+      throw new Error('offline');
+    };
+    await expect(audiotekaCatalog.seriesInfo(id)).rejects.toThrow();
+    bridge.get = get;
+    responses[`get /api/audioteka/series-info/${id}`] = {
+      seriesInfo: { id: 'c', name: 'C', orderInSeries: 2 },
+    };
+    expect(await audiotekaCatalog.seriesInfo(id)).toEqual({ id: 'c', name: 'C', orderInSeries: 2 });
   });
 });
 

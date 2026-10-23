@@ -220,6 +220,20 @@ export function audiotekaRoutes(session: AudiotekaSession) {
       },
     );
 
+    // The series of a book without the library lists, for "continue series".
+    fastify.get<{ Params: { id: string } }>(
+      '/api/audioteka/series-info/:id',
+      { preHandler: requireAudioteka },
+      async (req, reply) => {
+        if (!validId(req.params.id, reply)) return;
+        try {
+          reply.send({ seriesInfo: await req.audioteka.getSeriesInfo(req.params.id) });
+        } catch (error) {
+          replyError(reply, error);
+        }
+      },
+    );
+
     for (const action of ['add', 'remove'] as const) {
       fastify.post<{ Body: { id?: unknown } }>(
         `/api/audioteka/library/${action}`,
