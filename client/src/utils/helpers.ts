@@ -110,6 +110,25 @@ export const audiotekaEntryToBookEntity = (entry: AudiotekaLibraryEntry): BookSh
     ebook: null,
   }) as unknown as BookShelfEntity;
 
+const splitNames = (names: string): string[] =>
+  names
+    .split(', ')
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+/** An Audioteka search hit or Discover card as the player's library entry. */
+export const searchResultToAudiotekaEntry = (book: SearchResultBook): AudiotekaLibraryEntry => ({
+  id: book.id,
+  title: book.title || '',
+  authors: splitNames(book.authors || ''),
+  narrators: splitNames(book.narrators || ''),
+  coverUrl: book.coverUrl || null,
+  durationMs: book.durationMs || 0,
+  sources: [],
+  available: true,
+  positionMs: null,
+});
+
 export const localizedLanguageName = (
   code?: string | null,
   uiLocale = 'en',

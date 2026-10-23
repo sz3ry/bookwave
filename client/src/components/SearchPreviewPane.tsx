@@ -11,7 +11,18 @@ interface SearchPreviewPaneProps {
   isAdded: boolean;
   isAdding: boolean;
   onSelectBook: (book: SearchResultBook) => void;
+  onOpenAuthor: (author: { id?: string; name: string }) => void;
 }
+
+// The authors of a book with ids when the catalogue sends them, else by name.
+const bookAuthors = (book: SearchResultBook): { id?: string; name: string }[] =>
+  book.authorRefs && book.authorRefs.length > 0
+    ? book.authorRefs
+    : (book.authors || '')
+        .split(', ')
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .map((name) => ({ name }));
 
 export function SearchPreviewPane({
   book,
@@ -20,6 +31,7 @@ export function SearchPreviewPane({
   isAdded,
   isAdding,
   onSelectBook,
+  onOpenAuthor,
 }: SearchPreviewPaneProps) {
   const { t, i18n } = useTranslation();
   const seriesInfo = useSeriesInfo(book?.id ?? '', book?.seriesInfo);
@@ -95,7 +107,20 @@ export function SearchPreviewPane({
       {/* Title & Author */}
       <div className="text-center mb-5">
         <h2 className="text-[19px] font-bold text-white leading-snug line-clamp-2">{book.title}</h2>
-        <p className="text-sm text-[#9ca3af] mt-1 line-clamp-1">{book.authors}</p>
+        <p className="text-sm text-[#9ca3af] mt-1 line-clamp-2">
+          {bookAuthors(book).map((author, index) => (
+            <React.Fragment key={author.id ?? author.name}>
+              {index > 0 && ', '}
+              <button
+                type="button"
+                onClick={() => onOpenAuthor(author)}
+                className="hover:text-white hover:underline transition-colors"
+              >
+                {author.name}
+              </button>
+            </React.Fragment>
+          ))}
+        </p>
         {book.comingSoon && (
           <p className="mt-2 text-xs font-semibold text-[#FF8A50]">
             <span className="uppercase font-bold px-2 py-0.5 rounded-full bg-[#FF5100]/20 border border-[#FF5100]/30">

@@ -20,6 +20,7 @@ import {
 } from '../utils/helpers';
 import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
 import SeriesHint, { useSeriesInfo } from './SeriesHint';
+import { storytelCatalog } from '../catalog';
 import api from '../utils/api';
 import '../types/window.d.ts';
 
@@ -404,6 +405,8 @@ function BookViewContent() {
                 currentBookId={String(book.book.consumableId || bookId)}
                 finished={isBookFinished(book)}
                 onOpenBook={handleOpenSeriesBook}
+                // BookView shows Storytel books only, whichever service is active.
+                catalog={storytelCatalog}
               />
             </div>
           )}

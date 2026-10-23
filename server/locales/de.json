@@ -313,6 +313,7 @@
     "noResultsInLanguages": "Keine Ergebnisse auf {{languages}}.",
     "noFilterMatch": "Keine Treffer mit den gewählten Filtern",
     "showAllLanguages": "Alle Sprachen anzeigen ({{total}})",
+    "unavailable": "Die Suche ist gerade nicht verfügbar. Versuch es später noch einmal.",
     "errors": {
       "addToBookshelfFailed": "Buch konnte nicht zur Bibliothek hinzugefügt werden. Es ist möglicherweise in der Region Ihres Kontos nicht verfügbar.",
       "addToBookshelfNotConfirmed": "Storytel hat die Anfrage angenommen, das Buch ist aber nicht in deiner Bibliothek erschienen. Es ist möglicherweise nicht in deinem Abonnement enthalten."

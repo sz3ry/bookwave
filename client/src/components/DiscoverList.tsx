@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SearchResultBook } from '../interfaces/books';
-import { getDiscoveryList } from '../utils/api';
+import { useCatalog } from '../catalog';
 import { buildCoverUrl, isOfflineError } from '../utils/helpers';
 
 export function DiscoverSpinner() {
@@ -87,7 +87,10 @@ export function DiscoverList({
   onBack,
 }: DiscoverListProps) {
   const { t } = useTranslation();
+  const catalog = useCatalog();
   const [items, setItems] = useState<SearchResultBook[]>([]);
+  // Audioteka names a list (a cycle, an author) only in the list response.
+  const [listTitle, setListTitle] = useState('');
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ offline: boolean } | null>(null);
@@ -98,8 +101,9 @@ export function DiscoverList({
     setLoading(true);
     setError(null);
     try {
-      const res = await getDiscoveryList(itemsUrl, token);
+      const res = await catalog.list(itemsUrl, token);
       if (seq !== seqRef.current) return;
+      if (!token && catalog.provider === 'audioteka' && res.title) setListTitle(res.title);
       setItems((prev) => (token ? [...prev, ...res.items] : res.items));
       setNextPageToken(res.nextPageToken);
     } catch (err) {
@@ -115,11 +119,12 @@ export function DiscoverList({
   useEffect(() => {
     setItems([]);
     setNextPageToken(null);
+    setListTitle('');
     load();
     return () => {
       seqRef.current++;
     };
-  }, [itemsUrl]);
+  }, [itemsUrl, catalog]);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col overflow-y-auto custom-scrollbar py-5 bg-[#0A0A0A]">
@@ -145,7 +150,7 @@ export function DiscoverList({
           </svg>
           {t('discover.back')}
         </button>
-        <h3 className="text-sm font-bold text-white truncate">{title}</h3>
+        <h3 className="text-sm font-bold text-white truncate">{listTitle || title}</h3>
       </div>
 
       {items.length > 0 && (

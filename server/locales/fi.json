@@ -313,6 +313,7 @@
     "noResultsInLanguages": "Ei tuloksia kielillä {{languages}}.",
     "noFilterMatch": "Ei osumia valituilla suodattimilla",
     "showAllLanguages": "Näytä kaikki kielet ({{total}})",
+    "unavailable": "Haku ei ole juuri nyt käytettävissä. Yritä myöhemmin uudelleen.",
     "errors": {
       "addToBookshelfFailed": "Kirjaa ei voitu lisätä kirjastoon. Se ei välttämättä ole saatavilla tilisi alueella.",
       "addToBookshelfNotConfirmed": "Storytel vastaanotti pyynnön, mutta kirja ei ilmestynyt kirjastoosi. Se ei välttämättä sisälly tilaukseesi."

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DiscoverySeries, SearchResultBook, SeriesInfo } from '../interfaces/books';
-import api, { getDiscoverySeries } from '../utils/api';
+import { type CatalogApi, useCatalog } from '../catalog';
 
 interface SeriesHintProps {
   seriesInfo: SeriesInfo;
@@ -9,34 +9,28 @@ interface SeriesHintProps {
   // The book is concluded: offer the next part as the primary action.
   finished: boolean;
   onOpenBook: (book: SearchResultBook) => void;
+  // The catalogue the book belongs to; the active service's when left out.
+  catalog?: CatalogApi;
 }
 
 // Series info of a book. Hits from the storytel.com fallback search carry none,
-// so it is read from the book-details call when `known` is missing.
+// so it is read from the active catalogue's book details when `known` is missing.
 export function useSeriesInfo(
   bookId: string,
   known?: SeriesInfo | null,
   fetchWhenMissing = true,
 ): SeriesInfo | null {
+  const catalog = useCatalog();
   const [fetched, setFetched] = useState<{ bookId: string; info: SeriesInfo } | null>(null);
 
   useEffect(() => {
     setFetched(null);
     if (known || !bookId || !fetchWhenMissing) return;
     let cancelled = false;
-    api
-      .get(`/book-details/${encodeURIComponent(bookId)}`)
-      .then((res) => {
-        const raw = res.data?.seriesInfo;
-        if (cancelled || !raw?.id) return;
-        setFetched({
-          bookId,
-          info: {
-            id: String(raw.id),
-            name: String(raw.name ?? ''),
-            orderInSeries: typeof raw.orderInSeries === 'number' ? raw.orderInSeries : null,
-          },
-        });
+    catalog
+      .seriesInfo(bookId)
+      .then((info) => {
+        if (!cancelled && info) setFetched({ bookId, info });
       })
       .catch(() => {
         /* no hint without series info */
@@ -44,14 +38,22 @@ export function useSeriesInfo(
     return () => {
       cancelled = true;
     };
-  }, [bookId, known, fetchWhenMissing]);
+  }, [bookId, known, fetchWhenMissing, catalog]);
 
   // Only the series fetched for this very book counts: a previous book's must not flash.
   return known ?? (fetched?.bookId === bookId ? fetched.info : null);
 }
 
-export function SeriesHint({ seriesInfo, currentBookId, finished, onOpenBook }: SeriesHintProps) {
+export function SeriesHint({
+  seriesInfo,
+  currentBookId,
+  finished,
+  onOpenBook,
+  catalog: catalogOverride,
+}: SeriesHintProps) {
   const { t } = useTranslation();
+  const activeCatalog = useCatalog();
+  const catalog = catalogOverride ?? activeCatalog;
   const [series, setSeries] = useState<DiscoverySeries | null>(null);
 
   const seriesId = seriesInfo.id;
@@ -60,7 +62,8 @@ export function SeriesHint({ seriesInfo, currentBookId, finished, onOpenBook }: 
   useEffect(() => {
     setSeries(null);
     let cancelled = false;
-    getDiscoverySeries(seriesId, order)
+    catalog
+      .series(seriesId, { order, bookId: currentBookId })
       .then((data) => {
         if (!cancelled) setSeries(data);
       })
@@ -68,7 +71,7 @@ export function SeriesHint({ seriesInfo, currentBookId, finished, onOpenBook }: 
     return () => {
       cancelled = true;
     };
-  }, [seriesId, order]);
+  }, [seriesId, order, currentBookId, catalog]);
 
   const seriesName = seriesInfo.name || series?.title || '';
   const firstOrder = series?.first?.seriesInfo?.orderInSeries ?? null;

@@ -1,4 +1,4 @@
-// Storytel's front page, shown in the search view while the query is empty:
+// The active service's front page, shown in the search view while the query is empty:
 // chips as tabs, one horizontal row per block, "See all" for the full list.
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +8,7 @@ import type {
   DiscoveryRow,
   SearchResultBook,
 } from '../interfaces/books';
-import { getDiscoveryChips, getDiscoveryList, getDiscoveryPage } from '../utils/api';
+import { useCatalog } from '../catalog';
 import { isOfflineError } from '../utils/helpers';
 import DiscoverList, { DiscoverCard, DiscoverNotice, DiscoverSpinner } from './DiscoverList';
 
@@ -23,6 +23,7 @@ interface LoadError {
 
 export function DiscoverHome({ selectedBookId, onSelectBook }: DiscoverHomeProps) {
   const { t } = useTranslation();
+  const catalog = useCatalog();
   const [chips, setChips] = useState<DiscoveryChip[] | null>(null);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const [rows, setRows] = useState<DiscoveryRow[]>([]);
@@ -39,7 +40,7 @@ export function DiscoverHome({ selectedBookId, onSelectBook }: DiscoverHomeProps
     setLoading(true);
     setError(null);
     try {
-      const page: DiscoveryPage = await getDiscoveryPage(slug, token);
+      const page: DiscoveryPage = await catalog.page(slug, token);
       if (seq !== seqRef.current) return;
       setRows((prev) => (token ? [...prev, ...page.rows] : page.rows));
       setNextPageToken(page.nextPageToken);
@@ -57,7 +58,7 @@ export function DiscoverHome({ selectedBookId, onSelectBook }: DiscoverHomeProps
     setLoading(true);
     setError(null);
     try {
-      const list = await getDiscoveryChips();
+      const list = await catalog.chips();
       if (seq !== seqRef.current) return;
       setChips(list);
       if (list.length === 0) {
@@ -206,6 +207,7 @@ function DiscoverRowView({
   onSeeAll: (itemsUrl: string) => void;
 }) {
   const { t } = useTranslation();
+  const catalog = useCatalog();
   const [items, setItems] = useState<SearchResultBook[] | null>(
     row.items.length > 0 || !row.itemsUrl ? row.items : null,
   );
@@ -216,7 +218,8 @@ function DiscoverRowView({
   useEffect(() => {
     if (items || !row.itemsUrl) return;
     let cancelled = false;
-    getDiscoveryList(row.itemsUrl)
+    catalog
+      .list(row.itemsUrl)
       .then((res) => {
         if (!cancelled) setItems(res.items);
       })
@@ -229,7 +232,7 @@ function DiscoverRowView({
     return () => {
       cancelled = true;
     };
-  }, [row, items]);
+  }, [row, items, catalog]);
 
   // Rows with nothing playable (e.g. an empty personalised row) are hidden.
   if (items && items.length === 0) return null;

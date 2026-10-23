@@ -313,6 +313,7 @@
     "noResultsInLanguages": "Inga träffar på {{languages}}.",
     "noFilterMatch": "Inga träffar med valda filter",
     "showAllLanguages": "Visa alla språk ({{total}})",
+    "unavailable": "Sökningen är inte tillgänglig just nu. Försök igen senare.",
     "errors": {
       "addToBookshelfFailed": "Kunde inte lägga till boken i bokhyllan. Den kanske inte ingår i ditt lands abonnemang.",
       "addToBookshelfNotConfirmed": "Storytel tog emot begäran men boken dök inte upp i din bokhylla. Den kanske inte ingår i ditt abonnemang."

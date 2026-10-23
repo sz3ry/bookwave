@@ -2,17 +2,18 @@ import type React from 'react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import api from '../utils/api';
-import type { SearchResultBook, SearchResponse } from '../interfaces/books';
-import {
-  addToBookshelfErrorKey,
-  localizedLanguageName,
-  searchResultToBookEntity,
-} from '../utils/helpers';
+import type { SearchResultBook } from '../interfaces/books';
+import { type AuthorTarget, useCatalog } from '../catalog';
+import { addToBookshelfErrorKey, localizedLanguageName } from '../utils/helpers';
 import SearchFilterRail, { type DurationFilter, type LanguageStat } from './SearchFilterRail';
 import SearchResultList, { type SortOption } from './SearchResultList';
 import SearchPreviewPane from './SearchPreviewPane';
 import DiscoverHome from './DiscoverHome';
+import DiscoverList from './DiscoverList';
+
+// The server answers a rejected Audioteka search key with this code.
+const isSearchUnavailable = (err: any): boolean =>
+  err?.response?.status === 503 && err?.response?.data?.code === 'SEARCH_UNAVAILABLE';
 
 interface SearchViewProps {
   query?: string;
@@ -23,12 +24,16 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const catalog = useCatalog();
 
   const activeQuery = propQuery !== undefined ? propQuery : searchParams.get('q') || '';
 
   const [rawResults, setRawResults] = useState<SearchResultBook[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedBook, setSelectedBook] = useState<SearchResultBook | null>(null);
+  const [searchUnavailable, setSearchUnavailable] = useState(false);
+  // An author's books, opened from the preview pane (Audioteka author lists).
+  const [authorList, setAuthorList] = useState<{ itemsUrl: string; title: string } | null>(null);
 
   // Filters state
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]); // empty = all
@@ -48,6 +53,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
   // Perform backend search
   const performSearch = async (searchTerm: string) => {
     const q = searchTerm.trim();
+    setSearchUnavailable(false);
     if (!q) {
       setRawResults([]);
       setSelectedBook(null);
@@ -57,8 +63,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
 
     try {
       setIsLoading(true);
-      const res = await api.get<SearchResponse>(`/search?q=${encodeURIComponent(q)}`);
-      const results = res.data?.results || [];
+      const results = await catalog.search(q);
       setRawResults(results);
       if (results.length > 0) {
         setSelectedBook(results[0]);
@@ -67,6 +72,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
       }
     } catch (err) {
       console.error('Catalog search failed:', err);
+      setSearchUnavailable(isSearchUnavailable(err));
       setRawResults([]);
       setSelectedBook(null);
     } finally {
@@ -74,10 +80,15 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
     }
   };
 
+  // A new query or another active service starts over: its results, author
+  // list and "added" marks belong to the previous search.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: performSearch reads the current catalog
   useEffect(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
+    setAuthorList(null);
+    setSearchUnavailable(false);
 
     if (!activeQuery.trim()) {
       setRawResults([]);
@@ -94,7 +105,13 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
-  }, [activeQuery]);
+  }, [activeQuery, catalog]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset only when the service changes
+  useEffect(() => {
+    setAddedBooks({});
+    setSelectedBook(null);
+  }, [catalog]);
 
   // A book handed over by another page (e.g. a series part opened from BookView)
   // is previewed with the Discover home still visible. Declared after the query
@@ -184,8 +201,18 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
     const targetBook =
       rawResults.find((b) => b.id === bookId) ||
       (selectedBook?.id === bookId ? selectedBook : null);
-    const entity = targetBook ? searchResultToBookEntity(targetBook) : null;
-    navigate(`/player/${bookId}`, { state: { book: entity, autoPlay: true } });
+    if (!targetBook) return;
+    const { path, state } = catalog.playTarget(targetBook);
+    navigate(path, { state });
+  };
+
+  const handleOpenAuthor = (author: { id?: string; name: string }) => {
+    const target: AuthorTarget = catalog.authorTarget(author);
+    if (target.kind === 'list') {
+      setAuthorList({ itemsUrl: target.itemsUrl, title: target.title });
+    } else {
+      navigate(`/search?q=${encodeURIComponent(target.query)}`);
+    }
   };
 
   const handleAddToLibrary = async (e: React.MouseEvent | null, bookId: string) => {
@@ -194,7 +221,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
 
     try {
       setAddingBookId(bookId);
-      await api.post('/bookshelf/add', { consumableId: bookId });
+      await catalog.addToLibrary(bookId);
       setAddedBooks((prev) => ({ ...prev, [bookId]: true }));
       window.dispatchEvent(new Event('bookshelfUpdated'));
       setToastMessage({
@@ -270,7 +297,16 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
       />
 
       {/* 2. Center: Result List (flex) */}
-      {isLoading && rawResults.length === 0 ? (
+      {authorList ? (
+        <DiscoverList
+          key={`${catalog.provider}:${authorList.itemsUrl}`}
+          title={authorList.title}
+          itemsUrl={authorList.itemsUrl}
+          selectedBookId={selectedBook?.id || null}
+          onSelectBook={(book) => setSelectedBook(book)}
+          onBack={() => setAuthorList(null)}
+        />
+      ) : isLoading && rawResults.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0A0A0A]">
           <div className="w-8 h-8 border-2 border-[#FF5100] border-t-transparent rounded-full animate-spin mb-3" />
           <p className="text-sm font-medium text-gray-400">
@@ -279,9 +315,17 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
         </div>
       ) : !activeQuery.trim() ? (
         <DiscoverHome
+          key={catalog.provider}
           selectedBookId={selectedBook?.id || null}
           onSelectBook={(book) => setSelectedBook(book)}
         />
+      ) : searchUnavailable ? (
+        <div
+          role="status"
+          className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0A0A0A]"
+        >
+          <p className="text-sm font-medium text-gray-400 max-w-sm">{t('search.unavailable')}</p>
+        </div>
       ) : rawResults.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0A0A0A]">
           <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-gray-500 mb-3">
@@ -345,6 +389,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
         isAdded={selectedBook ? !!addedBooks[selectedBook.id] : false}
         isAdding={selectedBook ? addingBookId === selectedBook.id : false}
         onSelectBook={(book) => setSelectedBook(book)}
+        onOpenAuthor={handleOpenAuthor}
       />
     </div>
   );
