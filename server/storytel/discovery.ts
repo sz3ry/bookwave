@@ -1,5 +1,5 @@
 // Pure helpers for the Storytel explore ("Discover") endpoints: response
-// mapping, URL allow-list, series part picking and a small TTL cache.
+// mapping, URL allow-list and series part picking.
 
 export interface SeriesInfo {
   id: string;
@@ -54,8 +54,6 @@ export interface SeriesParts {
   next: DiscoveryItem | null;
   parts: DiscoveryItem[];
 }
-
-export const CACHE_TTL_MS = 3_600_000;
 
 const EXPLORE_ORIGIN = 'https://api.storytel.net';
 
@@ -179,25 +177,4 @@ export function pickSeriesParts(items: DiscoveryItem[], currentOrder: number | n
             part.seriesInfo.orderInSeries > currentOrder,
         ) ?? null);
   return { first, firstIsAudiobook: !!first?.hasAbook, firstAudiobook, next, parts };
-}
-
-export function createTtlCache<T>(
-  ttlMs: number,
-  now: () => number = Date.now,
-): { get(key: string): T | undefined; set(key: string, v: T): void } {
-  const entries = new Map<string, { value: T; expires: number }>();
-  return {
-    get(key) {
-      const entry = entries.get(key);
-      if (!entry) return undefined;
-      if (now() >= entry.expires) {
-        entries.delete(key);
-        return undefined;
-      }
-      return entry.value;
-    },
-    set(key, value) {
-      entries.set(key, { value, expires: now() + ttlMs });
-    },
-  };
 }

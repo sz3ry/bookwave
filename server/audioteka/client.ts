@@ -1,6 +1,6 @@
 import { appLogger } from '../logger';
 import type { FetchLike } from '../http';
-import { CACHE_TTL_MS, createTtlCache } from '../storytel/discovery';
+import { CACHE_TTL_MS, createTtlCache } from '../cache';
 import {
   type CatalogBook,
   type DiscoveryList,

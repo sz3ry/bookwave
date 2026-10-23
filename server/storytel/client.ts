@@ -7,8 +7,6 @@ import {
   type StorytelResponse,
 } from './fetch';
 import {
-  CACHE_TTL_MS,
-  createTtlCache,
   type DiscoveryChip,
   type DiscoveryItem,
   type DiscoveryList,
@@ -20,6 +18,7 @@ import {
   toDiscoveryPage,
   toSeriesInfo,
 } from './discovery';
+import { CACHE_TTL_MS, createTtlCache } from '../cache';
 import { encryptPassword } from './passwordCrypt';
 
 export { StorytelAuthError };
