@@ -1,11 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { appLogger } from '../logger';
-import {
-  createStorytelFetch,
-  type FetchLike,
-  StorytelAuthError,
-  StorytelHttpError,
-} from './storytelFetch';
+import { createStorytelFetch, type FetchLike, StorytelAuthError, StorytelHttpError } from './fetch';
 
 interface Call {
   url: URL;

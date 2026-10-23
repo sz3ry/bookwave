@@ -25,7 +25,7 @@ export interface AudiotekaAuthApi {
 type ClientFactory = (opts: AudiotekaClientOptions) => AudiotekaClient;
 
 // One logged-in Audioteka account, served by a single shared client. Mirrors
-// server/session.ts: a generation counter drops logins that were overtaken, and
+// server/storytel/session.ts: a generation counter drops logins that were overtaken, and
 // only the current client can end the session.
 export function createAudiotekaSession(
   createClient: ClientFactory = (opts) => new AudiotekaClient(opts),

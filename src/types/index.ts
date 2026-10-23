@@ -32,8 +32,8 @@ export interface AppContext {
   isDebug: boolean;
 }
 
-// Copies of the server's session types (server/session.ts): the main process
-// is compiled separately and cannot import the server's TS sources.
+// Copies of the server's session types (server/storytel/session.ts): the main
+// process is compiled separately and cannot import the server's TS sources.
 
 // What the main process persists to restore a session on the next start: the
 // encrypted password is the form Storytel's login.action expects.

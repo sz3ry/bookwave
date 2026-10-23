@@ -1,6 +1,7 @@
+import type { FetchLike } from '../http';
 import { appLogger, maskSecrets } from '../logger';
 
-export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
+export type { FetchLike };
 
 export const STORYTEL_APP_VERSION = '25.38.0';
 

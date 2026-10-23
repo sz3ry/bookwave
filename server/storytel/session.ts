@@ -1,5 +1,5 @@
 import { encryptPassword } from './passwordCrypt';
-import StorytelClient from './storytelApi';
+import StorytelClient from './client';
 
 // What the main process persists to restore a session on the next start: the
 // encrypted password is the form Storytel's login.action expects.

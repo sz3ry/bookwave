@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { downloadToFile } from './download';
-import type { FetchLike } from './http/storytelFetch';
+import type { FetchLike } from './fetch';
 
 const encoder = new TextEncoder();
 

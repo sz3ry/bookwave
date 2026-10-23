@@ -5,7 +5,7 @@ import {
   StorytelHttpError,
   type StorytelRequest,
   type StorytelResponse,
-} from './http/storytelFetch';
+} from './fetch';
 import {
   CACHE_TTL_MS,
   createTtlCache,

@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import type { FetchLike } from './http/storytelFetch';
+import type { FetchLike } from './fetch';
 import { encryptPassword } from './passwordCrypt';
 import { createSession } from './session';
-import StorytelClient from './storytelApi';
+import StorytelClient from './client';
 
 const LOGIN_PATH = '/api/login.action';
 const BOOKSHELF_PATH = '/libraries/bookshelf';

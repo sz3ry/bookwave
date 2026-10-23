@@ -2,10 +2,10 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { FetchLike } from '../http/storytelFetch';
+import type { FetchLike } from '../http';
 
 // fastify-common reads env and creates directories at import time (see
-// server/routes.test.ts); restore the variables afterwards.
+// server/storytel/routes.test.ts); restore the variables afterwards.
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bookwave-audioteka-routes-'));
 const testEnv = {
   IS_ELECTRON: 'true',

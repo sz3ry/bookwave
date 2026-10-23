@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import type { FetchLike } from './http/storytelFetch';
-import { appLogger } from './logger';
+import type { FetchLike } from './fetch';
+import { appLogger } from '../logger';
 import { encryptPassword } from './passwordCrypt';
-import StorytelClient from './storytelApi';
+import StorytelClient from './client';
 
 interface Call {
   url: URL;

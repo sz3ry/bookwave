@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createDownloadsIndex } from './downloadsIndex';
-import type { FetchLike } from './http/storytelFetch';
+import type { FetchLike } from './fetch';
 import { encryptPassword } from './passwordCrypt';
 
 // fastify-common creates its downloads directory and the logger reads its log
@@ -24,7 +24,7 @@ const {
   auth,
   configureSessionForTests,
   resolveDownloadedFile,
-} = await import('./fastify-common');
+} = await import('../fastify-common');
 
 for (const [key, value] of Object.entries(savedEnv)) {
   if (value === undefined) delete process.env[key];

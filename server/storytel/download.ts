@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
-import { type FetchLike, StorytelHttpError } from './http/storytelFetch';
+import { type FetchLike, StorytelHttpError } from './fetch';
 
 /**
  * Streams `url` to `filePath` through a `.part` file that is renamed on success.

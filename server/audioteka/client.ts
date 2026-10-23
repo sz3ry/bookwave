@@ -1,5 +1,5 @@
 import { appLogger } from '../logger';
-import type { FetchLike } from '../http/storytelFetch';
+import type { FetchLike } from '../http';
 import {
   type AudiotekaBook,
   type AudiotekaLibraryEntry,

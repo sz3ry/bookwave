@@ -1,18 +1,18 @@
 import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
-import StorytelClient, { type BookShelfEntity, mapCatalogItem } from './storytelApi';
+import StorytelClient, { type BookShelfEntity, mapCatalogItem } from './storytel/client';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { type DiscoveryItem, isAllowedExploreUrl, pickSeriesParts } from './discovery';
-import { downloadToFile } from './download';
-import { createDownloadsIndex } from './downloadsIndex';
-import type { FetchLike } from './http/storytelFetch';
+import { type DiscoveryItem, isAllowedExploreUrl, pickSeriesParts } from './storytel/discovery';
+import { downloadToFile } from './storytel/download';
+import { createDownloadsIndex } from './storytel/downloadsIndex';
+import type { FetchLike } from './http';
 import { appLogger } from './logger';
 import { AudiotekaClient } from './audioteka/client';
 import { audiotekaRoutes } from './audioteka/routes';
 import { type AudiotekaAuthApi, createAudiotekaSession } from './audioteka/session';
-import { type AuthApi, createSession } from './session';
+import { type AuthApi, createSession } from './storytel/session';
 
 // Routes behind requireSession get the session's shared Storytel client.
 declare module 'fastify' {
@@ -133,7 +133,7 @@ const fastify = Fastify({ logger: process.env.NODE_ENV !== 'production' });
 // Fetch used by the session's Storytel client; only tests replace it.
 let sessionFetch: FetchLike | undefined;
 
-// Test seam: routes.test.ts injects a fetch stub here before restoring a
+// Test seam: storytel/routes.test.ts injects a fetch stub here before restoring a
 // session. Takes effect for clients created afterwards (login/restore).
 export function configureSessionForTests(options: { fetch?: FetchLike }): void {
   sessionFetch = options.fetch;

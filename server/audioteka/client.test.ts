@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { FetchLike } from '../http/storytelFetch';
+import type { FetchLike } from '../http';
 import { redactLogData } from '../logger';
 import { AudiotekaClient, type AudiotekaCredentials, AudiotekaUnauthorizedError } from './client';
 
