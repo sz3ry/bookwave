@@ -26,6 +26,21 @@ export function storedPosition(
   };
 }
 
+/**
+ * The stored record after a remote write of `writtenPosition` succeeded: only
+ * `remoteSeen` changes. A local write that happened while the request ran is
+ * newer than the written value, so its position (and time) is kept; the
+ * written position is used only when nothing is stored.
+ */
+export function withRemoteSeen(
+  stored: StoredPosition | null,
+  writtenPosition: number,
+  now: Date = new Date(),
+): StoredPosition {
+  if (!stored) return storedPosition(writtenPosition, writtenPosition, now);
+  return { ...stored, remoteSeen: writtenPosition };
+}
+
 export type StartPosition =
   | { kind: 'use'; positionMs: number; source: 'local' | 'remote' }
   | { kind: 'ask'; localMs: number; remoteMs: number; device: string | null };

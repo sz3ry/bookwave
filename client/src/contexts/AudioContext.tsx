@@ -40,6 +40,7 @@ import {
   shouldWriteRemote,
   type StoredPosition,
   storedPosition,
+  withRemoteSeen,
 } from '../playback/positionSync';
 
 const readLocalPosition = async (storageKey: string): Promise<StoredPosition | null> => {
@@ -61,6 +62,17 @@ const writeLocalPosition = async (storageKey: string, position: number, remoteSe
   try {
     const payload = storedPosition(position, remoteSeen);
     await storage.set(storageKey, JSON.stringify(payload));
+  } catch {
+    // best-effort cache; ignore failures
+  }
+};
+
+// Records a successful remote write as seen without touching the stored
+// position: a local write made while the request ran is newer.
+const recordRemoteSeen = async (storageKey: string, writtenPosition: number) => {
+  try {
+    const stored = await readLocalPosition(storageKey);
+    await storage.set(storageKey, JSON.stringify(withRemoteSeen(stored, writtenPosition)));
   } catch {
     // best-effort cache; ignore failures
   }
@@ -273,7 +285,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   );
 
   // Remote write of the active (or just replaced) book; on success the local
-  // position records the written value as seen. An `ask` book only sends a
+  // record keeps its position and notes the written value as seen. An `ask` book only sends a
   // position Bookwave moved since the last sync (`shouldWriteRemote`), so a
   // paused, untouched book never overwrites another device's newer position.
   const writeRemote = useCallback(
@@ -283,7 +295,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       await source.writeRemotePosition(position);
       if (source.conflictPolicy !== 'ask') return;
       if (sourceRef.current === source) remoteSeenRef.current = position;
-      await writeLocalPosition(source.positionStorageKey, position, position);
+      await recordRemoteSeen(source.positionStorageKey, position);
     },
     [remoteSeenFor],
   );

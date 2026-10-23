@@ -5,6 +5,7 @@ import {
   shouldRecheckRemote,
   shouldWriteRemote,
   storedPosition,
+  withRemoteSeen,
 } from './positionSync';
 
 const local = (position: number, remoteSeen?: number): StoredPosition => ({
@@ -107,6 +108,30 @@ describe('storedPosition', () => {
     expect(
       resolveStartPosition(storedPosition(235_000, undefined, at), remoteFlushFailed).kind,
     ).toBe('ask');
+  });
+});
+
+describe('withRemoteSeen', () => {
+  const at = new Date('2026-10-23T10:00:00.000Z');
+  const later = new Date('2026-10-23T10:00:20.000Z');
+
+  // The 60 s remote write of 180 s took longer than a 15 s tick, which saved
+  // 195 s meanwhile: recording the write must not roll the position back.
+  test('keeps a newer local position written while the remote write ran', () => {
+    const tickDuringWrite = storedPosition(195_000, 120_000, at);
+    expect(withRemoteSeen(tickDuringWrite, 180_000, later)).toEqual({
+      position: 195_000,
+      updatedAt: '2026-10-23T10:00:00.000Z',
+      remoteSeen: 180_000,
+    });
+  });
+
+  test('falls back to the written position when nothing is stored', () => {
+    expect(withRemoteSeen(null, 180_000, later)).toEqual({
+      position: 180_000,
+      updatedAt: '2026-10-23T10:00:20.000Z',
+      remoteSeen: 180_000,
+    });
   });
 });
 
