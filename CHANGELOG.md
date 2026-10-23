@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.4.0](https://github.com/sz3ry/bookwave/compare/v1.3.0...v1.4.0) (2026-10-23)
+
+
+### Features
+
+* **audioteka:** map the catalogue to the shared discovery shapes ([a9c9419](https://github.com/sz3ry/bookwave/commit/a9c9419a0cfb261b0f1bd4e265897b9e2641a4cd))
+* **audioteka:** serve search, discovery and library routes ([e370d29](https://github.com/sz3ry/bookwave/commit/e370d29fb5ce1bdf6aa5e631dd364a8ca50680bf))
+* **client:** add the active service and per-service last session ([f832bc1](https://github.com/sz3ry/bookwave/commit/f832bc15d06dc21d81958a2feac09b36ddfb8628))
+* **client:** search and discover through the active service ([cef380f](https://github.com/sz3ry/bookwave/commit/cef380f85b35971c8f67e12da5e045d19717cc1e))
+* **client:** show book pages and series for the active service ([e1f7edf](https://github.com/sz3ry/bookwave/commit/e1f7edfa196fb82aff2700598da73b1862178a5b))
+* **client:** switch the active service in settings ([6be8d9b](https://github.com/sz3ry/bookwave/commit/6be8d9be111867693e71818f0610805a1f488687))
+* **player:** pause and restore per service when switching ([36bc003](https://github.com/sz3ry/bookwave/commit/36bc003804fa43022f5c7ec4a515acc20d495510))
+
+
+### Bug Fixes
+
+* **audioteka:** add see-all cycle lists and keep session errors visible ([8320163](https://github.com/sz3ry/bookwave/commit/8320163b01f722ca188f07608386a0363ed919e7))
+* **audioteka:** render a book page when one library list fails ([06799ba](https://github.com/sz3ry/bookwave/commit/06799ba261ee6795589b568b1816bf3872edbb2d))
+* **client:** drop search results of an older query or the previous service ([f887fe8](https://github.com/sz3ry/bookwave/commit/f887fe8a23e36845607d8c69c2f23f452d937a86))
+* **client:** keep the chosen service over an older state refresh ([9b9c613](https://github.com/sz3ry/bookwave/commit/9b9c613a02b6f26a23bbafaed37cdc8f89bbc5c3))
+* **client:** keep the stored active service across a temporary logout ([5999779](https://github.com/sz3ry/bookwave/commit/59997795e23b81515cbd186d5ee1e5b4ca4db355))
+* **client:** leave a book page of the inactive service for the library ([b05cf09](https://github.com/sz3ry/bookwave/commit/b05cf092888dd25ce6b5bee937f18428860242b7))
+* **client:** show only the log-in banner for a logged-out active service ([83195d8](https://github.com/sz3ry/bookwave/commit/83195d8b2896edde6272179c647cdae304eda968))
+* **player:** save no position on a switch before the start position is applied ([60fcd08](https://github.com/sz3ry/bookwave/commit/60fcd0879a0f4833cd07ebc12513735160e168f8))
+
+
+### Performance Improvements
+
+* **audioteka:** cache book data and series lookups per session ([71063a7](https://github.com/sz3ry/bookwave/commit/71063a7b2296f9f2c3f964dc9deee5c5b2f6ff8b))
+
 ## [1.3.0](https://github.com/sz3ry/bookwave/compare/v1.2.0...v1.3.0) (2026-10-23)
 
 
