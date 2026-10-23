@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type {
   BookShelfEntity,
@@ -24,11 +24,12 @@ import SeriesHint, { useSeriesInfo } from './SeriesHint';
 import { DiscoverCard } from './DiscoverList';
 import { audiotekaCatalog, type BookPageData, storytelCatalog } from '../catalog';
 import { useProviders } from '../contexts/ProvidersContext';
+import { isOtherServiceRoute } from '../utils/activeService';
 import api from '../utils/api';
 import '../types/window.d.ts';
 
 interface BookViewProps {
-  // The service the route belongs to; a deep link keeps it whichever is active.
+  // The service the route belongs to; a page of the inactive service redirects home.
   provider: ProviderId;
 }
 
@@ -541,6 +542,10 @@ function BookViewContent({ provider }: BookViewProps) {
 // Keyed by book so opening another part from the series list resets all state.
 function BookView({ provider }: BookViewProps) {
   const { bookId } = useParams();
+  const { active } = useProviders();
+  // Only the active service's books are shown: a book page left open across a
+  // switch in Settings must not keep playing or saving through the other service.
+  if (isOtherServiceRoute(provider, active)) return <Navigate to="/" replace />;
   return <BookViewContent key={`${provider}:${bookId}`} provider={provider} />;
 }
 
