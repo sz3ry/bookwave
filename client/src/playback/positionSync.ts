@@ -55,3 +55,23 @@ export function resolveStartPosition(
     device: remote.device,
   };
 }
+
+/**
+ * Whether resuming a paused book (or reopening the active one) asks the
+ * provider for its position again: only for `ask` sources, never during a
+ * track switch or before the book's start position was applied, and at most
+ * once per `minIntervalMs` per book. `lastCheckAt` is null when this book
+ * was never checked.
+ */
+export function shouldRecheckRemote(options: {
+  policy: 'newest' | 'ask';
+  switching: boolean;
+  awaitingStart: boolean;
+  lastCheckAt: number | null;
+  now: number;
+  minIntervalMs?: number;
+}): boolean {
+  const { policy, switching, awaitingStart, lastCheckAt, now, minIntervalMs = 10_000 } = options;
+  if (policy !== 'ask' || switching || awaitingStart) return false;
+  return lastCheckAt === null || now - lastCheckAt >= minIntervalMs;
+}

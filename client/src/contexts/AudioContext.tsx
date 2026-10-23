@@ -36,6 +36,7 @@ import {
 } from '../playback/trackNavigation';
 import {
   resolveStartPosition,
+  shouldRecheckRemote,
   type StoredPosition,
   storedPosition,
 } from '../playback/positionSync';
@@ -73,6 +74,27 @@ const LOCAL_POSITION_INTERVAL_MS = 15000;
 // load error is shown.
 const URL_RETRY_LIMIT = 2;
 const URL_RETRY_WINDOW_MS = 10_000;
+
+// Resuming a paused `ask` book asks the provider for its position again (the
+// phone may have moved it), at most this often, and stops waiting for the
+// answer after the timeout: local playback never depends on the provider.
+const REMOTE_RECHECK_INTERVAL_MS = 10_000;
+const REMOTE_RECHECK_TIMEOUT_MS = 5000;
+
+const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`No answer within ${ms} ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 
 /** Current position on the book timeline, in seconds (see `trackNavigation`). */
 const bookSeconds = (
@@ -210,6 +232,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   // The Audioteka book whose details are being fetched by `loadAudiotekaBook`.
   const audiotekaLoadingIdRef = useRef<string | null>(null);
   const activeAudiotekaEntryRef = useRef<AudiotekaLibraryEntry | null>(null);
+  // When the provider's position of a book was last read (start or resume)
+  const lastRemoteCheckRef = useRef<{ source: PlaybackSource | null; at: number }>({
+    source: null,
+    at: 0,
+  });
+  // A resume re-check in flight; a play request during it is remembered here
+  const remoteRecheckRef = useRef<{ wantsPlay: boolean } | null>(null);
   // The latest `markPaused`, for callbacks that keep a stable identity.
   const markPausedRef = useRef<(writePosition?: boolean) => void>(() => {});
   // Discards a slow stream/track URL response once a newer load has taken over.
@@ -404,6 +433,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.warn('Failed to fetch remote position, will use local cache', err);
       }
+      lastRemoteCheckRef.current = { source, at: Date.now() };
 
       const local = await readLocalPosition(source.positionStorageKey);
       let chosenPosition: number;
@@ -436,6 +466,82 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       return switched;
     },
     [seekBook, askPositionConflict],
+  );
+
+  // Resumes a paused book (`play`) or just re-validates the active one. For an
+  // `ask` source the provider's position is read again first: another device
+  // may have moved it while Bookwave was paused. A move beyond the threshold
+  // opens the conflict prompt before playing; a failed or slow read plays on
+  // from this device's position.
+  const resumeWithRemoteCheck = useCallback(
+    async (play: boolean) => {
+      const audio = audioRef.current;
+      const source = sourceRef.current;
+      if (!audio || !source || conflictResolverRef.current) return;
+      const running = remoteRecheckRef.current;
+      if (running) {
+        running.wantsPlay ||= play;
+        return;
+      }
+      const last = lastRemoteCheckRef.current;
+      const recheck = shouldRecheckRemote({
+        policy: source.conflictPolicy,
+        switching: pendingTrackStartRef.current !== null,
+        awaitingStart: awaitingStartPositionRef.current,
+        lastCheckAt: last.source === source ? last.at : null,
+        now: Date.now(),
+        minIntervalMs: REMOTE_RECHECK_INTERVAL_MS,
+      });
+      if (!recheck) {
+        if (play) resumePlayback();
+        return;
+      }
+
+      const check = { wantsPlay: play };
+      remoteRecheckRef.current = check;
+      lastRemoteCheckRef.current = { source, at: Date.now() };
+      try {
+        let remote: Awaited<ReturnType<PlaybackSource['readRemotePosition']>> = null;
+        try {
+          remote = await withTimeout(source.readRemotePosition(), REMOTE_RECHECK_TIMEOUT_MS);
+        } catch (err) {
+          console.warn('Failed to re-check the remote position, playing on locally', err);
+        }
+        if (sourceRef.current !== source) return;
+
+        if (remote && !pendingTrackStartRef.current) {
+          const currentMs = positionToSave(audio, source);
+          const decision = resolveStartPosition(
+            storedPosition(currentMs, remoteSeenRef.current),
+            remote,
+          );
+          if (decision.kind === 'use') {
+            remoteSeenRef.current = remote.positionMs;
+          } else {
+            const choice = await askPositionConflict({
+              localMs: decision.localMs,
+              remoteMs: decision.remoteMs,
+              device: decision.device,
+            });
+            if (choice === null || sourceRef.current !== source) return;
+            const chosenMs = choice === 'remote' ? decision.remoteMs : decision.localMs;
+            remoteSeenRef.current = decision.remoteMs;
+            await writeLocalPosition(source.positionStorageKey, chosenMs, decision.remoteMs);
+            if (sourceRef.current !== source) return;
+            if (choice === 'remote') {
+              const seconds = chosenMs / 1000;
+              setCurrentTime(seconds);
+              // Another track starts (and plays) on its own
+              if (seekBook(seconds, check.wantsPlay)) return;
+            }
+          }
+        }
+        if (check.wantsPlay) resumePlayback();
+      } finally {
+        if (remoteRecheckRef.current === check) remoteRecheckRef.current = null;
+      }
+    },
+    [askPositionConflict, positionToSave, resumePlayback, seekBook],
   );
 
   // Load chapters for the active book
@@ -681,7 +787,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         // `shouldAutoPlayRef` above is what a load still in flight plays by
         setActiveAudiotekaEntry(entry);
         setActiveBook(audiotekaEntryToBookEntity(entry));
-        if (autoPlay && audioSrcRef.current && !isPlayingRef.current) resumePlayback();
+        // Reopened while paused: the phone may have moved the position
+        if (audioSrcRef.current && !isPlayingRef.current) void resumeWithRemoteCheck(autoPlay);
         return;
       }
 
@@ -733,7 +840,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    [refreshChapters, releaseCurrentBook, resumePlayback],
+    [refreshChapters, releaseCurrentBook, resumeWithRemoteCheck],
   );
 
   // Restore previous session on launch
@@ -801,7 +908,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play().catch(console.error);
+      void resumeWithRemoteCheck(true);
     }
   }, [
     isPlaying,
@@ -813,6 +920,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     loadAudiotekaBook,
     pausePlayback,
     resumePlayback,
+    resumeWithRemoteCheck,
   ]);
 
   const seek = useCallback(
@@ -1073,6 +1181,25 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     }
     setIsPlaying(false);
   };
+
+  // Hardware media keys and the OS media controls go through the same
+  // play/pause as the UI (a pending track switch, the resume re-check)
+  const togglePlayPauseRef = useRef(togglePlayPause);
+  togglePlayPauseRef.current = togglePlayPause;
+  useEffect(() => {
+    const mediaSession = navigator.mediaSession;
+    if (!mediaSession) return;
+    mediaSession.setActionHandler('play', () => {
+      if (!isPlayingRef.current) togglePlayPauseRef.current();
+    });
+    mediaSession.setActionHandler('pause', () => {
+      if (isPlayingRef.current) togglePlayPauseRef.current();
+    });
+    return () => {
+      mediaSession.setActionHandler('play', null);
+      mediaSession.setActionHandler('pause', null);
+    };
+  }, []);
 
   // Tray play/pause listeners
   useEffect(() => {

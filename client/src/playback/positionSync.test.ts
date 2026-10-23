@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveStartPosition, type StoredPosition, storedPosition } from './positionSync';
+import {
+  resolveStartPosition,
+  type StoredPosition,
+  shouldRecheckRemote,
+  storedPosition,
+} from './positionSync';
 
 const local = (position: number, remoteSeen?: number): StoredPosition => ({
   position,
@@ -101,5 +106,43 @@ describe('storedPosition', () => {
     expect(
       resolveStartPosition(storedPosition(235_000, undefined, at), remoteFlushFailed).kind,
     ).toBe('ask');
+  });
+});
+
+describe('resume re-check', () => {
+  const base = {
+    policy: 'ask' as const,
+    switching: false,
+    awaitingStart: false,
+    lastCheckAt: null,
+    now: 100_000,
+  };
+
+  test('re-checks an ask source that was never or not recently checked', () => {
+    expect(shouldRecheckRemote(base)).toBe(true);
+    expect(shouldRecheckRemote({ ...base, lastCheckAt: 90_000 })).toBe(true);
+    expect(shouldRecheckRemote({ ...base, lastCheckAt: 95_000 })).toBe(false);
+  });
+
+  test('never re-checks Storytel, a track switch or a book still loading', () => {
+    expect(shouldRecheckRemote({ ...base, policy: 'newest' })).toBe(false);
+    expect(shouldRecheckRemote({ ...base, switching: true })).toBe(false);
+    expect(shouldRecheckRemote({ ...base, awaitingStart: true })).toBe(false);
+  });
+
+  // The owner's case: paused at 23:19 with that value written remotely, then
+  // the phone moved the book to 26:38. Resuming must ask, not play on.
+  test('a paused book whose position the phone moved asks on resume', () => {
+    const current = storedPosition(1_399_654, 1_399_654);
+    expect(resolveStartPosition(current, { positionMs: 1_598_840, device: 'iPhone' })).toEqual({
+      kind: 'ask',
+      localMs: 1_399_654,
+      remoteMs: 1_598_840,
+      device: 'iPhone',
+    });
+    // Unchanged on the phone: play on
+    expect(resolveStartPosition(current, { positionMs: 1_399_654, device: 'Bookwave' }).kind).toBe(
+      'use',
+    );
   });
 });
