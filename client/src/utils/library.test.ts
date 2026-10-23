@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { BookShelfEntity } from '../interfaces/books';
 import type { AudiotekaLibraryEntry, LibraryBook } from '../interfaces/library';
-import { fromAudiotekaEntry, fromShelfEntity, libraryFor } from './library';
+import { dashboardBody, fromAudiotekaEntry, fromShelfEntity, libraryFor } from './library';
 
 const shelf = (o: {
   id?: number;
@@ -126,5 +126,18 @@ describe('fromShelfEntity', () => {
       '2026-01-01T00:00:00Z',
     );
     expect(fromShelfEntity(shelf({})).lastActivity).toBeNull();
+  });
+});
+
+describe('dashboardBody', () => {
+  test('a logged-out active service shows nothing but its banner', () => {
+    expect(dashboardBody({ activeLoggedIn: false, total: 0, matching: 0 })).toBe('loggedOut');
+    expect(dashboardBody({ activeLoggedIn: false, total: 3, matching: 3 })).toBe('loggedOut');
+  });
+
+  test('a logged-in service shows its empty library, no match or its books', () => {
+    expect(dashboardBody({ activeLoggedIn: true, total: 0, matching: 0 })).toBe('empty');
+    expect(dashboardBody({ activeLoggedIn: true, total: 4, matching: 0 })).toBe('noMatch');
+    expect(dashboardBody({ activeLoggedIn: true, total: 4, matching: 2 })).toBe('books');
   });
 });

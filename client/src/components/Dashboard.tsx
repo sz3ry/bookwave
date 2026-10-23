@@ -11,6 +11,7 @@ import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
 import type { BookShelfEntity, BookShelfResponse } from '../interfaces/books';
 import type { AudiotekaLibraryEntry, LibraryBook, ProviderId } from '../interfaces/library';
 import {
+  dashboardBody,
   fromAudiotekaEntry,
   fromShelfEntity,
   libraryFor,
@@ -284,6 +285,12 @@ export function Dashboard({
 
     return result;
   }, [books, filterStatus, searchQuery]);
+  // An expired (or otherwise logged-out) active service shows only its banner.
+  const body = dashboardBody({
+    activeLoggedIn,
+    total: books.length,
+    matching: filteredBooks.length,
+  });
 
   const handleBookSelect = (book: LibraryBook) => {
     if (book.audioteka) {
@@ -499,51 +506,53 @@ export function Dashboard({
         )}
 
         {/* Filter Status Tabs */}
-        <div className="flex items-center gap-2 mb-7 overflow-x-auto pb-1 no-scrollbar border-b border-white/[0.06] pt-1">
-          {[
-            { status: null, label: t('dashboard.filters.all', 'All'), count: counts.all },
-            {
-              status: 'started' as const,
-              label: t('dashboard.filters.started', 'Started'),
-              count: counts.started,
-            },
-            {
-              status: 'notStarted' as const,
-              label: t('dashboard.filters.notStarted', 'Not started'),
-              count: counts.notStarted,
-            },
-            {
-              status: 'concluded' as const,
-              label: t('dashboard.filters.concluded', 'Concluded'),
-              count: counts.concluded,
-            },
-          ].map(({ status, label, count }) => {
-            const isActive = filterStatus === status;
-            return (
-              <button
-                key={String(status)}
-                type="button"
-                onClick={() => setFilterStatus(status)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all select-none ${
-                  isActive
-                    ? 'bg-[#FF5100]/15 text-[#FF5100] border border-[#FF5100]/40 shadow-sm'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                }`}
-              >
-                <span>{label}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    isActive ? 'bg-[#FF5100] text-white' : 'bg-[#222225] text-gray-400'
+        {body !== 'loggedOut' && (
+          <div className="flex items-center gap-2 mb-7 overflow-x-auto pb-1 no-scrollbar border-b border-white/[0.06] pt-1">
+            {[
+              { status: null, label: t('dashboard.filters.all', 'All'), count: counts.all },
+              {
+                status: 'started' as const,
+                label: t('dashboard.filters.started', 'Started'),
+                count: counts.started,
+              },
+              {
+                status: 'notStarted' as const,
+                label: t('dashboard.filters.notStarted', 'Not started'),
+                count: counts.notStarted,
+              },
+              {
+                status: 'concluded' as const,
+                label: t('dashboard.filters.concluded', 'Concluded'),
+                count: counts.concluded,
+              },
+            ].map(({ status, label, count }) => {
+              const isActive = filterStatus === status;
+              return (
+                <button
+                  key={String(status)}
+                  type="button"
+                  onClick={() => setFilterStatus(status)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all select-none ${
+                    isActive
+                      ? 'bg-[#FF5100]/15 text-[#FF5100] border border-[#FF5100]/40 shadow-sm'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
                   }`}
                 >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  <span>{label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isActive ? 'bg-[#FF5100] text-white' : 'bg-[#222225] text-gray-400'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-        {active && (
+        {active && body !== 'loggedOut' && (
           <ContinueSeriesRow
             candidates={seriesCandidates}
             ownedIds={ownedIds}
@@ -552,7 +561,7 @@ export function Dashboard({
         )}
 
         {/* Book Grid */}
-        {books.length === 0 ? (
+        {body === 'loggedOut' ? null : body === 'empty' ? (
           <div className="text-center py-20 bg-[#141414] border border-white/[0.06] rounded-3xl p-8 max-w-lg mx-auto shadow-2xl">
             <div className="w-16 h-16 mx-auto mb-4 bg-white/[0.04] border border-white/[0.08] rounded-2xl flex items-center justify-center text-gray-500">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -578,7 +587,7 @@ export function Dashboard({
               {t('dashboard.exploreCatalog', 'Explore the catalog (⌘K)')}
             </button>
           </div>
-        ) : filteredBooks.length === 0 ? (
+        ) : body === 'noMatch' ? (
           <div className="text-center py-16 bg-[#141414] border border-white/[0.06] rounded-3xl p-8 space-y-3 max-w-lg mx-auto shadow-xl">
             <p className="text-gray-300 text-sm font-medium">
               {t('dashboard.noFilterMatch', 'No books matched your filter.')}

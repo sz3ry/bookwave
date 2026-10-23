@@ -94,6 +94,23 @@ export function libraryFor(result: PromiseSettledResult<LibraryBook[]>): {
   return { books: [...result.value].sort(compareBooks), failed: false };
 }
 
+/** What the Dashboard shows below its banners. */
+export type DashboardBody = 'loggedOut' | 'empty' | 'noMatch' | 'books';
+
+/**
+ * A logged-out (e.g. expired) active service shows only its "log in again" banner:
+ * no empty-library block and no way into a catalogue that would answer 401.
+ */
+export function dashboardBody(input: {
+  activeLoggedIn: boolean;
+  total: number;
+  matching: number;
+}): DashboardBody {
+  if (!input.activeLoggedIn) return 'loggedOut';
+  if (input.total === 0) return 'empty';
+  return input.matching === 0 ? 'noMatch' : 'books';
+}
+
 /** Position saved on this device for an Audioteka book (`pos:audioteka:<id>`), if any. */
 export async function readAudiotekaLocalPosition(
   audiobookId: string,
