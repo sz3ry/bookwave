@@ -410,13 +410,21 @@ describe('AudiotekaClient catalogue', () => {
       'GET /v2/me/algolia': () =>
         json({
           index: 'prod_lite_pl_catalog',
-          select_facets: [{ name: 'shelf_only', value: 'false' }],
-          restrict_facets: [{ name: 'catalog', value: 'cat-1' }],
+          select_facets: [
+            { name: 'shelf_only', value: 'false' },
+            { name: 'kind', value: 'audiobook' },
+          ],
+          restrict_facets: [
+            { name: 'catalog', value: 'cat-1' },
+            { name: 'country', value: 'PL' },
+          ],
         }),
       'POST /1/indexes/prod_lite_pl_catalog/query': (call) => {
         expect(call.body).toEqual({
           query: 'sapkowski',
-          filters: "catalog:'cat-1' AND shelf_only:'false'",
+          // As the audioteka.com bundle: select facets ORed, restrict facets ANDed.
+          filters:
+            "(shelf_only:'false' OR kind:'audiobook') AND (catalog:'cat-1' AND country:'PL')",
           hitsPerPage: 50,
         });
         // The Audioteka bearer never goes to Algolia.
@@ -474,13 +482,44 @@ describe('AudiotekaClient catalogue', () => {
     expect(urls.filter((url) => url.includes('/v2/authors/'))).toHaveLength(2);
   });
 
+  test('getList pages a cycle list', async () => {
+    const urls: string[] = [];
+    const base = stubFetch({
+      [CONFIG]: config(),
+      'GET /v2/me': me,
+      'GET /v2/cycles/cyc-1': () => json({ id: 'cyc-1', name: 'Nowości', cycle_type: 'generic' }),
+      'GET /v2/cycles/cyc-1/products': [
+        () => products([club('b1'), club('b2', { is_available_in_subscription: false })], 1, 3, 60),
+        () => products([club('b3')], 3, 3, 60),
+      ],
+    });
+    const fetchImpl: FetchLike = (input, init) => {
+      urls.push(String(input));
+      return base.fetchImpl(input, init);
+    };
+    const { client } = makeClient(fetchImpl);
+
+    const first = await client.getList('cycle:cyc-1', 1);
+    expect(first).toEqual({
+      title: 'Nowości',
+      totalCount: 60,
+      items: [expect.objectContaining({ id: 'b1' })],
+      nextPageToken: '2',
+    });
+    const last = await client.getList('cycle:cyc-1', 3);
+    expect(last.nextPageToken).toBe(null);
+    expect(
+      urls.filter((url) => url.includes('/products')).map((url) => new URL(url).search),
+    ).toEqual(['?catalog=cat-1&page=1&limit=20', '?catalog=cat-1&page=3&limit=20']);
+  });
+
   test('getList rejects section lists and unknown lists', async () => {
     const { fetchImpl } = stubFetch({ [CONFIG]: config() });
     const { client } = makeClient(fetchImpl);
     const section = await client.getList('section:audioteka-new-audiobooks-pl', 1).catch((e) => e);
     expect(section).toBeInstanceOf(AudiotekaHttpError);
     expect(section.status).toBe(404);
-    const unknown = await client.getList('cycle:x', 1).catch((e) => e);
+    const unknown = await client.getList('genre:x', 1).catch((e) => e);
     expect(unknown).toBeInstanceOf(AudiotekaHttpError);
   });
 
@@ -576,6 +615,21 @@ describe('AudiotekaClient catalogue', () => {
 
     expect(page.inLibrary).toBe(true);
     expect(page.removable).toBe(false);
+  });
+
+  test('unauthorized during getBookPage propagates', async () => {
+    for (const failing of ['GET /v2/me/recommended-after/b1', 'GET /v2/cycles/ser-1/products']) {
+      const handlers = bookPageHandlers([]);
+      // The extra lookups hit an expired session whose refresh is rejected.
+      handlers[failing] = () => json({}, 401);
+      handlers['command:RefreshToken'] = () => json({}, 401);
+      const { fetchImpl } = stubFetch(handlers);
+      const { client } = makeClient(fetchImpl);
+
+      const error = await client.getBookPage('b1').catch((e) => e);
+
+      expect(error).toBeInstanceOf(AudiotekaUnauthorizedError);
+    }
   });
 
   test('getSeries maps a series cycle', async () => {

@@ -99,9 +99,40 @@ describe('toHomeRows', () => {
     expect(rows[0].id).toBe('audioteka-new-audiobooks-pl');
     expect(rows[0].title).toBe('Nowości');
     expect(rows[0].items.map((item) => item.id)).toEqual(['b1', 'b2']);
-    // The section endpoint only repeats the row's own items, so there is no
-    // "see all" list behind a home row.
+    // No deeplink to a cycle: no "See all" list.
     expect(rows[0].itemsUrl).toBe(null);
+  });
+
+  test('toHomeRows uses the cycle deeplink for See all', () => {
+    const grid = (id: string, deeplink: unknown) => ({
+      id,
+      type: 'product-grid',
+      title: id,
+      deeplink,
+      _embedded: { 'app:product': [product(`${id}-b`, 'Jeden')] },
+    });
+    const rows = toHomeRows({
+      _embedded: {
+        'app:screen-section': [
+          grid(
+            'products',
+            'https://lstn.link/cycle-products/03ae7be7-5dd3-4010-901c-ccbbc9343f53?catalog=cat-1',
+          ),
+          grid(
+            'cycle',
+            'https://lstn.link/cycle/2f902a8c-996b-476f-a8eb-71e8549a7cfd?catalog=cat-1',
+          ),
+          grid('other', 'https://lstn.link/audiobook/aac673f9-c340-4386-bb56-024b76b5fb85'),
+          grid('none', null),
+        ],
+      },
+    });
+    expect(rows.map((row) => row.itemsUrl)).toEqual([
+      'cycle:03ae7be7-5dd3-4010-901c-ccbbc9343f53',
+      'cycle:2f902a8c-996b-476f-a8eb-71e8549a7cfd',
+      null,
+      null,
+    ]);
   });
 
   test('returns no rows for an unreadable screen', () => {

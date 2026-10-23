@@ -141,8 +141,18 @@ export const toCatalogBooks = (products: unknown[]): CatalogBook[] =>
     return book ? [book] : [];
   });
 
+const CYCLE_DEEPLINK = /^https:\/\/lstn\.link\/cycle(?:-products)?\/([0-9a-f-]{36})(?:[?#/]|$)/i;
+
+// A row's full list is the cycle its deeplink points at
+// (`lstn.link/cycle-products/<id>` or `lstn.link/cycle/<id>`).
+const seeAllUrl = (deeplink: unknown): string | null => {
+  const match = typeof deeplink === 'string' ? CYCLE_DEEPLINK.exec(deeplink) : null;
+  return match ? `cycle:${match[1]}` : null;
+};
+
 // Home rows are the `product-grid` sections of `/v2/me/screen`. Their section
-// endpoint only repeats the same items, so a row has no "see all" list.
+// endpoint only repeats the same items, so "See all" opens the cycle the
+// section's deeplink names instead.
 export function toHomeRows(screen: unknown): DiscoveryRow[] {
   return embeddedList(screen, 'app:screen-section').flatMap((section) => {
     if (!isRecord(section) || section.type !== 'product-grid') return [];
@@ -150,7 +160,9 @@ export function toHomeRows(screen: unknown): DiscoveryRow[] {
     if (!id) return [];
     const items = toCatalogBooks(embeddedList(section, 'app:product'));
     if (items.length === 0) return [];
-    return [{ id, title: nonEmpty(section.title) ?? '', items, itemsUrl: null }];
+    return [
+      { id, title: nonEmpty(section.title) ?? '', items, itemsUrl: seeAllUrl(section.deeplink) },
+    ];
   });
 }
 

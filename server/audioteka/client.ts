@@ -101,6 +101,37 @@ const facetFilters = (facets: unknown): string[] =>
       : [],
   );
 
+const group = (parts: string[], joiner: string): string =>
+  parts.length > 1 ? `(${parts.join(joiner)})` : (parts[0] ?? '');
+
+// As the audioteka.com web bundle: any select facet AND every restrict facet.
+const algoliaFilters = (settings: Record<string, unknown>): string =>
+  [
+    group(facetFilters(settings.select_facets), ' OR '),
+    group(facetFilters(settings.restrict_facets), ' AND '),
+  ]
+    .filter(Boolean)
+    .join(' AND ');
+
+// Best-effort lookups may fail quietly, but never hide an ended session.
+const unlessUnauthorized =
+  <T>(fallback: T) =>
+  (error: unknown): T => {
+    if (error instanceof AudiotekaUnauthorizedError) throw error;
+    return fallback;
+  };
+
+// One page of a paged Audioteka product list, Club audiobooks only.
+const toPagedList = (title: string, data: unknown, page: number): DiscoveryList => {
+  const pages = isRecord(data) && typeof data.pages === 'number' ? data.pages : page;
+  return {
+    title,
+    totalCount: isRecord(data) && typeof data.total === 'number' ? data.total : 0,
+    items: toCatalogBooks(embeddedList(data, 'app:product')),
+    nextPageToken: page < pages ? String(page + 1) : null,
+  };
+};
+
 const containsId = (list: unknown, id: string): boolean =>
   embeddedItems(list).some((item) => isRecord(item) && item.id === id);
 
@@ -212,8 +243,9 @@ export class AudiotekaClient {
     return toHomeRows(await this.cachedGet('/v2/me/screen'));
   }
 
-  // `author:<id>` pages an author's books. Home rows (`section:<id>`) have no
-  // list behind them: their section endpoint only repeats the row's items.
+  // `author:<id>` pages an author's books and `cycle:<id>` a cycle's (a home
+  // row's "See all"). `section:<id>` has no list behind it: the section
+  // endpoint only repeats the row's items.
   async getList(itemsUrl: string, page: number): Promise<DiscoveryList> {
     const pageNumber = Number.isInteger(page) && page >= 1 ? page : 1;
     if (itemsUrl.startsWith('author:')) {
@@ -223,20 +255,29 @@ export class AudiotekaClient {
       const data = await this.cachedGet(
         `/v2/authors/${encodeURIComponent(authorId)}/products?catalog=${encodeURIComponent(catalog)}&page=${pageNumber}&limit=${LIST_PAGE_SIZE}`,
       );
-      const products = embeddedList(data, 'app:product');
-      const pages = isRecord(data) && typeof data.pages === 'number' ? data.pages : pageNumber;
-      const total = isRecord(data) && typeof data.total === 'number' ? data.total : 0;
       // The products list carries no author entity; take the name from a book.
       const title =
-        products
+        embeddedList(data, 'app:product')
           .flatMap((product) => toProductBook(product)?.authorRefs ?? [])
           .find((ref) => ref.id === authorId)?.name ?? '';
-      return {
-        title,
-        totalCount: total,
-        items: toCatalogBooks(products),
-        nextPageToken: pageNumber < pages ? String(pageNumber + 1) : null,
-      };
+      return toPagedList(title, data, pageNumber);
+    }
+    if (itemsUrl.startsWith('cycle:')) {
+      const cycleId = itemsUrl.slice('cycle:'.length);
+      if (!cycleId) throw new AudiotekaHttpError('Audioteka list has no cycle id', 400);
+      const catalog = encodeURIComponent(await this.getCatalogId());
+      const encoded = encodeURIComponent(cycleId);
+      const [cycle, data] = await Promise.all([
+        this.cachedGet(`/v2/cycles/${encoded}?catalog=${catalog}`),
+        this.cachedGet(
+          `/v2/cycles/${encoded}/products?catalog=${catalog}&page=${pageNumber}&limit=${LIST_PAGE_SIZE}`,
+        ),
+      ]);
+      return toPagedList(
+        isRecord(cycle) && typeof cycle.name === 'string' ? cycle.name : '',
+        data,
+        pageNumber,
+      );
     }
     if (itemsUrl.startsWith('section:')) {
       throw new AudiotekaHttpError('Audioteka home rows have no full list', 404);
@@ -251,10 +292,7 @@ export class AudiotekaClient {
     if (!isRecord(settings) || typeof settings.index !== 'string' || !settings.index) {
       throw new Error('Audioteka returned no search index');
     }
-    const filters = [
-      ...facetFilters(settings.restrict_facets),
-      ...facetFilters(settings.select_facets),
-    ].join(' AND ');
+    const filters = algoliaFilters(settings);
     return toCatalogBooks(
       await searchAlgolia(text, { index: settings.index, filters }, this.fetchImpl),
     );
@@ -268,7 +306,7 @@ export class AudiotekaClient {
       this.get(`/v2/me/shelf${LIST_QUERY}`),
       this.get(`/v2/me/recently-played${LIST_QUERY}`),
       // Recommendations are extra: a failure leaves the list empty.
-      this.cachedGet(`/v2/me/recommended-after/${encoded}`).catch(() => null),
+      this.cachedGet(`/v2/me/recommended-after/${encoded}`).catch(unlessUnauthorized(null)),
     ]);
     const book = toProductBook(detail);
     if (!book || !isRecord(detail)) {
@@ -328,8 +366,8 @@ export class AudiotekaClient {
         (product) => isRecord(product) && product.id === bookId,
       );
       return index === -1 ? null : index + 1;
-    } catch {
-      return null;
+    } catch (error) {
+      return unlessUnauthorized(null)(error);
     }
   }
 
