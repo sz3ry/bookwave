@@ -49,9 +49,13 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
   } | null>(null);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Searches can overlap (a new query, another active service); only the latest
+  // one may set results, so an older query or the previous service's hits are dropped.
+  const searchSeqRef = useRef(0);
 
   // Perform backend search
   const performSearch = async (searchTerm: string) => {
+    const seq = ++searchSeqRef.current;
     const q = searchTerm.trim();
     setSearchUnavailable(false);
     if (!q) {
@@ -64,6 +68,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
     try {
       setIsLoading(true);
       const results = await catalog.search(q);
+      if (seq !== searchSeqRef.current) return;
       setRawResults(results);
       if (results.length > 0) {
         setSelectedBook(results[0]);
@@ -71,12 +76,13 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
         setSelectedBook(null);
       }
     } catch (err) {
+      if (seq !== searchSeqRef.current) return;
       console.error('Catalog search failed:', err);
       setSearchUnavailable(isSearchUnavailable(err));
       setRawResults([]);
       setSelectedBook(null);
     } finally {
-      setIsLoading(false);
+      if (seq === searchSeqRef.current) setIsLoading(false);
     }
   };
 
@@ -87,6 +93,8 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
+    // Whatever search is still in flight belongs to the previous query or service.
+    searchSeqRef.current++;
     setAuthorList(null);
     setSearchUnavailable(false);
 
@@ -110,6 +118,7 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset only when the service changes
   useEffect(() => {
     setAddedBooks({});
+    setRawResults([]);
     setSelectedBook(null);
   }, [catalog]);
 
