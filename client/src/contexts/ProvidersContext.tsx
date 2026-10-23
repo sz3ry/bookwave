@@ -1,43 +1,12 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { ProviderId } from '../interfaces/library';
-import { lastSessionKey, migrateLegacySession } from '../playback/lastSession';
-import { resolveActiveService } from '../utils/activeService';
+import {
+  ACTIVE_SERVICE_KEY,
+  resolveActiveService,
+  resolveAndPersistActive,
+} from '../utils/activeService';
 import storage from '../utils/storage';
-
-const ACTIVE_SERVICE_KEY = 'activeService';
-const LEGACY_SESSION_KEY = 'last_played_session';
-
-const parseStored = (raw: unknown): unknown => {
-  if (typeof raw !== 'string') return raw ?? null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-};
-
-const asProviderId = (value: unknown): ProviderId | null =>
-  value === 'storytel' || value === 'audioteka' ? value : null;
-
-/**
- * Resolves the active service and copies the legacy single last session into its
- * per-service key (the legacy key stays until the player reads the new keys).
- */
-async function resolveAndPersistActive(login: {
-  storytel: boolean;
-  audioteka: boolean;
-}): Promise<ProviderId | null> {
-  const stored = asProviderId(parseStored(await storage.get(ACTIVE_SERVICE_KEY)));
-  const legacySession = parseStored(await storage.get(LEGACY_SESSION_KEY));
-  const legacy = migrateLegacySession(legacySession);
-  if (legacy && !(await storage.get(lastSessionKey(legacy.provider)))) {
-    await storage.set(lastSessionKey(legacy.provider), JSON.stringify(legacy.record));
-  }
-  const active = resolveActiveService({ stored, ...login, legacySession });
-  if (active && active !== stored) await storage.set(ACTIVE_SERVICE_KEY, JSON.stringify(active));
-  return active;
-}
 
 export interface ProvidersContextValue {
   storytel: boolean;
@@ -92,7 +61,7 @@ export function useProvidersState() {
       const login = { storytel: state.storytel.loggedIn, audioteka: state.audioteka.loggedIn };
       let active: ProviderId | null = null;
       try {
-        active = await resolveAndPersistActive(login);
+        active = await resolveAndPersistActive(storage, login);
       } catch (error) {
         console.error('Failed to resolve the active service:', error);
         active = resolveActiveService({ stored: null, ...login, legacySession: null });

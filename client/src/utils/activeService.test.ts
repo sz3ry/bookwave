@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveActiveService } from './activeService';
+import { resolveActiveService, resolveAndPersistActive } from './activeService';
 
 const AUDIOTEKA_ID = '0f8c5a52-1111-4222-8333-944445555666';
 const audiotekaLegacy = {
@@ -17,7 +17,42 @@ const audiotekaLegacy = {
   },
 };
 
+const storytelLegacy = { book: null, bookId: '123456', consumableId: 'aB3dE' };
+
+const memoryStore = (initial: Record<string, string>) => {
+  const data = { ...initial };
+  return {
+    data,
+    get: async (key: string) => data[key],
+    set: async (key: string, value: string) => {
+      data[key] = value;
+    },
+  };
+};
+
 describe('resolveActiveService', () => {
+  test('migrates a Storytel legacy record', () => {
+    expect(
+      resolveActiveService({
+        stored: null,
+        storytel: true,
+        audioteka: true,
+        legacySession: storytelLegacy,
+      }),
+    ).toBe('storytel');
+  });
+
+  test('ignores the legacy owner when it is logged out', () => {
+    expect(
+      resolveActiveService({
+        stored: null,
+        storytel: true,
+        audioteka: false,
+        legacySession: audiotekaLegacy,
+      }),
+    ).toBe('storytel');
+  });
+
   test('keeps the stored service when logged in', () => {
     expect(
       resolveActiveService({
@@ -66,5 +101,40 @@ describe('resolveActiveService', () => {
         legacySession: audiotekaLegacy,
       }),
     ).toBeNull();
+  });
+});
+
+describe('resolveAndPersistActive', () => {
+  const both = { storytel: true, audioteka: true };
+
+  test('copies the legacy record only when the provider slot is empty', async () => {
+    const store = memoryStore({ last_played_session: JSON.stringify(audiotekaLegacy) });
+    await resolveAndPersistActive(store, both);
+    expect(store.data['last_played_session:audioteka']).toBe(JSON.stringify(audiotekaLegacy));
+    expect(store.data.last_played_session).toBeDefined();
+
+    const newer = JSON.stringify({
+      ...audiotekaLegacy,
+      entry: { ...audiotekaLegacy.entry, title: 'N' },
+    });
+    const filled = memoryStore({
+      last_played_session: JSON.stringify(audiotekaLegacy),
+      'last_played_session:audioteka': newer,
+    });
+    await resolveAndPersistActive(filled, both);
+    expect(filled.data['last_played_session:audioteka']).toBe(newer);
+  });
+
+  test('persists the resolved service only when nothing is stored', async () => {
+    const empty = memoryStore({});
+    expect(await resolveAndPersistActive(empty, both)).toBe('storytel');
+    expect(empty.data.activeService).toBe('"storytel"');
+  });
+
+  test('keeps the stored choice when its service is logged out', async () => {
+    const store = memoryStore({ activeService: '"audioteka"' });
+    const active = await resolveAndPersistActive(store, { storytel: true, audioteka: false });
+    expect(active).toBe('storytel');
+    expect(store.data.activeService).toBe('"audioteka"');
   });
 });
