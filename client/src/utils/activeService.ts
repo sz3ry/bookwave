@@ -68,3 +68,33 @@ export async function resolveAndPersistActive(
   if (active && !stored) await store.set(ACTIVE_SERVICE_KEY, JSON.stringify(active));
   return active;
 }
+
+/**
+ * True when a route belongs to a service that is not the active one; such a page
+ * (e.g. a book page left open across a switch) must not stay usable.
+ */
+export function isOtherServiceRoute(route: ProviderId, active: ProviderId | null): boolean {
+  return active !== null && route !== active;
+}
+
+/**
+ * Orders `setActive` against overlapping state refreshes: a refresh that began
+ * before the latest `setActive` must not replace the service that call chose.
+ */
+export function createActiveGuard() {
+  let claims = 0;
+  return {
+    /** Called when a refresh starts; pass the result to `pick`. */
+    begin: (): number => claims,
+    /** Called by `setActive` before it writes. */
+    claim: (): void => {
+      claims += 1;
+    },
+    /** The active service a refresh may apply: its own, unless `setActive` ran since. */
+    pick: (
+      startedAt: number,
+      resolved: ProviderId | null,
+      current: ProviderId | null,
+    ): ProviderId | null => (startedAt === claims ? resolved : current),
+  };
+}

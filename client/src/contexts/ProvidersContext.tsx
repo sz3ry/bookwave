@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { ProviderId } from '../interfaces/library';
 import {
   ACTIVE_SERVICE_KEY,
+  createActiveGuard,
   resolveActiveService,
   resolveAndPersistActive,
 } from '../utils/activeService';
@@ -52,9 +53,13 @@ const INITIAL: ProvidersSnapshot = { ...NONE, storytelEmail: null, active: null,
 /** Owns the login state of both providers; mirrors the main-process state. */
 export function useProvidersState() {
   const [snapshot, setSnapshot] = useState<ProvidersSnapshot>(INITIAL);
+  // A refresh (e.g. on window focus) that read the store before setActive wrote
+  // must not put back the service the user just left.
+  const [activeGuard] = useState(createActiveGuard);
 
   /** Re-reads the main-process state. Returns it, or null when it could not be read. */
   const refresh = useCallback(async () => {
+    const startedAt = activeGuard.begin();
     try {
       const state = await window.electronAuth?.getProviders();
       if (!state) return null;
@@ -70,7 +75,7 @@ export function useProvidersState() {
         storytel: state.storytel.loggedIn,
         audioteka: state.audioteka.loggedIn,
         storytelEmail: state.storytel.email,
-        active,
+        active: activeGuard.pick(startedAt, active, prev.active),
         expired: {
           storytel: !state.storytel.loggedIn && prev.expired.storytel,
           audioteka: !state.audioteka.loggedIn && prev.expired.audioteka,
@@ -81,7 +86,7 @@ export function useProvidersState() {
       console.error('Failed to read providers state:', error);
       return null;
     }
-  }, []);
+  }, [activeGuard]);
 
   /** Marks a provider as logged out because its session expired. */
   const markExpired = useCallback((provider: AuthProvider) => {
@@ -94,10 +99,14 @@ export function useProvidersState() {
   }, []);
 
   /** Makes a service active. Does not check the login: Settings logs in first. */
-  const setActive = useCallback(async (provider: ProviderId) => {
-    await storage.set(ACTIVE_SERVICE_KEY, JSON.stringify(provider));
-    setSnapshot((prev) => ({ ...prev, active: provider }));
-  }, []);
+  const setActive = useCallback(
+    async (provider: ProviderId) => {
+      activeGuard.claim();
+      await storage.set(ACTIVE_SERVICE_KEY, JSON.stringify(provider));
+      setSnapshot((prev) => ({ ...prev, active: provider }));
+    },
+    [activeGuard],
+  );
 
   const value = useMemo<ProvidersContextValue>(
     () => ({

@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveActiveService, resolveAndPersistActive } from './activeService';
+import {
+  createActiveGuard,
+  isOtherServiceRoute,
+  resolveActiveService,
+  resolveAndPersistActive,
+} from './activeService';
 
 const AUDIOTEKA_ID = '0f8c5a52-1111-4222-8333-944445555666';
 const audiotekaLegacy = {
@@ -145,5 +150,42 @@ describe('resolveAndPersistActive', () => {
     const active = await resolveAndPersistActive(store, { storytel: true, audioteka: false });
     expect(active).toBe('storytel');
     expect(store.data.activeService).toBe('"audioteka"');
+  });
+});
+
+describe('isOtherServiceRoute', () => {
+  test('a route of the inactive service is the other one', () => {
+    expect(isOtherServiceRoute('storytel', 'audioteka')).toBe(true);
+    expect(isOtherServiceRoute('audioteka', 'storytel')).toBe(true);
+  });
+
+  test('a route of the active service, or no active service yet, is not', () => {
+    expect(isOtherServiceRoute('storytel', 'storytel')).toBe(false);
+    expect(isOtherServiceRoute('audioteka', 'audioteka')).toBe(false);
+    expect(isOtherServiceRoute('audioteka', null)).toBe(false);
+  });
+});
+
+describe('createActiveGuard', () => {
+  test('a refresh that started before setActive keeps the value setActive chose', () => {
+    const guard = createActiveGuard();
+    const refresh = guard.begin();
+    guard.claim();
+    expect(guard.pick(refresh, 'storytel', 'audioteka')).toBe('audioteka');
+  });
+
+  test('a refresh that started after setActive applies what it resolved', () => {
+    const guard = createActiveGuard();
+    guard.claim();
+    const refresh = guard.begin();
+    expect(guard.pick(refresh, 'storytel', 'audioteka')).toBe('storytel');
+  });
+
+  test('without setActive a refresh applies what it resolved', () => {
+    const guard = createActiveGuard();
+    const first = guard.begin();
+    const second = guard.begin();
+    expect(guard.pick(first, null, 'storytel')).toBe(null);
+    expect(guard.pick(second, 'audioteka', 'storytel')).toBe('audioteka');
   });
 });
