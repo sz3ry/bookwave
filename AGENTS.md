@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Bookwave** is an unofficial desktop application for playing Storytel audiobooks (Linux x64: AppImage and deb; Windows x64: NSIS), built with TypeScript, React, Fastify, and Electron.
+**Bookwave** is an unofficial desktop application for playing Storytel and Audioteka audiobooks (Linux x64: AppImage and deb; Windows x64: NSIS), built with TypeScript, React, Fastify, and Electron.
 
 ### Tech Stack
 
@@ -21,6 +21,7 @@ bookwave/
 │   ├── src/
 │   │   ├── components/  # React components
 │   │   ├── hooks/       # Custom React hooks
+│   │   ├── playback/    # Provider-neutral playback: timeline, position sync, sources
 │   │   ├── services/    # API services
 │   │   ├── utils/       # Utility functions
 │   │   └── i18n.ts      # i18next configuration
@@ -28,6 +29,7 @@ bookwave/
 ├── server/          # Fastify backend server
 │   ├── storytelApi.ts   # Storytel API integration
 │   ├── session.ts       # In-process Storytel session (one account)
+│   ├── audioteka/       # Audioteka client, session and `/api/audioteka/*` routes
 │   ├── locales/         # Translation files
 │   └── package.json
 ├── src/             # Electron main process
@@ -188,16 +190,47 @@ There is no browser mode: the app only runs inside Electron (from the Electron-o
 
 ## Important Notes
 
-- **Security**: The renderer never sees a Storytel token or the password. Storytel
-  tokens live in memory in the in-process server session (`server/session.ts`);
+- **Security**: The renderer never sees a Storytel or Audioteka token, the
+  password, or the Audioteka refresh id and device id. Tokens live in memory in the
+  in-process server sessions (`server/session.ts`, `server/audioteka/session.ts`);
   app logs mask tokens, the account email and login replies
 - **Authentication**: The main process's `AuthManager` (`src/modules/auth.ts`) logs
   in through the session and stores the credentials encrypted with Electron
   `safeStorage` (OS keyring); without a usable keyring the session lasts for the
-  current run only. The renderer uses `window.electronAuth` (login/logout/state)
+  current run only. The renderer uses `window.electronAuth` (login/logout/state).
+  Audioteka has its own `AudiotekaAuthManager` (`src/modules/audiotekaAuth.ts`):
+  the user signs in on the real audioteka.com page in a Bookwave window
+  (`src/modules/audiotekaLogin.ts`), so the password never reaches Bookwave; only
+  the refresh id and device id are kept, encrypted with `safeStorage` under the
+  `auth.audioteka` key
 - **Single Instance**: App uses single instance lock (one app instance at a time)
 - **Updates**: Electron updater is integrated for auto-updates
 - **Offline Mode**: Support for downloading audiobooks for offline playback
+
+## Providers
+
+Storytel is the original provider; Audioteka is a second one.
+- **Storytel**: routes (`/api/*` without a provider segment), local keys
+  (`pos:<consumableId>`, `last_played_session`, `downloads-index.json`) and the
+  stored `auth.credentials` are unchanged
+- **Audioteka**: routes live under `/api/audioteka/*` (`server/audioteka/routes.ts`),
+  local positions under `pos:audioteka:<audiobookId>`. The client lives in
+  `server/audioteka/client.ts`; read it before touching Audioteka code
+- **User-Agent version gate**: the Audioteka API rejects outdated app versions, so
+  the client sends `Audioteka/<current_version> (3550) Android/14 (Phone;Pixel 8)`
+  with `<current_version>` read from `GET /v2/apps/config/android`
+  (`app_version_config.current_version`), falling back to `3.55.0`
+- **Playback**: the player works on a provider-neutral timeline of tracks
+  (`client/src/playback/`); each provider supplies a source with its track URLs
+  and position read/write. Local positions are saved every 15 s and never wait on
+  the network. Audioteka positions are sent to the remote at most every 60 s
+  while playing, plus on pause, book switch and app quit, and only when the
+  position moved more than 1 s from the last remote-seen value (so an untouched
+  book never overwrites a newer position from another device). When the remote and
+  local positions differ by more than 30 s the user is asked which to use
+- **Limits in this version**: Audioteka has no search or discover, offline
+  downloads, favourite toggling or bookmarks; `last_played_session` is
+  Storytel-only
 
 ## Git Repository
 

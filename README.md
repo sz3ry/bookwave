@@ -1,10 +1,10 @@
 # Bookwave
 
-Unofficial desktop player for Storytel audiobooks, built with TypeScript, React, Fastify and Electron.
+Unofficial desktop player for Storytel and Audioteka audiobooks, built with TypeScript, React, Fastify and Electron.
 Based on [debba/storytel-player](https://github.com/debba/storytel-player).
 
 > [!NOTE]
-> This is an independent project, not affiliated with Storytel.
+> This is an independent project, not affiliated with Storytel or Audioteka.
 
 ## Download
 
@@ -18,6 +18,8 @@ Bookwave checks for updates on startup and can install them automatically.
 
 Accounts created through Google or Apple sign-in cannot log in directly. Set a password in the Storytel account panel first, then sign in to Bookwave with your email and that password.
 
+Audioteka accounts sign in on the real audioteka.com page, opened in a Bookwave window. Bookwave never sees or stores your Audioteka password, only a refresh token and device id, encrypted with your operating system's keyring.
+
 ## Features
 
 - **Library**: browse your Storytel bookshelf with cover art, progress tracking and status filters
@@ -27,10 +29,20 @@ Accounts created through Google or Apple sign-in cannot log in directly. Set a p
 - **Continue series**: a row on the dashboard that offers the next part of series you have finished
 - **Player**: chapters, bookmarks, playback speed, sleep timer, multiple audio tracks and automatic resume
 - **Background playback**: a persistent mini-player with play/pause, skip, speed, chapters and sleep timer
-- **Offline listening**: download audiobooks for offline playback
+- **Offline listening**: download Storytel audiobooks for offline playback
+- **Audioteka**: books from your shelf, recently played and favourites sit in the same library, with position sync to your other devices (Bookwave asks which position to use when they differ by more than 30 seconds)
 - **Desktop integration**: system tray and single instance lock
 - **Internationalization**: English, German, Spanish, Finnish, French, Italian, Polish and Swedish, with the interface language following your operating system
 - **Logging**: HTTP and action logs, exportable for debugging, with automatic rotation
+
+## Audioteka limits
+
+This first version of Audioteka support is limited:
+- no search or discover, and no offline downloads
+- no favouriting and no bookmarks
+- Club books that are not on your shelf show up only through recently played or favourites
+- books you cannot listen to are greyed out
+- on launch Bookwave restores the last Storytel book only, never an Audioteka one
 
 ## Development
 
