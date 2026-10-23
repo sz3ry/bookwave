@@ -7,7 +7,7 @@ import type {
 } from '../interfaces/books';
 import api from '../utils/api';
 import { searchResultToAudiotekaEntry } from '../utils/helpers';
-import { type CatalogApi, toSeriesInfo } from './types';
+import { type BookPageData, type CatalogApi, toSeriesInfo } from './types';
 
 const BASE = '/audioteka';
 
@@ -39,6 +39,8 @@ export const audiotekaCatalog: CatalogApi = {
     toSeriesInfo(
       (await api.get(`${BASE}/book-details/${encodeURIComponent(id)}`)).data?.book?.seriesInfo,
     ),
+  bookPage: async (id) =>
+    (await api.get<BookPageData>(`${BASE}/book-details/${encodeURIComponent(id)}`)).data,
   addToLibrary: async (id) => {
     await api.post(`${BASE}/library/add`, { id });
   },

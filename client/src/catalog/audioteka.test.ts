@@ -97,3 +97,11 @@ describe('audiotekaCatalog', () => {
     expect(calls.map((c) => c.url)).toEqual([`/api/audioteka/book-details/${BOOK_ID}`]);
   });
 });
+
+describe('audiotekaCatalog.bookPage', () => {
+  test('returns the server book page as is', async () => {
+    const page = { book: hit, inLibrary: true, removable: false, recommendedAfter: [hit] };
+    responses[`get /api/audioteka/book-details/${BOOK_ID}`] = page;
+    expect(await audiotekaCatalog.bookPage(BOOK_ID)).toEqual(page);
+  });
+});

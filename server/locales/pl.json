@@ -162,7 +162,8 @@
     "showMore": "pokaż więcej",
     "showLess": "pokaż mniej",
     "details": "Szczegóły książki:",
-    "loadError": "Nie udało się wczytać szczegółów książki"
+    "loadError": "Nie udało się wczytać szczegółów książki",
+    "recommendedAfter": "Po tej książce"
   },
   "chapters": {
     "title": "Ścieżki i rozdziały",

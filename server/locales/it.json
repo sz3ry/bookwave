@@ -160,7 +160,8 @@
     "showMore": "mostra di più",
     "showLess": "mostra meno",
     "details": "Dettagli Libro:",
-    "loadError": "Impossibile caricare i dettagli del libro"
+    "loadError": "Impossibile caricare i dettagli del libro",
+    "recommendedAfter": "Dopo questo libro"
   },
   "chapters": {
     "title": "Tracce audio e Capitoli",

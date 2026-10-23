@@ -160,7 +160,8 @@
     "showMore": "näytä enemmän",
     "showLess": "näytä vähemmän",
     "details": "Kirjan tiedot:",
-    "loadError": "Kirjan tietojen lataaminen epäonnistui"
+    "loadError": "Kirjan tietojen lataaminen epäonnistui",
+    "recommendedAfter": "Tämän kirjan jälkeen"
   },
   "chapters": {
     "title": "Ääniraidat ja luvut",

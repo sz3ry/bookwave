@@ -33,7 +33,7 @@ export function fromShelfEntity(e: BookShelfEntity): LibraryBook {
     durationMs: (e.abook?.time || 0) / 1000,
     positionMs: (e.abookMark?.pos || 0) / 1000,
     status: shelfStatus(e),
-    // The same fields compareByRecency ranks by.
+    // The same fields shelfCandidate ranks by.
     lastActivity: e.positionUpdatedTime || e.stateUpdateTime || null,
     available: true,
     storytel: e,

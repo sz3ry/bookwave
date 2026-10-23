@@ -116,13 +116,20 @@ export function SearchView({ query: propQuery }: SearchViewProps) {
   // A book handed over by another page (e.g. a series part opened from BookView)
   // is previewed with the Discover home still visible. Declared after the query
   // effect so it wins over that effect's reset on mount.
-  const handedOverBook = (location.state as { selectBook?: SearchResultBook } | null)?.selectBook;
+  // An author list handed over by a book page opens the same way.
+  const handover = location.state as {
+    selectBook?: SearchResultBook;
+    authorList?: { itemsUrl: string; title: string };
+  } | null;
+  const handedOverBook = handover?.selectBook;
+  const handedOverAuthorList = handover?.authorList;
   useEffect(() => {
-    if (!handedOverBook) return;
-    setSelectedBook(handedOverBook);
+    if (!handedOverBook && !handedOverAuthorList) return;
+    if (handedOverBook) setSelectedBook(handedOverBook);
+    if (handedOverAuthorList) setAuthorList(handedOverAuthorList);
     // Consume the handoff so back/reload do not select it again.
     navigate(location.pathname + location.search, { replace: true, state: null });
-  }, [handedOverBook, navigate, location.pathname, location.search]);
+  }, [handedOverBook, handedOverAuthorList, navigate, location.pathname, location.search]);
 
   // Compute language breakdown stats
   const languageStats = useMemo<LanguageStat[]>(() => {

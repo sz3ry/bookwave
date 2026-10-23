@@ -21,6 +21,16 @@ export type AuthorTarget =
   | { kind: 'list'; itemsUrl: string; title: string }
   | { kind: 'search'; query: string };
 
+/** Everything the book page shows about one book. */
+export interface BookPageData {
+  book: SearchResultBook;
+  inLibrary: boolean;
+  // The library entry can be removed from Bookwave.
+  removable: boolean;
+  // "After this book" recommendations; empty where the service has none.
+  recommendedAfter: SearchResultBook[];
+}
+
 /** The active service's catalogue: search, Discover, series and library edits. */
 export interface CatalogApi {
   provider: ProviderId;
@@ -30,6 +40,7 @@ export interface CatalogApi {
   list(itemsUrl: string, token?: string): Promise<DiscoveryList>;
   series(id: string, current: SeriesCurrent): Promise<DiscoverySeries>;
   seriesInfo(id: string): Promise<SeriesInfo | null>;
+  bookPage(id: string): Promise<BookPageData>;
   addToLibrary(id: string): Promise<void>;
   removeFromLibrary(id: string): Promise<void>;
   playTarget(book: SearchResultBook): { path: string; state: unknown };

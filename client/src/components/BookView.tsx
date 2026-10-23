@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type {
@@ -7,6 +7,7 @@ import type {
   SearchResultBook,
   SeriesInfo,
 } from '../interfaces/books';
+import type { AudiotekaLibraryEntry, ProviderId } from '../interfaces/library';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import Navbar from './Navbar';
@@ -20,140 +21,162 @@ import {
 } from '../utils/helpers';
 import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
 import SeriesHint, { useSeriesInfo } from './SeriesHint';
-import { storytelCatalog } from '../catalog';
+import { DiscoverCard } from './DiscoverList';
+import { audiotekaCatalog, type BookPageData, storytelCatalog } from '../catalog';
+import { useProviders } from '../contexts/ProvidersContext';
 import api from '../utils/api';
 import '../types/window.d.ts';
 
-const toSeriesInfo = (raw: any): SeriesInfo | null =>
-  raw?.id
-    ? {
-        id: String(raw.id),
-        name: String(raw.name ?? ''),
-        orderInSeries: typeof raw.orderInSeries === 'number' ? raw.orderInSeries : null,
-      }
-    : null;
+interface BookViewProps {
+  // The service the route belongs to; a deep link keeps it whichever is active.
+  provider: ProviderId;
+}
 
-function BookViewContent() {
+/** What the page shows, from the Storytel shelf entry or the catalogue's book page. */
+interface BookDisplay {
+  id: string;
+  title: string;
+  authors: { id?: string; name: string }[];
+  narrators: string;
+  coverUrl: string;
+  durationMs: number;
+  category: string;
+}
+
+const splitNames = (names: string): { name: string }[] =>
+  names
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => ({ name }));
+
+const shelfAuthors = (entity: BookShelfEntity): { id?: string; name: string }[] => {
+  const named = (entity.book.authors || []).filter((a) => a?.name);
+  return named.length
+    ? named.map((a) => ({ id: String(a.id), name: a.name }))
+    : splitNames(entity.book.authorsAsString || '');
+};
+
+// Storytel shelf entries carry microseconds.
+const fromShelfEntry = (entity: BookShelfEntity, id: string): BookDisplay => ({
+  id,
+  title: entity.book.name,
+  authors: shelfAuthors(entity),
+  narrators: entity.abook?.narratorAsString || '',
+  coverUrl: entity.book.largeCover || entity.book.largeCoverE,
+  durationMs: (entity.abook?.time || 0) / 1000,
+  category: entity.book.category?.title || '',
+});
+
+const fromPageBook = (book: SearchResultBook): BookDisplay => ({
+  id: book.id,
+  title: book.title,
+  authors: book.authorRefs?.length ? book.authorRefs : splitNames(book.authors),
+  narrators: book.narrators,
+  coverUrl: book.coverUrl,
+  durationMs: book.durationMs,
+  category: book.category,
+});
+
+function BookViewContent({ provider }: BookViewProps) {
   const { t, i18n } = useTranslation();
   const { bookId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { active } = useProviders();
+  const catalog = provider === 'audioteka' ? audiotekaCatalog : storytelCatalog;
+  // Author lists and recommendation previews open in the active service's
+  // search, so they are offered only for a book of that service.
+  const isActiveService = active === provider;
 
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showFullDescription, setShowFullDescription] = useState(false);
-  const [fetchedBook, setFetchedBook] = useState<BookShelfEntity | null>(null);
+  const [page, setPage] = useState<BookPageData | null>(null);
 
-  const book: BookShelfEntity | null = location.state?.book || fetchedBook;
+  // A Storytel book opened from the library, the player or a series part.
+  const stateBook: BookShelfEntity | null =
+    provider === 'storytel' ? location.state?.book || null : null;
+  // An Audioteka book opened from the library; it plays like the library card.
+  const stateEntry: AudiotekaLibraryEntry | null =
+    provider === 'audioteka' && location.state?.audiotekaBook?.id === bookId
+      ? location.state.audiotekaBook
+      : null;
+  // The id the catalogue knows the book by (the route may carry a Storytel abook id).
+  const pageId = String(stateBook?.book?.consumableId || bookId || '');
 
-  // description and language are not part of the bookshelf payload; they come
-  // from the per-book book-details endpoint, fetched lazily below.
-  const [description, setDescription] = useState('');
-  const [language, setLanguage] = useState('');
-  // Series info comes from the shelf entry or the book-details calls below, so
-  // the hook never fetches on its own here.
-  const [detailsSeries, setDetailsSeries] = useState<SeriesInfo | null>(null);
-  const seriesInfo = useSeriesInfo('', book?.book?.seriesInfo ?? detailsSeries, false);
-
-  useEffect(() => {
-    if (!location.state?.book && bookId) {
-      setIsLoading(true);
-      api
-        .get(`/book-details/${bookId}`)
-        .then((res) => {
-          const data = res.data || {};
-          const formats = data.formats || [];
-          const abook = formats.find((f: any) => f.type === 'abook');
-          const ebook = formats.find((f: any) => f.type === 'ebook');
-          const cover = abook?.cover?.url || ebook?.cover?.url || data.cover?.url || '';
-          const authors = (data.authors || []).map((a: any) => a.name).join(', ');
-          const narrators = (data.narrators || []).map((n: any) => n.name).join(', ');
-          const entity: any = {
-            id: bookId,
-            status: 1,
-            book: {
-              name: data.title || '',
-              authorsAsString: authors,
-              consumableId: String(bookId),
-              largeCover: cover,
-              largeCoverE: '',
-              category: { title: data.category?.name || '' },
-              language: { localizedName: '' },
-            },
-            abook: abook
-              ? {
-                  id: abook.id || bookId,
-                  narratorAsString: narrators,
-                  time: (abook.durationInMilliseconds || 0) * 1000,
-                  description: data.description || '',
-                }
-              : null,
-            abookMark: null,
-            ebook: ebook || null,
-          };
-          setFetchedBook(entity);
-          setDescription(data.description || '');
-          setDetailsSeries(toSeriesInfo(data.seriesInfo));
-          setLanguage(localizedLanguageName(data.language, i18n.language));
-        })
-        .catch((err) => {
-          console.error('Failed to fetch book details:', err);
-          setError(t('bookView.loadError', 'Failed to load book details'));
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    }
-  }, [bookId, location.state, i18n.language, t]);
-
-  useEffect(() => {
-    if (book) {
-      document.title = truncateTitle(book.book.name);
-    }
-
-    return () => {
-      document.title = 'Bookwave';
-    };
-  }, [book]);
-
-  // Fetch description and language from the book-details endpoint if book was passed via state.
-  useEffect(() => {
-    const consumableId = book?.book?.consumableId;
-    if (!consumableId || fetchedBook) return;
-    let cancelled = false;
-    api
-      .get(`/book-details/${consumableId}`)
-      .then((res) => {
-        if (cancelled) return;
-        const data = res.data || {};
-        setDescription(data.description || '');
-        setDetailsSeries(toSeriesInfo(data.seriesInfo));
-        setLanguage(localizedLanguageName(data.language, i18n.language));
-      })
-      .catch(() => {
-        /* keep empty fallbacks on failure */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [book, fetchedBook, i18n.language]);
+  const display: BookDisplay | null = stateBook
+    ? fromShelfEntry(stateBook, pageId)
+    : page
+      ? fromPageBook(page.book)
+      : null;
+  // Description, language and series come from the book page, which the shelf
+  // entry does not replace; the shelf's series wins when it has one.
+  const description = page?.book.description || '';
+  const language = page
+    ? localizedLanguageName(page.book.language, i18n.language, page.book.languageName)
+    : '';
+  const detailsSeries: SeriesInfo | null = page?.book.seriesInfo ?? null;
+  // Series info comes from the shelf entry or the book page, so the hook never
+  // fetches on its own here.
+  const seriesInfo = useSeriesInfo('', stateBook?.book?.seriesInfo ?? detailsSeries, false);
+  const finished = stateBook
+    ? isBookFinished(stateBook)
+    : !!stateEntry && location.state?.finished === true;
+  const isLoading = !stateBook && !page && !error;
 
   const [isSaving, setIsSaving] = useState(false);
-  const [isSaved, setIsSaved] = useState(!!location.state?.book);
+  const [isSaved, setIsSaved] = useState(!!stateBook);
+  // Only some library entries can be removed (Audioteka: favourites only).
+  const [removable, setRemovable] = useState(!!stateBook);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [saveToast, setSaveToast] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null,
   );
 
+  // With a shelf entry the page shows at once and the book page only adds
+  // details, so its failure is silent; without one the page needs it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loaded once per book; the key resets the view
+  useEffect(() => {
+    if (!pageId) return;
+    let cancelled = false;
+    catalog
+      .bookPage(pageId)
+      .then((data) => {
+        if (cancelled) return;
+        setPage(data);
+        if (!stateBook) {
+          setIsSaved(data.inLibrary);
+          setRemovable(data.removable);
+        }
+      })
+      .catch((err) => {
+        if (cancelled || stateBook) return;
+        console.error('Failed to fetch book details:', err);
+        setError(t('bookView.loadError', 'Failed to load book details'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [catalog, pageId]);
+
+  useEffect(() => {
+    if (display) {
+      document.title = truncateTitle(display.title);
+    }
+
+    return () => {
+      document.title = 'Bookwave';
+    };
+  }, [display?.title]);
+
   const handleSaveToLibrary = async () => {
-    if (isSaved || isSaving) return;
-    const consumableId = book?.book?.consumableId || bookId;
-    if (!consumableId) return;
+    if (isSaved || isSaving || !pageId) return;
 
     try {
       setIsSaving(true);
-      await api.post('/bookshelf/add', { consumableId: String(consumableId) });
+      await catalog.addToLibrary(pageId);
       setIsSaved(true);
+      setRemovable(true);
       window.dispatchEvent(new Event('bookshelfUpdated'));
       setSaveToast({
         type: 'success',
@@ -173,13 +196,13 @@ function BookViewContent() {
   };
 
   const handleRemoveFromLibrary = async () => {
-    const consumableId = book?.book?.consumableId || bookId;
-    if (!consumableId || isSaving) return;
+    if (!pageId || isSaving) return;
 
     try {
       setIsSaving(true);
-      await api.post('/bookshelf/remove', { consumableId: String(consumableId) });
+      await catalog.removeFromLibrary(pageId);
       setIsSaved(false);
+      setRemovable(false);
       setShowRemoveConfirm(false);
       window.dispatchEvent(new Event('bookshelfUpdated'));
       setSaveToast({ type: 'success', text: t('bookshelf.removed') });
@@ -194,9 +217,14 @@ function BookViewContent() {
     }
   };
 
-  // Open a series part: its BookView when it is on the bookshelf, otherwise the
-  // search page with the part selected in the preview pane.
+  // Open a series part. Storytel: its BookView when it is on the bookshelf,
+  // otherwise the search page with the part selected in the preview pane.
+  // Audioteka: its book page, which needs no library entry.
   const handleOpenSeriesBook = async (part: SearchResultBook) => {
+    if (provider === 'audioteka') {
+      navigate(`/book/audioteka/${part.id}`);
+      return;
+    }
     try {
       const res = await api.get<BookShelfResponse>('/bookshelf');
       const owned = (res.data?.books || []).find((b) => String(b.book?.consumableId) === part.id);
@@ -210,8 +238,35 @@ function BookViewContent() {
     navigate('/search', { state: { selectBook: part } });
   };
 
+  const handleOpenAuthor = (author: { id?: string; name: string }) => {
+    const target = catalog.authorTarget(author);
+    if (target.kind === 'list') {
+      navigate('/search', {
+        state: { authorList: { itemsUrl: target.itemsUrl, title: target.title } },
+      });
+    } else {
+      navigate(`/search?q=${encodeURIComponent(target.query)}`);
+    }
+  };
+
+  // Recommendations are not in the library, so they open in the search preview.
+  const handleOpenRecommended = (book: SearchResultBook) =>
+    navigate('/search', { state: { selectBook: book } });
+
   const handlePlayBook = () => {
-    navigate(`/player/${bookId}`, { state: { book, autoPlay: true } });
+    if (stateBook) {
+      navigate(`/player/${bookId}`, { state: { book: stateBook, autoPlay: true } });
+      return;
+    }
+    if (stateEntry) {
+      navigate(`/player/audioteka/${stateEntry.id}`, {
+        state: { audiotekaBook: stateEntry, autoPlay: true },
+      });
+      return;
+    }
+    if (!page) return;
+    const { path, state } = catalog.playTarget(page.book);
+    navigate(path, { state });
   };
 
   if (isLoading) {
@@ -222,13 +277,16 @@ function BookViewContent() {
     return <ErrorState error={error} onRetry={() => navigate('/')} />;
   }
 
-  if (!book) {
+  if (!display) {
     return <ErrorState error={t('common.error')} onRetry={() => navigate('/')} />;
   }
 
-  const formatDuration = (microseconds: number) => {
-    const hours = Math.floor(microseconds / 3600000000);
-    const minutes = Math.floor((microseconds % 3600000000) / 60000000);
+  // Saved books without a removable entry only show that they are in the library.
+  const canRemove = isSaved && removable;
+
+  const formatDuration = (ms: number) => {
+    const hours = Math.floor(ms / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
     return `${hours} h ${minutes} min`;
   };
 
@@ -249,7 +307,7 @@ function BookViewContent() {
   return (
     <div className="min-h-screen bg-black text-white selection:bg-[#FF5100] selection:text-white pb-32">
       <Navbar barTitle={t('bookView.details')} onBackClick={() => navigate('/')}>
-        <span>{book.book.name}</span>
+        <span>{display.title}</span>
       </Navbar>
 
       {/* Toast Notification */}
@@ -265,29 +323,44 @@ function BookViewContent() {
           {/* Book Cover */}
           <div className="mb-6">
             <img
-              src={buildCoverUrl(book.book.largeCover || book.book.largeCoverE)}
-              alt={book.book.name}
+              src={buildCoverUrl(display.coverUrl)}
+              alt={display.title}
               className="w-56 h-56 sm:w-64 sm:h-64 object-cover rounded-2xl shadow-2xl border border-white/10"
             />
           </div>
 
           {/* Book Title */}
           <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 text-center break-words max-w-full px-4">
-            {book.book.name}
+            {display.title}
           </h1>
 
           {/* Author and Narrator */}
           <div className="text-sm text-gray-300 mb-6 text-center space-y-1">
-            {book.book.authorsAsString && (
+            {display.authors.length > 0 && (
               <p>
                 <span className="text-gray-400">{t('bookCard.author')}</span>{' '}
-                <span className="font-semibold text-white">{book.book.authorsAsString}</span>
+                {display.authors.map((author, index) => (
+                  <span key={`${author.id ?? ''}:${author.name}`}>
+                    {index > 0 && <span className="font-semibold text-white">, </span>}
+                    {isActiveService ? (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAuthor(author)}
+                        className="font-semibold text-white hover:underline hover:text-[#FF8A50] transition-colors"
+                      >
+                        {author.name}
+                      </button>
+                    ) : (
+                      <span className="font-semibold text-white">{author.name}</span>
+                    )}
+                  </span>
+                ))}
               </p>
             )}
-            {book.abook?.narratorAsString && (
+            {display.narrators && (
               <p>
                 <span className="text-gray-400">{t('bookCard.narrator')}</span>{' '}
-                <span className="font-semibold text-white">{book.abook.narratorAsString}</span>
+                <span className="font-semibold text-white">{display.narrators}</span>
               </p>
             )}
           </div>
@@ -307,13 +380,21 @@ function BookViewContent() {
 
             {/* Save to Bookshelf Button */}
             <button
-              onClick={isSaved ? () => setShowRemoveConfirm(true) : handleSaveToLibrary}
-              disabled={isSaving}
-              title={isSaved ? t('bookshelf.remove') : undefined}
+              onClick={
+                canRemove
+                  ? () => setShowRemoveConfirm(true)
+                  : isSaved
+                    ? undefined
+                    : handleSaveToLibrary
+              }
+              disabled={isSaving || (isSaved && !canRemove)}
+              title={canRemove ? t('bookshelf.remove') : undefined}
               className={`px-5 py-3.5 rounded-full transition-all flex items-center gap-2 text-sm font-semibold border group/save ${
-                isSaved
+                canRemove
                   ? 'bg-green-600/20 text-green-300 border-green-500/40 hover:bg-red-600/20 hover:text-red-300 hover:border-red-500/40'
-                  : 'bg-[#1A1A1A] hover:bg-[#2C2C2E] text-white border-white/10 hover:border-white/20 active:scale-95'
+                  : isSaved
+                    ? 'bg-green-600/20 text-green-300 border-green-500/40 cursor-default'
+                    : 'bg-[#1A1A1A] hover:bg-[#2C2C2E] text-white border-white/10 hover:border-white/20 active:scale-95'
               }`}
             >
               {isSaving ? (
@@ -337,7 +418,7 @@ function BookViewContent() {
               ) : isSaved ? (
                 <>
                   <svg
-                    className="w-4 h-4 text-green-400 group-hover/save:hidden"
+                    className={`w-4 h-4 text-green-400 ${canRemove ? 'group-hover/save:hidden' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -349,19 +430,21 @@ function BookViewContent() {
                       d="M5 13l4 4L19 7"
                     />
                   </svg>
-                  <svg
-                    className="w-4 h-4 hidden group-hover/save:block"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
+                  {canRemove && (
+                    <svg
+                      className="w-4 h-4 hidden group-hover/save:block"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  )}
                 </>
               ) : (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -373,10 +456,10 @@ function BookViewContent() {
                   />
                 </svg>
               )}
-              <span className={isSaved ? 'group-hover/save:hidden' : undefined}>
+              <span className={canRemove ? 'group-hover/save:hidden' : undefined}>
                 {isSaved ? t('bookView.inLibrary') : t('bookView.addToLibrary')}
               </span>
-              {isSaved && (
+              {canRemove && (
                 <span className="hidden group-hover/save:inline">{t('bookshelf.remove')}</span>
               )}
             </button>
@@ -390,11 +473,11 @@ function BookViewContent() {
             </div>
             <div className="flex justify-between py-2 border-b border-gray-800">
               <span className="text-gray-400">{t('bookView.duration')}</span>
-              <span className="text-white">{formatDuration(book.abook.time)}</span>
+              <span className="text-white">{formatDuration(display.durationMs)}</span>
             </div>
             <div className="flex justify-between py-2 border-b border-gray-800">
               <span className="text-gray-400">{t('bookView.category')}</span>
-              <span className="text-white flex items-center">{book.book.category.title}</span>
+              <span className="text-white flex items-center">{display.category}</span>
             </div>
           </div>
 
@@ -402,11 +485,11 @@ function BookViewContent() {
             <div className="w-full max-w-md mt-8">
               <SeriesHint
                 seriesInfo={seriesInfo}
-                currentBookId={String(book.book.consumableId || bookId)}
-                finished={isBookFinished(book)}
+                currentBookId={display.id}
+                finished={finished}
                 onOpenBook={handleOpenSeriesBook}
-                // BookView shows Storytel books only, whichever service is active.
-                catalog={storytelCatalog}
+                // The route's service, whichever is active.
+                catalog={catalog}
               />
             </div>
           )}
@@ -423,12 +506,30 @@ function BookViewContent() {
               </button>
             )}
           </div>
+
+          {isActiveService && page && page.recommendedAfter.length > 0 && (
+            <section className="w-full max-w-md mt-8" aria-label={t('bookView.recommendedAfter')}>
+              <h2 className="text-sm font-bold text-white mb-2">
+                {t('bookView.recommendedAfter')}
+              </h2>
+              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                {page.recommendedAfter.map((book) => (
+                  <DiscoverCard
+                    key={book.id}
+                    book={book}
+                    selected={false}
+                    onSelect={handleOpenRecommended}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </main>
 
       <ConfirmRemoveBookModal
         isOpen={showRemoveConfirm}
-        bookTitle={book?.book?.name || ''}
+        bookTitle={display.title}
         isRemoving={isSaving}
         onConfirm={handleRemoveFromLibrary}
         onCancel={() => setShowRemoveConfirm(false)}
@@ -438,9 +539,9 @@ function BookViewContent() {
 }
 
 // Keyed by book so opening another part from the series list resets all state.
-function BookView() {
+function BookView({ provider }: BookViewProps) {
   const { bookId } = useParams();
-  return <BookViewContent key={bookId} />;
+  return <BookViewContent key={`${provider}:${bookId}`} provider={provider} />;
 }
 
 export default BookView;

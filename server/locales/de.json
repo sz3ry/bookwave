@@ -160,7 +160,8 @@
     "showMore": "mehr anzeigen",
     "showLess": "weniger anzeigen",
     "details": "Buchdetails:",
-    "loadError": "Buchdetails konnten nicht geladen werden"
+    "loadError": "Buchdetails konnten nicht geladen werden",
+    "recommendedAfter": "Nach diesem Buch"
   },
   "chapters": {
     "title": "Audiospuren & Kapitel",

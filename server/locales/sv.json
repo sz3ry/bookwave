@@ -160,7 +160,8 @@
     "showMore": "visa mer",
     "showLess": "visa mindre",
     "details": "Bokdetaljer:",
-    "loadError": "Kunde inte ladda bokinformationen"
+    "loadError": "Kunde inte ladda bokinformationen",
+    "recommendedAfter": "Efter den här boken"
   },
   "chapters": {
     "title": "Ljudspår & Kapitel",

@@ -19,6 +19,8 @@ import {
 import { useProviders } from '../contexts/ProvidersContext';
 import { useAudiotekaLogin } from '../hooks/useAudiotekaLogin';
 import { isOfflineError, removeFromBookshelfErrorKey } from '../utils/helpers';
+import { audiotekaCandidates, type SeriesCandidate, shelfCandidate } from '../utils/series';
+import { audiotekaCatalog } from '../catalog';
 
 // How often the offline Dashboard retries Storytel in the background.
 const OFFLINE_RETRY_MS = 30_000;
@@ -155,6 +157,45 @@ export function Dashboard({
     );
   }, [library]);
 
+  // "Continue series" input: the Storytel shelf names each book's series, the
+  // Audioteka library does not, so its recent concluded books are looked up.
+  const storytelCandidates = useMemo(
+    () =>
+      storytelEntities.flatMap((e) => {
+        const candidate = shelfCandidate(e);
+        return candidate ? [candidate] : [];
+      }),
+    [storytelEntities],
+  );
+  const audiotekaBooks = library?.provider === 'audioteka' ? books : null;
+  const concludedKey = (audiotekaBooks ?? [])
+    .filter((b) => b.status === 'concluded')
+    .map((b) => `${b.key}@${b.lastActivity ?? ''}`)
+    .join('|');
+  const [audiotekaSeries, setAudiotekaSeries] = useState<SeriesCandidate[]>([]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the concluded books
+  useEffect(() => {
+    setAudiotekaSeries([]);
+    if (!audiotekaBooks || !concludedKey) return;
+    let cancelled = false;
+    audiotekaCandidates(audiotekaBooks, audiotekaCatalog.seriesInfo).then((candidates) => {
+      if (!cancelled) setAudiotekaSeries(candidates);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [concludedKey]);
+  const seriesCandidates = active === 'audioteka' ? audiotekaSeries : storytelCandidates;
+  const ownedIds = useMemo(
+    () =>
+      new Set(
+        books.map((b) =>
+          b.audioteka ? b.audioteka.id : String(b.storytel?.book?.consumableId ?? ''),
+        ),
+      ),
+    [books],
+  );
+
   // Background retry of the online bookshelf while offline: no loading state,
   // and a failure keeps the offline list as it is.
   const retryStorytelOnline = async () => {
@@ -246,8 +287,8 @@ export function Dashboard({
 
   const handleBookSelect = (book: LibraryBook) => {
     if (book.audioteka) {
-      navigate(`/player/audioteka/${book.audioteka.id}`, {
-        state: { audiotekaBook: book.audioteka },
+      navigate(`/book/audioteka/${book.audioteka.id}`, {
+        state: { audiotekaBook: book.audioteka, finished: book.status === 'concluded' },
       });
       return;
     }
@@ -502,8 +543,12 @@ export function Dashboard({
           })}
         </div>
 
-        {active === 'storytel' && (
-          <ContinueSeriesRow books={storytelEntities} offline={isOffline} />
+        {active && (
+          <ContinueSeriesRow
+            candidates={seriesCandidates}
+            ownedIds={ownedIds}
+            offline={isOffline}
+          />
         )}
 
         {/* Book Grid */}

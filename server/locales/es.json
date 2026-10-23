@@ -160,7 +160,8 @@
     "showMore": "mostrar más",
     "showLess": "mostrar menos",
     "details": "Detalles del libro:",
-    "loadError": "No se pudieron cargar los detalles del libro"
+    "loadError": "No se pudieron cargar los detalles del libro",
+    "recommendedAfter": "Después de este libro"
   },
   "chapters": {
     "title": "Pistas de audio y Capítulos",

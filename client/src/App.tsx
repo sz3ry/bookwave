@@ -222,7 +222,8 @@ function App() {
                 <Route path="/search" element={<SearchView />} />
                 <Route path="/player/:bookId" element={<PlayerView />} />
                 <Route path="/player/audioteka/:bookId" element={<PlayerView />} />
-                <Route path="/book/:bookId" element={<BookView />} />
+                <Route path="/book/:bookId" element={<BookView provider="storytel" />} />
+                <Route path="/book/audioteka/:bookId" element={<BookView provider="audioteka" />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
 

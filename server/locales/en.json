@@ -160,7 +160,8 @@
     "showMore": "show more",
     "showLess": "show less",
     "details": "Book Details:",
-    "loadError": "Failed to load book details"
+    "loadError": "Failed to load book details",
+    "recommendedAfter": "After this book"
   },
   "chapters": {
     "title": "Audio Tracks & Chapters",
