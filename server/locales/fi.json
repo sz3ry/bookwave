@@ -326,6 +326,7 @@
   },
   "library": {
     "unavailable": "Ei saatavilla",
-    "providerUnavailable": "{{provider}} ei ole juuri nyt käytettävissä, joten sen kirjoja ei näytetä."
+    "providerUnavailable": "{{provider}} ei ole juuri nyt käytettävissä, joten sen kirjoja ei näytetä.",
+    "providerExpired": "{{provider}}-istuntosi on vanhentunut, joten sen kirjoja ei näytetä. Kirjaudu uudelleen, niin ne palaavat."
   }
 }

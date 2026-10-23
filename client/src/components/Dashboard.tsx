@@ -17,6 +17,7 @@ import {
   readAudiotekaLocalPosition,
 } from '../utils/library';
 import { useProviders } from '../contexts/ProvidersContext';
+import { useAudiotekaLogin } from '../hooks/useAudiotekaLogin';
 import { isOfflineError, removeFromBookshelfErrorKey } from '../utils/helpers';
 
 // How often the offline Dashboard retries Storytel in the background.
@@ -62,14 +63,26 @@ async function loadAudiotekaBooks(): Promise<LibraryBook[]> {
 interface DashboardProps {
   /** Logs out of the given provider, or of every provider. */
   onLogout: (target: ProviderId | 'all') => void;
+  /** Shows the Storytel login form, e.g. after its session expired. */
+  onLoginStorytel: () => void;
   triggerLogout?: boolean;
   setTriggerLogout?: (value: boolean) => void;
 }
 
-export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: DashboardProps) {
+export function Dashboard({
+  onLogout,
+  onLoginStorytel,
+  triggerLogout,
+  setTriggerLogout,
+}: DashboardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { storytel: hasStorytel, audioteka: hasAudioteka } = useProviders();
+  const { storytel: hasStorytel, audioteka: hasAudioteka, expired } = useProviders();
+  const audiotekaLogin = useAudiotekaLogin();
+  // An expired provider's books are hidden until the user logs in again.
+  const expiredProviders = (Object.keys(PROVIDER_NAME) as ProviderId[]).filter(
+    (provider) => expired[provider],
+  );
   const [storytelShelf, setStorytelShelf] = useState<ProviderLoad<StorytelShelf>>(null);
   const [audiotekaBooks, setAudiotekaBooks] = useState<ProviderLoad<LibraryBook[]>>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -414,6 +427,46 @@ export function Dashboard({ onLogout, triggerLogout, setTriggerLogout }: Dashboa
               />
             </svg>
             <span>{t('library.providerUnavailable', { provider: PROVIDER_NAME[provider] })}</span>
+          </div>
+        ))}
+
+        {expiredProviders.map((provider) => (
+          <div
+            key={provider}
+            role="status"
+            className="flex items-center gap-2.5 mb-5 px-4 py-2.5 rounded-xl bg-[#FF5100]/10 border border-[#FF5100]/30 text-xs text-[#FFB38A]"
+          >
+            <svg
+              aria-hidden="true"
+              className="w-4 h-4 flex-shrink-0 text-[#FF5100]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
+            </svg>
+            <span className="flex-1">
+              {t('library.providerExpired', { provider: PROVIDER_NAME[provider] })}
+              {provider === 'audioteka' && audiotekaLogin.busy && (
+                <span className="block text-gray-400">{t('login.audioteka.waiting')}</span>
+              )}
+              {provider === 'audioteka' && audiotekaLogin.error && (
+                <span className="block text-red-400">{audiotekaLogin.error}</span>
+              )}
+            </span>
+            <button
+              type="button"
+              disabled={provider === 'audioteka' && audiotekaLogin.busy}
+              onClick={provider === 'storytel' ? onLoginStorytel : audiotekaLogin.login}
+              className="px-3 py-1.5 rounded-lg bg-[#FF5100] text-white text-xs font-bold hover:brightness-110 active:scale-95 transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t('settings.accounts.loginAgain')}
+            </button>
           </div>
         ))}
 

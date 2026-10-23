@@ -330,6 +330,7 @@
   },
   "library": {
     "unavailable": "Niedostępny",
-    "providerUnavailable": "Serwis {{provider}} jest teraz niedostępny, więc jego książki nie są widoczne."
+    "providerUnavailable": "Serwis {{provider}} jest teraz niedostępny, więc jego książki nie są widoczne.",
+    "providerExpired": "Sesja w serwisie {{provider}} wygasła, więc jego książki nie są widoczne. Zaloguj się ponownie, aby je przywrócić."
   }
 }

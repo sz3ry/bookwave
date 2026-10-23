@@ -326,6 +326,7 @@
   },
   "library": {
     "unavailable": "Unavailable",
-    "providerUnavailable": "{{provider}} is unavailable right now, so its books are not shown."
+    "providerUnavailable": "{{provider}} is unavailable right now, so its books are not shown.",
+    "providerExpired": "Your {{provider}} session has expired, so its books are not shown. Log in again to bring them back."
   }
 }

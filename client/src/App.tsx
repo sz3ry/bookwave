@@ -202,6 +202,7 @@ function App() {
                   element={
                     <Dashboard
                       onLogout={handleLogout}
+                      onLoginStorytel={() => setAddingStorytel(true)}
                       triggerLogout={triggerLogout}
                       setTriggerLogout={setTriggerLogout}
                     />

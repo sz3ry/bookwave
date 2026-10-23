@@ -326,6 +326,7 @@
   },
   "library": {
     "unavailable": "No disponible",
-    "providerUnavailable": "{{provider}} no está disponible ahora mismo, así que sus libros no se muestran."
+    "providerUnavailable": "{{provider}} no está disponible ahora mismo, así que sus libros no se muestran.",
+    "providerExpired": "Tu sesión de {{provider}} ha caducado, así que sus libros no se muestran. Vuelve a iniciar sesión para recuperarlos."
   }
 }

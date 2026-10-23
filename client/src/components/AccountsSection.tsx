@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProviders } from '../contexts/ProvidersContext';
+import { useAudiotekaLogin } from '../hooks/useAudiotekaLogin';
 
 interface AccountsSectionProps {
   /** Opens the confirm dialog for logging out of one provider. */
@@ -17,26 +17,7 @@ const PROVIDERS: { id: AuthProvider; name: string }[] = [
 function AccountsSection({ onLogout, onAddStorytel }: AccountsSectionProps) {
   const { t } = useTranslation();
   const providers = useProviders();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  const addAudioteka = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      const result = await window.electronAuth?.audiotekaLogin();
-      if (result?.ok) {
-        await providers.refresh();
-      } else if (result?.error !== 'cancelled') {
-        setError(t('login.audioteka.failed'));
-      }
-    } catch (err) {
-      console.error('Audioteka login failed:', err);
-      setError(t('login.audioteka.failed'));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { login: addAudioteka, busy, error } = useAudiotekaLogin();
 
   return (
     <div>
