@@ -248,6 +248,12 @@
     "alwaysOnTopDescription": "Okno pozostanie nad innymi oknami",
     "developer": "Dla programistów",
     "viewLogs": "Pokaż logi sesji",
+    "service": {
+      "title": "Serwis",
+      "storytel": "Storytel",
+      "audioteka": "Audioteka",
+      "loginNeeded": "Nie zalogowano. Wybranie otworzy logowanie."
+    },
     "accounts": {
       "title": "Konta",
       "add": "Dodaj konto",
@@ -330,7 +336,6 @@
   },
   "library": {
     "unavailable": "Niedostępny",
-    "providerUnavailable": "Serwis {{provider}} jest teraz niedostępny, więc jego książki nie są widoczne.",
     "providerExpired": "Sesja w serwisie {{provider}} wygasła, więc jego książki nie są widoczne. Zaloguj się ponownie, aby je przywrócić."
   }
 }

@@ -3,12 +3,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatMicrosecondsTime, isBookFinished } from '../utils/helpers';
 import type { LibraryBook } from '../interfaces/library';
-import { useProviders } from '../contexts/ProvidersContext';
-
-const PROVIDER_LABEL: Record<LibraryBook['provider'], string> = {
-  storytel: 'Storytel',
-  audioteka: 'Audioteka',
-};
 
 interface BookCardProps {
   book: LibraryBook;
@@ -19,7 +13,6 @@ interface BookCardProps {
 
 export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCardProps) {
   const { t } = useTranslation();
-  const { both } = useProviders();
 
   // formatMicrosecondsTime takes microseconds.
   const position = book.positionMs * 1000;
@@ -112,13 +105,6 @@ export function BookCard({ book, onBookSelect, onRemove, onQuickPlay }: BookCard
               </svg>
             </div>
           </div>
-        )}
-
-        {/* Source Badge, only when both services are logged in */}
-        {both && (
-          <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-sm text-[10px] font-bold text-white/90 tracking-wide">
-            {PROVIDER_LABEL[book.provider]}
-          </span>
         )}
 
         {!book.available && (

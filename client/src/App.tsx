@@ -78,6 +78,8 @@ function App() {
   const [logoutTarget, setLogoutTarget] = useState<AuthProvider | 'all' | null>(null);
   // Shows the Storytel login form while another provider is already logged in.
   const [addingStorytel, setAddingStorytel] = useState(false);
+  // The Storytel login form was opened by choosing Storytel as the active service.
+  const [activateStorytelOnLogin, setActivateStorytelOnLogin] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
@@ -109,6 +111,7 @@ function App() {
   }, [triggerLogout]);
 
   const { refresh, markExpired } = providers;
+  const { setActive } = providers.value;
 
   // Mirrors the logged-in state into the tray.
   useEffect(() => {
@@ -158,8 +161,16 @@ function App() {
 
   const handleLogin = async () => {
     await refresh();
+    // A stored choice is kept across logins, so the switch sets it explicitly.
+    if (activateStorytelOnLogin) await setActive('storytel');
     setSessionExpired(false);
     setAddingStorytel(false);
+    setActivateStorytelOnLogin(false);
+  };
+
+  const cancelStorytelLogin = () => {
+    setAddingStorytel(false);
+    setActivateStorytelOnLogin(false);
   };
 
   const handleWelcomeClose = async () => {
@@ -193,7 +204,7 @@ function App() {
       <Router>
         <AudioProvider>
           {isAuthenticated && addingStorytel ? (
-            <LoginForm onLogin={handleLogin} onBack={() => setAddingStorytel(false)} />
+            <LoginForm onLogin={handleLogin} onBack={cancelStorytelLogin} />
           ) : isAuthenticated ? (
             <AuthenticatedLayout onOpenSettings={() => setShowSettingsModal(true)}>
               <Routes>
@@ -225,6 +236,11 @@ function App() {
                 }}
                 onAddStorytel={() => {
                   setShowSettingsModal(false);
+                  setAddingStorytel(true);
+                }}
+                onActivateStorytel={() => {
+                  setShowSettingsModal(false);
+                  setActivateStorytelOnLogin(true);
                   setAddingStorytel(true);
                 }}
               />

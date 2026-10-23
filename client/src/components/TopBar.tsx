@@ -15,7 +15,7 @@ export function TopBar({ onOpenSettings, searchQuery = '', onSearchChange }: Top
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { storytel } = useProviders();
+  const { active } = useProviders();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const isSearchPage = location.pathname === '/search';
@@ -23,7 +23,7 @@ export function TopBar({ onOpenSettings, searchQuery = '', onSearchChange }: Top
 
   // Global Cmd+K / Ctrl+K focus shortcut
   useEffect(() => {
-    if (!storytel) return;
+    if (!active) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -35,7 +35,7 @@ export function TopBar({ onOpenSettings, searchQuery = '', onSearchChange }: Top
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSearchPage, navigate, storytel]);
+  }, [isSearchPage, navigate, active]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -74,7 +74,7 @@ export function TopBar({ onOpenSettings, searchQuery = '', onSearchChange }: Top
       <button
         onClick={() => navigate('/')}
         className="w-10 h-10 rounded-2xl bg-[#FF5100] flex items-center justify-center shadow-lg shadow-[#FF5100]/20 hover:scale-105 active:scale-95 transition-transform flex-shrink-0"
-        title="Storytel"
+        title="Bookwave"
       >
         <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
           <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z" />
@@ -101,8 +101,8 @@ export function TopBar({ onOpenSettings, searchQuery = '', onSearchChange }: Top
         <span>{t('dashboard.title', 'My Library')}</span>
       </button>
 
-      {/* 3. Search Field (searches the Storytel catalog only) */}
-      {storytel ? (
+      {/* 3. Search Field (searches the active service's catalog) */}
+      {active ? (
         <div className="flex-grow max-w-2xl mx-1 relative">
           <div className="relative flex items-center h-11 rounded-[12px] bg-[#1A1A1A] border border-white/[0.08] focus-within:border-[#FF5100]/60 focus-within:ring-1 focus-within:ring-[#FF5100]/30 transition-all px-3.5 shadow-inner">
             <svg

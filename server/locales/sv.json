@@ -246,6 +246,12 @@
     "alwaysOnTopDescription": "Fönstret kommer att stanna ovanför andra fönster",
     "developer": "Utvecklare",
     "viewLogs": "Visa sessionsloggar",
+    "service": {
+      "title": "Tjänst",
+      "storytel": "Storytel",
+      "audioteka": "Audioteka",
+      "loginNeeded": "Inte inloggad. Om du väljer den öppnas inloggningen."
+    },
     "accounts": {
       "title": "Konton",
       "add": "Lägg till konto",
@@ -326,7 +332,6 @@
   },
   "library": {
     "unavailable": "Inte tillgänglig",
-    "providerUnavailable": "{{provider}} är inte tillgänglig just nu, så dess böcker visas inte.",
     "providerExpired": "Din {{provider}}-session har gått ut, så dess böcker visas inte. Logga in igen för att få tillbaka dem."
   }
 }

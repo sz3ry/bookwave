@@ -1,6 +1,6 @@
-// Maps each provider's library into LibraryBook and merges them into one list.
+// Maps each provider's library into LibraryBook and orders the active service's list.
 import type { BookShelfEntity } from '../interfaces/books';
-import type { AudiotekaLibraryEntry, LibraryBook, ProviderId } from '../interfaces/library';
+import type { AudiotekaLibraryEntry, LibraryBook } from '../interfaces/library';
 import { buildCoverUrl } from './helpers';
 import storage from './storage';
 
@@ -85,27 +85,13 @@ const compareBooks = (a: LibraryBook, b: LibraryBook): number => {
   return a.title.localeCompare(b.title);
 };
 
-/**
- * Merges the providers' libraries. `null` means the provider is not logged in;
- * a rejected provider contributes no books and is listed in `failed`.
- */
-export function combineLibraries(
-  storytel: PromiseSettledResult<LibraryBook[]> | null,
-  audioteka: PromiseSettledResult<LibraryBook[]> | null,
-): { books: LibraryBook[]; failed: ProviderId[] } {
-  const books: LibraryBook[] = [];
-  const failed: ProviderId[] = [];
-  const sources: [ProviderId, PromiseSettledResult<LibraryBook[]> | null][] = [
-    ['storytel', storytel],
-    ['audioteka', audioteka],
-  ];
-  for (const [provider, result] of sources) {
-    if (!result) continue;
-    if (result.status === 'fulfilled') books.push(...result.value);
-    else failed.push(provider);
-  }
-  books.sort(compareBooks);
-  return { books, failed };
+/** The active service's library, newest activity first; a rejected load is `failed`. */
+export function libraryFor(result: PromiseSettledResult<LibraryBook[]>): {
+  books: LibraryBook[];
+  failed: boolean;
+} {
+  if (result.status === 'rejected') return { books: [], failed: true };
+  return { books: [...result.value].sort(compareBooks), failed: false };
 }
 
 /** Position saved on this device for an Audioteka book (`pos:audioteka:<id>`), if any. */

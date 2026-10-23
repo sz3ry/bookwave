@@ -9,9 +9,17 @@ interface SettingsModalProps {
   onClose: () => void;
   onLogout: (provider: AuthProvider) => void;
   onAddStorytel: () => void;
+  /** Shows the Storytel login form; a successful login makes Storytel active. */
+  onActivateStorytel: () => void;
 }
 
-function SettingsModal({ isOpen, onClose, onLogout, onAddStorytel }: SettingsModalProps) {
+function SettingsModal({
+  isOpen,
+  onClose,
+  onLogout,
+  onAddStorytel,
+  onActivateStorytel,
+}: SettingsModalProps) {
   const { t } = useTranslation();
   const [alwaysOnTop, setAlwaysOnTop] = useState<boolean>(false);
   const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
@@ -133,7 +141,11 @@ function SettingsModal({ isOpen, onClose, onLogout, onAddStorytel }: SettingsMod
             </div>
           </div>
 
-          <AccountsSection onLogout={onLogout} onAddStorytel={onAddStorytel} />
+          <AccountsSection
+            onLogout={onLogout}
+            onAddStorytel={onAddStorytel}
+            onActivateStorytel={onActivateStorytel}
+          />
         </div>
       </Modal>
 

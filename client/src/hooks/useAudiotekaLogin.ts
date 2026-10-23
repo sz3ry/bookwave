@@ -4,7 +4,8 @@ import { useProviders } from '../contexts/ProvidersContext';
 
 /**
  * Opens the audioteka.com login window and re-reads the providers state once it
- * succeeds. `error` is a translated message; closing the window is not an error.
+ * succeeds. `login` resolves to whether it succeeded. `error` is a translated
+ * message; closing the window is not an error.
  */
 export function useAudiotekaLogin() {
   const { t } = useTranslation();
@@ -12,14 +13,16 @@ export function useAudiotekaLogin() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const login = useCallback(async () => {
+  const login = useCallback(async (): Promise<boolean> => {
     setBusy(true);
     setError('');
     try {
       const result = await window.electronAuth?.audiotekaLogin();
       if (result?.ok) {
         await refresh();
-      } else if (result?.error !== 'cancelled') {
+        return true;
+      }
+      if (result?.error !== 'cancelled') {
         setError(t('login.audioteka.failed'));
       }
     } catch (err) {
@@ -28,6 +31,7 @@ export function useAudiotekaLogin() {
     } finally {
       setBusy(false);
     }
+    return false;
   }, [refresh, t]);
 
   return { login, busy, error };

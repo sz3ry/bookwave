@@ -246,6 +246,12 @@
     "alwaysOnTopDescription": "La fenêtre restera au-dessus des autres fenêtres",
     "developer": "Développeur",
     "viewLogs": "Afficher les journaux de session",
+    "service": {
+      "title": "Service",
+      "storytel": "Storytel",
+      "audioteka": "Audioteka",
+      "loginNeeded": "Non connecté. Le choisir ouvre la connexion."
+    },
     "accounts": {
       "title": "Comptes",
       "add": "Ajouter un compte",
@@ -326,7 +332,6 @@
   },
   "library": {
     "unavailable": "Indisponible",
-    "providerUnavailable": "{{provider}} est indisponible pour le moment, ses livres ne sont donc pas affichés.",
     "providerExpired": "Votre session {{provider}} a expiré, ses livres ne sont donc pas affichés. Reconnectez-vous pour les retrouver."
   }
 }

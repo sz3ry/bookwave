@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import LoginForm from './LoginForm';
+import { useProviders } from '../contexts/ProvidersContext';
 
 interface ProviderPickerProps {
   /** Called after a successful login with either provider. */
-  onLogin: () => void;
+  onLogin: () => void | Promise<void>;
   sessionExpired?: boolean;
 }
 
@@ -14,6 +15,13 @@ function ProviderPicker({ onLogin, sessionExpired }: ProviderPickerProps) {
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>('pick');
   const [error, setError] = useState('');
+  const { setActive } = useProviders();
+
+  // The first service logged into becomes the active one.
+  const finishLogin = async (provider: AuthProvider) => {
+    await setActive(provider);
+    await onLogin();
+  };
 
   const startAudioteka = async () => {
     setError('');
@@ -21,7 +29,7 @@ function ProviderPicker({ onLogin, sessionExpired }: ProviderPickerProps) {
     try {
       const result = await window.electronAuth?.audiotekaLogin();
       if (result?.ok) {
-        onLogin();
+        await finishLogin('audioteka');
         return;
       }
       // A closed login window is the user's own choice: go back silently.
@@ -35,7 +43,11 @@ function ProviderPicker({ onLogin, sessionExpired }: ProviderPickerProps) {
 
   if (step === 'storytel') {
     return (
-      <LoginForm onLogin={onLogin} sessionExpired={sessionExpired} onBack={() => setStep('pick')} />
+      <LoginForm
+        onLogin={() => finishLogin('storytel')}
+        sessionExpired={sessionExpired}
+        onBack={() => setStep('pick')}
+      />
     );
   }
 

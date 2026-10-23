@@ -246,6 +246,12 @@
     "alwaysOnTopDescription": "Ikkuna pysyy muiden ikkunoiden päällä",
     "developer": "Kehittäjä",
     "viewLogs": "Näytä istuntolokit",
+    "service": {
+      "title": "Palvelu",
+      "storytel": "Storytel",
+      "audioteka": "Audioteka",
+      "loginNeeded": "Et ole kirjautunut. Valinta avaa kirjautumisen."
+    },
     "accounts": {
       "title": "Tilit",
       "add": "Lisää tili",
@@ -326,7 +332,6 @@
   },
   "library": {
     "unavailable": "Ei saatavilla",
-    "providerUnavailable": "{{provider}} ei ole juuri nyt käytettävissä, joten sen kirjoja ei näytetä.",
     "providerExpired": "{{provider}}-istuntosi on vanhentunut, joten sen kirjoja ei näytetä. Kirjaudu uudelleen, niin ne palaavat."
   }
 }

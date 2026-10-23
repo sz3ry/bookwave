@@ -11,9 +11,9 @@ import ConfirmRemoveBookModal from './ConfirmRemoveBookModal';
 import type { BookShelfEntity, BookShelfResponse } from '../interfaces/books';
 import type { AudiotekaLibraryEntry, LibraryBook, ProviderId } from '../interfaces/library';
 import {
-  combineLibraries,
   fromAudiotekaEntry,
   fromShelfEntity,
+  libraryFor,
   readAudiotekaLocalPosition,
 } from '../utils/library';
 import { useProviders } from '../contexts/ProvidersContext';
@@ -34,8 +34,11 @@ interface StorytelShelf {
   offline: boolean;
 }
 
-/** A provider's load result; null when the provider is not logged in. */
-type ProviderLoad<T> = PromiseSettledResult<T> | null;
+/** The active service's load result; null while its account is logged out. */
+type ActiveLibrary =
+  | { provider: 'storytel'; result: PromiseSettledResult<StorytelShelf> }
+  | { provider: 'audioteka'; result: PromiseSettledResult<LibraryBook[]> }
+  | null;
 
 const settle = <T,>(promise: Promise<T>): Promise<PromiseSettledResult<T>> =>
   Promise.allSettled([promise]).then(([result]) => result);
@@ -77,14 +80,13 @@ export function Dashboard({
 }: DashboardProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { storytel: hasStorytel, audioteka: hasAudioteka, expired } = useProviders();
+  const providers = useProviders();
+  const { active } = providers;
+  // The active service's account; its books are hidden while it is logged out.
+  const activeLoggedIn = active ? providers[active] : false;
+  const activeExpired = active ? providers.expired[active] : false;
   const audiotekaLogin = useAudiotekaLogin();
-  // An expired provider's books are hidden until the user logs in again.
-  const expiredProviders = (Object.keys(PROVIDER_NAME) as ProviderId[]).filter(
-    (provider) => expired[provider],
-  );
-  const [storytelShelf, setStorytelShelf] = useState<ProviderLoad<StorytelShelf>>(null);
-  const [audiotekaBooks, setAudiotekaBooks] = useState<ProviderLoad<LibraryBook[]>>(null);
+  const [library, setLibrary] = useState<ActiveLibrary>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<LibraryBook['status'] | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,27 +102,25 @@ export function Dashboard({
   // latest one may update the list, so an older load cannot replace a newer result.
   const loadSeqRef = useRef(0);
 
-  // Each logged-in provider loads on its own; one failing keeps the other's books.
+  // Loads only the active service's library.
   const loadLibrary = async () => {
     const seq = ++loadSeqRef.current;
     setIsLoading(true);
-    const [storytel, audioteka] = await Promise.all([
-      hasStorytel ? settle(loadStorytelShelf()) : null,
-      hasAudioteka ? settle(loadAudiotekaBooks()) : null,
-    ]);
+    let next: ActiveLibrary = null;
+    if (active === 'storytel' && activeLoggedIn) {
+      next = { provider: 'storytel', result: await settle(loadStorytelShelf()) };
+    } else if (active === 'audioteka' && activeLoggedIn) {
+      next = { provider: 'audioteka', result: await settle(loadAudiotekaBooks()) };
+    }
     if (seq !== loadSeqRef.current) return;
-    if (storytel?.status === 'rejected') {
-      console.error('Failed to load bookshelf', storytel.reason);
+    if (next?.result.status === 'rejected') {
+      console.error(`Failed to load the ${next.provider} library`, next.result.reason);
     }
-    if (audioteka?.status === 'rejected') {
-      console.error('Failed to load Audioteka library', audioteka.reason);
-    }
-    setStorytelShelf(storytel);
-    setAudiotekaBooks(audioteka);
+    setLibrary(next);
     setIsLoading(false);
   };
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reload only when the logged-in providers change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reload only when the active service or its login changes
   useEffect(() => {
     loadLibrary();
     const handleUpdate = () => {
@@ -132,26 +132,28 @@ export function Dashboard({
     return () => {
       window.removeEventListener('bookshelfUpdated', handleUpdate);
     };
-  }, [hasStorytel, hasAudioteka]);
+  }, [active, activeLoggedIn]);
 
   const storytelEntities =
-    storytelShelf?.status === 'fulfilled' ? storytelShelf.value.entities : [];
-  // Storytel was unreachable and its part lists only books downloaded to disk.
-  const isOffline = storytelShelf?.status === 'fulfilled' && storytelShelf.value.offline;
+    library?.provider === 'storytel' && library.result.status === 'fulfilled'
+      ? library.result.value.entities
+      : [];
+  // Storytel was unreachable and the list holds only books downloaded to disk.
+  const isOffline =
+    library?.provider === 'storytel' &&
+    library.result.status === 'fulfilled' &&
+    library.result.value.offline;
 
-  const { books, failed } = useMemo(
-    () =>
-      combineLibraries(
-        storytelShelf?.status === 'fulfilled'
-          ? { status: 'fulfilled', value: storytelShelf.value.entities.map(fromShelfEntity) }
-          : storytelShelf,
-        audiotekaBooks,
-      ),
-    [storytelShelf, audiotekaBooks],
-  );
-  const loggedInCount = Number(hasStorytel) + Number(hasAudioteka);
-  // Every logged-in provider failed: nothing to show but the error page.
-  const allFailed = failed.length > 0 && failed.length >= loggedInCount;
+  const { books, failed } = useMemo(() => {
+    if (!library) return { books: [], failed: false };
+    if (library.provider === 'audioteka') return libraryFor(library.result);
+    const { result } = library;
+    return libraryFor(
+      result.status === 'fulfilled'
+        ? { status: 'fulfilled', value: result.value.entities.map(fromShelfEntity) }
+        : result,
+    );
+  }, [library]);
 
   // Background retry of the online bookshelf while offline: no loading state,
   // and a failure keeps the offline list as it is.
@@ -160,10 +162,17 @@ export function Dashboard({
     try {
       const response = await api.get<BookShelfResponse>('/bookshelf');
       if (seq !== loadSeqRef.current) return;
-      setStorytelShelf({
-        status: 'fulfilled',
-        value: { entities: response.data.books || [], offline: false },
-      });
+      setLibrary((prev) =>
+        prev?.provider === 'storytel'
+          ? {
+              provider: 'storytel',
+              result: {
+                status: 'fulfilled',
+                value: { entities: response.data.books || [], offline: false },
+              },
+            }
+          : prev,
+      );
     } catch {
       // Still offline; try again later.
     }
@@ -207,7 +216,7 @@ export function Dashboard({
     };
   }, [books]);
 
-  // Filtered books, already ordered most recent first by combineLibraries
+  // Filtered books, already ordered most recent first by libraryFor
   const filteredBooks = useMemo(() => {
     if (books.length === 0) return [];
 
@@ -278,13 +287,16 @@ export function Dashboard({
       setIsRemoving(true);
       await api.post('/bookshelf/remove', { consumableId: String(consumableId) });
       setBookToRemove(null);
-      setStorytelShelf((prev) =>
-        prev?.status === 'fulfilled'
+      setLibrary((prev) =>
+        prev?.provider === 'storytel' && prev.result.status === 'fulfilled'
           ? {
-              ...prev,
-              value: {
-                ...prev.value,
-                entities: prev.value.entities.filter((b) => b !== bookToRemove),
+              provider: 'storytel',
+              result: {
+                status: 'fulfilled',
+                value: {
+                  ...prev.result.value,
+                  entities: prev.result.value.entities.filter((b) => b !== bookToRemove),
+                },
               },
             }
           : prev,
@@ -308,13 +320,13 @@ export function Dashboard({
     return <LoadingState message={t('dashboard.loading', 'Loading your library...')} />;
   }
 
-  if (allFailed) {
+  if (failed && active) {
     return (
       <div className="min-h-screen bg-[#0A0A0A] text-white">
         <ErrorState
           error={t('dashboard.loadError')}
           onRetry={() => window.location.reload()}
-          onLogout={() => onLogout(failed.length === 1 ? failed[0] : 'all')}
+          onLogout={() => onLogout(active)}
         />
       </div>
     );
@@ -406,33 +418,8 @@ export function Dashboard({
           </div>
         )}
 
-        {failed.map((provider) => (
+        {active && activeExpired && (
           <div
-            key={provider}
-            role="status"
-            className="flex items-center gap-2.5 mb-5 px-4 py-2.5 rounded-xl bg-[#FF5100]/10 border border-[#FF5100]/30 text-xs text-[#FFB38A]"
-          >
-            <svg
-              aria-hidden="true"
-              className="w-4 h-4 flex-shrink-0 text-[#FF5100]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"
-              />
-            </svg>
-            <span>{t('library.providerUnavailable', { provider: PROVIDER_NAME[provider] })}</span>
-          </div>
-        ))}
-
-        {expiredProviders.map((provider) => (
-          <div
-            key={provider}
             role="status"
             className="flex items-center gap-2.5 mb-5 px-4 py-2.5 rounded-xl bg-[#FF5100]/10 border border-[#FF5100]/30 text-xs text-[#FFB38A]"
           >
@@ -451,24 +438,24 @@ export function Dashboard({
               />
             </svg>
             <span className="flex-1">
-              {t('library.providerExpired', { provider: PROVIDER_NAME[provider] })}
-              {provider === 'audioteka' && audiotekaLogin.busy && (
+              {t('library.providerExpired', { provider: PROVIDER_NAME[active] })}
+              {active === 'audioteka' && audiotekaLogin.busy && (
                 <span className="block text-gray-400">{t('login.audioteka.waiting')}</span>
               )}
-              {provider === 'audioteka' && audiotekaLogin.error && (
+              {active === 'audioteka' && audiotekaLogin.error && (
                 <span className="block text-red-400">{audiotekaLogin.error}</span>
               )}
             </span>
             <button
               type="button"
-              disabled={provider === 'audioteka' && audiotekaLogin.busy}
-              onClick={provider === 'storytel' ? onLoginStorytel : audiotekaLogin.login}
+              disabled={active === 'audioteka' && audiotekaLogin.busy}
+              onClick={active === 'storytel' ? onLoginStorytel : audiotekaLogin.login}
               className="px-3 py-1.5 rounded-lg bg-[#FF5100] text-white text-xs font-bold hover:brightness-110 active:scale-95 transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('settings.accounts.loginAgain')}
             </button>
           </div>
-        ))}
+        )}
 
         {/* Filter Status Tabs */}
         <div className="flex items-center gap-2 mb-7 overflow-x-auto pb-1 no-scrollbar border-b border-white/[0.06] pt-1">
@@ -515,7 +502,9 @@ export function Dashboard({
           })}
         </div>
 
-        {hasStorytel && <ContinueSeriesRow books={storytelEntities} offline={isOffline} />}
+        {active === 'storytel' && (
+          <ContinueSeriesRow books={storytelEntities} offline={isOffline} />
+        )}
 
         {/* Book Grid */}
         {books.length === 0 ? (
@@ -536,16 +525,13 @@ export function Dashboard({
             <p className="text-gray-400 text-xs max-w-sm mx-auto mb-5">
               {t('dashboard.emptyLibrary', 'Your library appears to be empty.')}
             </p>
-            {/* The catalog is Storytel's; Audioteka has no search in Bookwave. */}
-            {hasStorytel && (
-              <button
-                type="button"
-                onClick={() => navigate('/search')}
-                className="px-5 py-2.5 rounded-xl bg-[#FF5100] text-white text-xs font-bold shadow-lg shadow-[#FF5100]/30 hover:brightness-110 active:scale-95 transition-all"
-              >
-                {t('dashboard.exploreCatalog', 'Explore the catalog (⌘K)')}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => navigate('/search')}
+              className="px-5 py-2.5 rounded-xl bg-[#FF5100] text-white text-xs font-bold shadow-lg shadow-[#FF5100]/30 hover:brightness-110 active:scale-95 transition-all"
+            >
+              {t('dashboard.exploreCatalog', 'Explore the catalog (⌘K)')}
+            </button>
           </div>
         ) : filteredBooks.length === 0 ? (
           <div className="text-center py-16 bg-[#141414] border border-white/[0.06] rounded-3xl p-8 space-y-3 max-w-lg mx-auto shadow-xl">

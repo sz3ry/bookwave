@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { BookShelfEntity } from '../interfaces/books';
 import type { AudiotekaLibraryEntry, LibraryBook } from '../interfaces/library';
-import { combineLibraries, fromAudiotekaEntry, fromShelfEntity } from './library';
+import { fromAudiotekaEntry, fromShelfEntity, libraryFor } from './library';
 
 const shelf = (o: {
   id?: number;
@@ -36,43 +36,35 @@ const entry = (o: Partial<AudiotekaLibraryEntry> = {}): AudiotekaLibraryEntry =>
   ...o,
 });
 
-const book = (title: string, lastActivity: string | null, provider: LibraryBook['provider']) =>
-  ({ provider, key: `${provider}:${title}`, title, lastActivity }) as LibraryBook;
+const book = (title: string, lastActivity: string | null) =>
+  ({ provider: 'storytel', key: `storytel:${title}`, title, lastActivity }) as LibraryBook;
 
 const ok = (books: LibraryBook[]): PromiseSettledResult<LibraryBook[]> => ({
   status: 'fulfilled',
   value: books,
 });
 
-describe('combineLibraries', () => {
-  test('sorts by lastActivity desc, nulls last, then title', () => {
-    const { books, failed } = combineLibraries(
+describe('libraryFor', () => {
+  test('libraryFor sorts by lastActivity desc, nulls last, then title', () => {
+    const { books, failed } = libraryFor(
       ok([
-        book('Zeta', null, 'storytel'),
-        book('Old', '2026-01-01T00:00:00Z', 'storytel'),
-        book('Beta', '2026-05-01T00:00:00Z', 'storytel'),
-      ]),
-      ok([
-        book('Alpha', null, 'audioteka'),
-        book('New', '2026-09-01T00:00:00Z', 'audioteka'),
-        book('Alpha2', '2026-05-01T00:00:00Z', 'audioteka'),
+        book('Zeta', null),
+        book('Old', '2026-01-01T00:00:00Z'),
+        book('Beta', '2026-05-01T00:00:00Z'),
+        book('Alpha', null),
+        book('New', '2026-09-01T00:00:00Z'),
+        book('Alpha2', '2026-05-01T00:00:00Z'),
       ]),
     );
     expect(books.map((b) => b.title)).toEqual(['New', 'Alpha2', 'Beta', 'Old', 'Alpha', 'Zeta']);
-    expect(failed).toEqual([]);
+    expect(failed).toBe(false);
   });
 
-  test('a rejected Audioteka keeps the Storytel books and is reported', () => {
-    const { books, failed } = combineLibraries(ok([book('Only', null, 'storytel')]), {
-      status: 'rejected',
-      reason: new Error('down'),
+  test('libraryFor reports a rejected load as failed', () => {
+    expect(libraryFor({ status: 'rejected', reason: new Error('down') })).toEqual({
+      books: [],
+      failed: true,
     });
-    expect(books.map((b) => b.title)).toEqual(['Only']);
-    expect(failed).toEqual(['audioteka']);
-  });
-
-  test('no provider logged in gives an empty library', () => {
-    expect(combineLibraries(null, null)).toEqual({ books: [], failed: [] });
   });
 });
 

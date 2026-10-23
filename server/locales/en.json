@@ -246,6 +246,12 @@
     "alwaysOnTopDescription": "Window will stay above other windows",
     "developer": "Developer",
     "viewLogs": "View Session Logs",
+    "service": {
+      "title": "Service",
+      "storytel": "Storytel",
+      "audioteka": "Audioteka",
+      "loginNeeded": "Not logged in. Choosing it opens the login."
+    },
     "accounts": {
       "title": "Accounts",
       "add": "Add account",
@@ -326,7 +332,6 @@
   },
   "library": {
     "unavailable": "Unavailable",
-    "providerUnavailable": "{{provider}} is unavailable right now, so its books are not shown.",
     "providerExpired": "Your {{provider}} session has expired, so its books are not shown. Log in again to bring them back."
   }
 }

@@ -7,6 +7,8 @@ interface AccountsSectionProps {
   onLogout: (provider: AuthProvider) => void;
   /** Leaves Settings and shows the Storytel login form. */
   onAddStorytel: () => void;
+  /** Like `onAddStorytel`, but a successful login also makes Storytel active. */
+  onActivateStorytel: () => void;
 }
 
 const PROVIDERS: { id: AuthProvider; name: string }[] = [
@@ -14,13 +16,59 @@ const PROVIDERS: { id: AuthProvider; name: string }[] = [
   { id: 'audioteka', name: 'Audioteka' },
 ];
 
-function AccountsSection({ onLogout, onAddStorytel }: AccountsSectionProps) {
+/**
+ * The active-service choice and the accounts list. Both share one Audioteka login,
+ * so a login window opened from either disables the other's button.
+ */
+function AccountsSection({ onLogout, onAddStorytel, onActivateStorytel }: AccountsSectionProps) {
   const { t } = useTranslation();
   const providers = useProviders();
   const { login: addAudioteka, busy, error } = useAudiotekaLogin();
 
+  // A logged-out service is logged into first; cancelling keeps the current one.
+  const chooseService = async (id: AuthProvider) => {
+    if (id === providers.active) return;
+    if (providers[id]) {
+      await providers.setActive(id);
+    } else if (id === 'storytel') {
+      onActivateStorytel();
+    } else if (await addAudioteka()) {
+      await providers.setActive('audioteka');
+    }
+  };
+
   return (
     <div>
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase mb-3">
+          {t('settings.service.title')}
+        </h3>
+        <div className="border-t border-gray-700 mb-3"></div>
+        <div className="grid grid-cols-2 gap-2">
+          {PROVIDERS.map(({ id }) => {
+            const selected = providers.active === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={selected}
+                disabled={busy}
+                onClick={() => void chooseService(id)}
+                className={`rounded-md p-4 text-left transition-colors border disabled:opacity-50 disabled:cursor-not-allowed ${
+                  selected
+                    ? 'bg-orange-600/15 border-orange-500 text-white'
+                    : 'bg-gray-800 border-transparent hover:bg-gray-700 text-white'
+                }`}
+              >
+                <div className="font-medium">{t(`settings.service.${id}`)}</div>
+                {!providers[id] && (
+                  <div className="text-sm text-gray-400">{t('settings.service.loginNeeded')}</div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <h3 className="text-sm font-semibold text-gray-400 uppercase mb-3">
         {t('settings.accounts.title')}
       </h3>

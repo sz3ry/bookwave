@@ -246,6 +246,12 @@
     "alwaysOnTopDescription": "Das Fenster bleibt über anderen Fenstern",
     "developer": "Entwickler",
     "viewLogs": "Sitzungsprotokolle anzeigen",
+    "service": {
+      "title": "Dienst",
+      "storytel": "Storytel",
+      "audioteka": "Audioteka",
+      "loginNeeded": "Nicht angemeldet. Wenn du ihn wählst, öffnet sich die Anmeldung."
+    },
     "accounts": {
       "title": "Konten",
       "add": "Konto hinzufügen",
@@ -326,7 +332,6 @@
   },
   "library": {
     "unavailable": "Nicht verfügbar",
-    "providerUnavailable": "{{provider}} ist gerade nicht erreichbar, daher werden die Bücher von dort nicht angezeigt.",
     "providerExpired": "Deine {{provider}}-Sitzung ist abgelaufen, daher werden die Bücher von dort nicht angezeigt. Melde dich erneut an, um sie wieder zu sehen."
   }
 }
