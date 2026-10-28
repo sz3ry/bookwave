@@ -9,8 +9,15 @@ export interface StoredPosition {
 }
 
 /**
- * The record written under `pos:<id>`. Every local write of an `ask` source
- * (the 15 s tick, a book switch, app quit) carries the `remoteSeen` Bookwave
+ * How a source settles a provider position another device moved: `ask` lets
+ * the user choose (Audioteka), `follow` jumps to the provider's position
+ * without asking (Storytel).
+ */
+export type ConflictPolicy = 'ask' | 'follow';
+
+/**
+ * The record written under `pos:<id>`. Every local write (the 15 s tick, a
+ * book switch, app quit) carries the `remoteSeen` Bookwave
  * currently knows; dropping it would make the next open ask about a remote
  * value Bookwave itself wrote.
  */
@@ -45,9 +52,19 @@ export type StartPosition =
   | { kind: 'use'; positionMs: number; source: 'local' | 'remote' }
   | { kind: 'ask'; localMs: number; remoteMs: number; device: string | null };
 
+/**
+ * The position a book opens (or resumes) at. The provider's position wins only
+ * when another device moved it since Bookwave last saw it and it differs from
+ * the local one by more than `thresholdMs`; `ask` then lets the user choose,
+ * `follow` takes the provider's position. Without a `remoteSeen` (a record from
+ * before Bookwave tracked it, or one never synced) `follow` cannot tell another
+ * device's move from Bookwave's own unsent listening, so it takes the
+ * provider's position only when its `updatedTime` is newer than the local one.
+ */
 export function resolveStartPosition(
   local: StoredPosition | null,
-  remote: { positionMs: number; device: string | null } | null,
+  remote: { positionMs: number; device: string | null; updatedTime?: string } | null,
+  policy: ConflictPolicy = 'ask',
   thresholdMs = 30_000,
 ): StartPosition {
   if (!local) {
@@ -63,6 +80,13 @@ export function resolveStartPosition(
   if (Math.abs(local.position - remote.positionMs) <= thresholdMs) {
     return useLocal;
   }
+  if (policy === 'follow') {
+    if (local.remoteSeen === undefined) {
+      const remoteTime = remote.updatedTime ? Date.parse(remote.updatedTime) : 0;
+      if (!(remoteTime > Date.parse(local.updatedAt))) return useLocal;
+    }
+    return { kind: 'use', positionMs: remote.positionMs, source: 'remote' };
+  }
   return {
     kind: 'ask',
     localMs: local.position,
@@ -73,37 +97,33 @@ export function resolveStartPosition(
 
 /**
  * Whether resuming a paused book (or reopening the active one) asks the
- * provider for its position again: only for `ask` sources, never during a
- * track switch or before the book's start position was applied, and at most
+ * provider for its position again: never during a track switch or before the book's start position was applied, and at most
  * once per `minIntervalMs` per book. `lastCheckAt` is null when this book
  * was never checked.
  */
 export function shouldRecheckRemote(options: {
-  policy: 'newest' | 'ask';
   switching: boolean;
   awaitingStart: boolean;
   lastCheckAt: number | null;
   now: number;
   minIntervalMs?: number;
 }): boolean {
-  const { policy, switching, awaitingStart, lastCheckAt, now, minIntervalMs = 10_000 } = options;
-  if (policy !== 'ask' || switching || awaitingStart) return false;
+  const { switching, awaitingStart, lastCheckAt, now, minIntervalMs = 10_000 } = options;
+  if (switching || awaitingStart) return false;
   return lastCheckAt === null || now - lastCheckAt >= minIntervalMs;
 }
 
 /**
- * Whether a position is sent to the provider. An `ask` source sends only a
- * position Bookwave itself moved since the last sync: one within `toleranceMs`
- * of `remoteSeen` is what the provider already had, and resending it would
- * overwrite a newer position another device stored meanwhile. `newest`
- * sources (Storytel) always send.
+ * Whether a position is sent to the provider: only a position Bookwave itself
+ * moved since the last sync. One within `toleranceMs` of `remoteSeen` is what
+ * the provider already had, and resending it would overwrite a newer position
+ * another device stored meanwhile.
  */
 export function shouldWriteRemote(
-  policy: 'newest' | 'ask',
   positionMs: number,
   remoteSeen: number | undefined,
   toleranceMs = 1000,
 ): boolean {
-  if (policy !== 'ask' || remoteSeen === undefined) return true;
+  if (remoteSeen === undefined) return true;
   return Math.abs(positionMs - remoteSeen) > toleranceMs;
 }

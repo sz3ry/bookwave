@@ -260,8 +260,14 @@ service at a time (no merged library): the **active service**, chosen in Setting
   the network. Audioteka positions are sent to the remote at most every 60 s
   while playing, plus on pause, book switch and app quit, and only when the
   position moved more than 1 s from the last remote-seen value (so an untouched
-  book never overwrites a newer position from another device). When the remote and
-  local positions differ by more than 30 s the user is asked which to use
+  book never overwrites a newer position from another device). Storytel positions
+  follow the same rule, sent every 15 s. On open and on every resume of a paused
+  book the remote position is read again; when another device moved it and it
+  differs from the local one by more than 30 s, Audioteka asks the user which to
+  use and Storytel jumps to the remote one (`conflictPolicy` `ask` / `follow`). A write
+  from a paused book (quit, book or service switch) carries `ifRemoteAt`, the last
+  remote-seen value; the server re-reads the position in the same request and
+  skips the write when another device moved it (`server/positionGuard.ts`)
 - **Limits**: Audioteka has no offline downloads or bookmarks (download controls are
   hidden); these stay Storytel-only. Library add/remove on Audioteka is favourites
   (`AddToFavourites` / `RemoveFromFavourites`); only favourites are removable

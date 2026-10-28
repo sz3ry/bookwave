@@ -64,7 +64,7 @@ const readLocalPosition = async (storageKey: string): Promise<StoredPosition | n
   }
 };
 
-// `remoteSeen` is kept only for sources with the `ask` conflict policy.
+// `remoteSeen` is the last remote position Bookwave saw or wrote, when known.
 const writeLocalPosition = async (storageKey: string, position: number, remoteSeen?: number) => {
   try {
     const payload = storedPosition(position, remoteSeen);
@@ -95,9 +95,9 @@ const LOCAL_POSITION_INTERVAL_MS = 15000;
 const URL_RETRY_LIMIT = 2;
 const URL_RETRY_WINDOW_MS = 10_000;
 
-// Resuming a paused `ask` book asks the provider for its position again (the
-// phone may have moved it), at most this often. Both that re-check and the
-// first read on open stop waiting for the answer after the timeout: local
+// Resuming a paused book asks the provider for its position again (the phone
+// may have moved it), at most this often. That re-check, and the first read on
+// open of an `ask` book, stop waiting for the answer after the timeout: local
 // playback never depends on the provider.
 const REMOTE_RECHECK_INTERVAL_MS = 10_000;
 const REMOTE_RECHECK_TIMEOUT_MS = 5000;
@@ -124,21 +124,6 @@ const bookSeconds = (
   trackIndex: number,
 ): number =>
   source ? timelineSeconds(source.tracks, trackIndex, audio.currentTime) : audio.currentTime;
-
-/** `newest` policy: the newer of the local cache and the provider's position, in ms. */
-const newestStartPosition = (
-  local: StoredPosition | null,
-  remote: Awaited<ReturnType<PlaybackSource['readRemotePosition']>>,
-): number => {
-  if (remote && local) {
-    const remoteTime = remote.updatedTime ? Date.parse(remote.updatedTime) : 0;
-    const localTime = Date.parse(local.updatedAt);
-    return localTime > remoteTime ? local.position : remote.positionMs;
-  }
-  if (remote) return remote.positionMs;
-  if (local) return local.position;
-  return 0;
-};
 
 const errorMessage = (err: any): string =>
   err.response?.data?.error || err.message || i18n.t('player.loadError');
@@ -254,7 +239,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   // Recent URL re-resolves of one track, for `URL_RETRY_LIMIT`.
   const urlRetriesRef = useRef<UrlRetries>({ index: -1, at: [] });
   // The last remote position Bookwave saw or wrote for the active book, kept
-  // in its local position (`StoredPosition.remoteSeen`); `ask` sources only.
+  // in its local position (`StoredPosition.remoteSeen`).
   const remoteSeenRef = useRef<number | undefined>(undefined);
   // Settles the open position conflict prompt; null settles it without a choice.
   const conflictResolverRef = useRef<((choice: 'local' | 'remote' | null) => void) | null>(null);
@@ -290,9 +275,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   const remoteSeenFor = useCallback(
     (source: PlaybackSource): number | undefined =>
-      source.conflictPolicy === 'ask' && sourceRef.current === source
-        ? remoteSeenRef.current
-        : undefined,
+      sourceRef.current === source ? remoteSeenRef.current : undefined,
     [],
   );
 
@@ -309,15 +292,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   );
 
   // Remote write of the active (or just replaced) book; on success the local
-  // record keeps its position and notes the written value as seen. An `ask` book only sends a
+  // record keeps its position and notes the written value as seen. A book only sends a
   // position Bookwave moved since the last sync (`shouldWriteRemote`), so a
   // paused, untouched book never overwrites another device's newer position.
+  // A `guarded` write (a paused book quitting or being switched away) is also
+  // skipped by the server when another device moved the book since Bookwave
+  // last saw it, e.g. after the pause write failed offline.
   const writeRemote = useCallback(
-    async (source: PlaybackSource, position: number) => {
+    async (source: PlaybackSource, position: number, guarded = false) => {
       // Read before the first await: a book switch replaces `sourceRef` next
-      if (!shouldWriteRemote(source.conflictPolicy, position, remoteSeenFor(source))) return;
-      await source.writeRemotePosition(position);
-      if (source.conflictPolicy !== 'ask') return;
+      const remoteSeen = remoteSeenFor(source);
+      if (!shouldWriteRemote(position, remoteSeen)) return;
+      const written = await source.writeRemotePosition(position, guarded ? remoteSeen : undefined);
+      if (!written) return;
       if (sourceRef.current === source) remoteSeenRef.current = position;
       await recordRemoteSeen(source.positionStorageKey, position);
     },
@@ -487,25 +474,21 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
       const local = await readLocalPosition(source.positionStorageKey);
       let chosenPosition: number;
-      if (source.conflictPolicy === 'ask') {
-        const start = resolveStartPosition(local, remote);
-        if (sourceRef.current !== source) return false;
-        if (start.kind === 'use') {
-          chosenPosition = start.positionMs;
-          remoteSeenRef.current = remote?.positionMs ?? local?.remoteSeen;
-        } else {
-          const choice = await askPositionConflict({
-            localMs: start.localMs,
-            remoteMs: start.remoteMs,
-            device: start.device,
-          });
-          if (choice === null || sourceRef.current !== source) return false;
-          chosenPosition = choice === 'remote' ? start.remoteMs : start.localMs;
-          remoteSeenRef.current = start.remoteMs;
-          await writeLocalPosition(source.positionStorageKey, chosenPosition, start.remoteMs);
-        }
+      const start = resolveStartPosition(local, remote, source.conflictPolicy);
+      if (sourceRef.current !== source) return false;
+      if (start.kind === 'use') {
+        chosenPosition = start.positionMs;
+        remoteSeenRef.current = remote?.positionMs ?? local?.remoteSeen;
       } else {
-        chosenPosition = newestStartPosition(local, remote);
+        const choice = await askPositionConflict({
+          localMs: start.localMs,
+          remoteMs: start.remoteMs,
+          device: start.device,
+        });
+        if (choice === null || sourceRef.current !== source) return false;
+        chosenPosition = choice === 'remote' ? start.remoteMs : start.localMs;
+        remoteSeenRef.current = start.remoteMs;
+        await writeLocalPosition(source.positionStorageKey, chosenPosition, start.remoteMs);
       }
 
       if (sourceRef.current !== source || !audioRef.current) return false;
@@ -520,11 +503,11 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     [seekBook, askPositionConflict],
   );
 
-  // Resumes a paused book (`play`) or just re-validates the active one. For an
-  // `ask` source the provider's position is read again first: another device
-  // may have moved it while Bookwave was paused. A move beyond the threshold
-  // opens the conflict prompt before playing; a failed or slow read plays on
-  // from this device's position.
+  // Resumes a paused book (`play`) or just re-validates the active one. The
+  // provider's position is read again first: another device may have moved it
+  // while Bookwave was paused. A move beyond the threshold opens the conflict
+  // prompt (`ask`) or jumps there (`follow`) before playing; a failed or slow
+  // read plays on from this device's position.
   const resumeWithRemoteCheck = useCallback(
     async (play: boolean) => {
       const audio = audioRef.current;
@@ -537,7 +520,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       }
       const last = lastRemoteCheckRef.current;
       const recheck = shouldRecheckRemote({
-        policy: source.conflictPolicy,
         switching: pendingTrackStartRef.current !== null,
         awaitingStart: awaitingStartPositionRef.current,
         lastCheckAt: last.source === source ? last.at : null,
@@ -566,19 +548,24 @@ export function AudioProvider({ children }: { children: ReactNode }) {
           const decision = resolveStartPosition(
             storedPosition(currentMs, remoteSeenRef.current),
             remote,
+            source.conflictPolicy,
           );
-          if (decision.kind === 'use') {
+          if (decision.kind === 'use' && decision.source === 'local') {
             remoteSeenRef.current = remote.positionMs;
           } else {
-            const choice = await askPositionConflict({
-              localMs: decision.localMs,
-              remoteMs: decision.remoteMs,
-              device: decision.device,
-            });
+            const choice =
+              decision.kind === 'use'
+                ? 'remote'
+                : await askPositionConflict({
+                    localMs: decision.localMs,
+                    remoteMs: decision.remoteMs,
+                    device: decision.device,
+                  });
             if (choice === null || sourceRef.current !== source) return;
-            const chosenMs = choice === 'remote' ? decision.remoteMs : decision.localMs;
-            remoteSeenRef.current = decision.remoteMs;
-            await writeLocalPosition(source.positionStorageKey, chosenMs, decision.remoteMs);
+            const remoteMs = remote.positionMs;
+            const chosenMs = choice === 'remote' ? remoteMs : currentMs;
+            remoteSeenRef.current = remoteMs;
+            await writeLocalPosition(source.positionStorageKey, chosenMs, remoteMs);
             if (sourceRef.current !== source) return;
             if (choice === 'remote') {
               const seconds = chosenMs / 1000;
@@ -745,7 +732,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
             prevPosition,
             remoteSeenFor(prevSource),
           );
-          writeRemote(prevSource, prevPosition).catch((err) => {
+          writeRemote(prevSource, prevPosition, !isPlayingRef.current).catch((err) => {
             console.warn('Failed to sync previous book bookmark position:', err);
           });
         }
@@ -775,7 +762,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         audioSrcRef.current
       ) {
         if (validBook) setActiveBook(validBook);
-        if (autoPlay && !isPlayingRef.current) resumePlayback();
+        // Reopened while paused: the phone may have moved the position
+        if (!isPlayingRef.current) void resumeWithRemoteCheck(autoPlay);
         return;
       }
 
@@ -826,7 +814,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    [refreshChapters, releaseCurrentBook, resumePlayback],
+    [refreshChapters, releaseCurrentBook, resumeWithRemoteCheck],
   );
 
   // Audioteka book loader
@@ -985,7 +973,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     const position = positionToSave(audio, source);
     if (!shouldSavePosition({ startApplied: startAppliedRef.current, position })) return;
     await writeLocalPosition(source.positionStorageKey, position, remoteSeenFor(source));
-    writeRemote(source, position).catch((err) => {
+    writeRemote(source, position, !isPlayingRef.current).catch((err) => {
       console.warn('Failed to sync position to API, kept locally', err);
     });
   }, [positionToSave, remoteSeenFor, writeRemote]);
@@ -1397,19 +1385,17 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   // Cleanup on unmount & save on window close
   useEffect(() => {
-    // On quit (or reload) the local write keeps `remoteSeen`; an `ask` source
-    // also sends its remote write, which the main process lets finish before
-    // it quits (`ServerManager.settle`). If that write is lost, the kept
-    // `remoteSeen` still matches the remote, so the next open does not ask.
+    // On quit (or reload) the local write keeps `remoteSeen`, then the remote
+    // write is sent, which the main process lets finish before it quits
+    // (`ServerManager.settle`). If that write is lost, the kept `remoteSeen`
+    // still matches the remote, so the next open keeps the local position.
     const handleBeforeUnload = () => {
       const source = sourceRef.current;
       if (audioRef.current && source && audioSrcRef.current) {
         const position = positionToSave(audioRef.current, source);
         if (position > 0) {
           writeLocalPosition(source.positionStorageKey, position, remoteSeenFor(source));
-          if (source.conflictPolicy === 'ask') {
-            writeRemote(source, position).catch(() => {});
-          }
+          writeRemote(source, position, !isPlayingRef.current).catch(() => {});
         }
       }
     };

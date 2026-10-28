@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { remoteMovedSince } from '../positionGuard';
 import { AudiotekaHttpError, type AudiotekaClient } from './client';
 import { AudiotekaSearchUnavailableError } from './search';
 import type { createAudiotekaSession } from './session';
@@ -98,7 +99,7 @@ export function audiotekaRoutes(session: AudiotekaSession) {
       },
     );
 
-    fastify.put<{ Params: { id: string }; Body: { position?: unknown } }>(
+    fastify.put<{ Params: { id: string }; Body: { position?: unknown; ifRemoteAt?: unknown } }>(
       '/api/audioteka/positions/:id',
       { preHandler: requireAudioteka },
       async (req, reply) => {
@@ -108,6 +109,13 @@ export function audiotekaRoutes(session: AudiotekaSession) {
           return reply.code(400).send({ error: 'Invalid position' });
         }
         try {
+          // Read in this one request, so a quit still covers both (see `remoteMovedSince`)
+          if (req.body?.ifRemoteAt !== undefined) {
+            const current = await req.audioteka.getPosition(req.params.id);
+            if (remoteMovedSince(current?.positionMs, req.body.ifRemoteAt)) {
+              return reply.send({ skipped: true });
+            }
+          }
           await req.audioteka.savePosition(req.params.id, position);
           reply.code(204).send();
         } catch (error) {

@@ -536,3 +536,53 @@ describe('discovery routes', () => {
     expect(unreleased.releaseDate).toBe('2026-12-14T00:00:00Z');
   });
 });
+
+describe('bookmark-positional PUT', () => {
+  // Answers the bookmark read with `remoteMs` and records the bookmark writes
+  function useBookmarks(remoteMs: number) {
+    const writes: unknown[] = [];
+    configureSessionForTests({
+      fetch: async (input, init) => {
+        const { pathname } = new URL(String(input));
+        if (pathname === LOGIN_PATH) return json({ accountInfo: { jwt, singleSignToken: 'sst' } });
+        if (pathname === '/bookmarks/positional') {
+          if (init?.method === 'POST') {
+            writes.push(JSON.parse(String(init.body)));
+            return json({});
+          }
+          return json({ bookmarks: [{ id: '1', type: 'abook', position: remoteMs }] });
+        }
+        throw new Error(`unexpected request to ${pathname}`);
+      },
+    });
+    auth.restore(creds);
+    return writes;
+  }
+
+  const put = (payload: Record<string, unknown>) =>
+    fastify.inject({ method: 'PUT', url: '/api/bookmark-positional/c1', payload });
+
+  test('an unguarded write is sent', async () => {
+    const writes = useBookmarks(900_000);
+    const response = await put({ position: 50_000 });
+    expect(response.statusCode).toBe(200);
+    expect(writes).toMatchObject([{ position: 50_000, consumableId: 'c1' }]);
+  });
+
+  test('a guarded write is sent while the remote is still the last seen one', async () => {
+    const writes = useBookmarks(50_000);
+    const response = await put({ position: 120_000, ifRemoteAt: 50_000 });
+    expect(response.json()).not.toEqual({ skipped: true });
+    expect(writes).toMatchObject([{ position: 120_000 }]);
+  });
+
+  // Paused offline at 120 s, the phone moved the book on to 900 s, then
+  // Bookwave quits online: the phone's position stays
+  test('a guarded write is skipped when another device moved the book', async () => {
+    const writes = useBookmarks(900_000);
+    const response = await put({ position: 120_000, ifRemoteAt: 50_000 });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ skipped: true });
+    expect(writes).toHaveLength(0);
+  });
+});

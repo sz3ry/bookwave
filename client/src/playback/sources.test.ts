@@ -59,7 +59,7 @@ describe('createStorytelSource', () => {
     expect(source.positionStorageKey).toBe('pos:c-42');
     expect(source.tracks).toEqual([{ id: 'c-42', startMs: 0, durationMs: 0 }]);
     expect(source.remoteWriteIntervalMs).toBe(15000);
-    expect(source.conflictPolicy).toBe('newest');
+    expect(source.conflictPolicy).toBe('follow');
   });
 
   test('falls back to the book id without a matching shelf entry', () => {
@@ -105,6 +105,19 @@ describe('createStorytelSource', () => {
     expect(calls).toEqual([
       { method: 'put', url: '/api/bookmark-positional/c-42', data: { position: 123000 } },
     ]);
+  });
+
+  test('a guarded write sends ifRemoteAt and reports a skip', async () => {
+    const source = createStorytelSource(shelfBook, '7');
+    responses['put /api/bookmark-positional/c-42'] = { skipped: true };
+    expect(await source.writeRemotePosition(123000, 50000)).toBe(false);
+    expect(calls.at(-1)).toEqual({
+      method: 'put',
+      url: '/api/bookmark-positional/c-42',
+      data: { position: 123000, ifRemoteAt: 50000 },
+    });
+    responses['put /api/bookmark-positional/c-42'] = {};
+    expect(await source.writeRemotePosition(123000, 50000)).toBe(true);
   });
 
   test('generates audio tracks from the known duration when no endpoint has chapters', async () => {

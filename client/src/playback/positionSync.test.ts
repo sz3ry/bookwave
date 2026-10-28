@@ -66,7 +66,49 @@ describe('resolveStartPosition', () => {
     });
   });
   test('custom threshold', () => {
-    expect(resolveStartPosition(local(0), remote(5000), 1000)).toMatchObject({ kind: 'ask' });
+    expect(resolveStartPosition(local(0), remote(5000), 'ask', 1000)).toMatchObject({
+      kind: 'ask',
+    });
+  });
+  test('follow takes a remote another device moved, without asking', () => {
+    expect(resolveStartPosition(local(100_000, 50_000), remote(900_000), 'follow')).toEqual({
+      kind: 'use',
+      positionMs: 900_000,
+      source: 'remote',
+    });
+  });
+  describe('follow without remoteSeen', () => {
+    // `local()` is stored at 2026-10-22T10:00
+    const at = (positionMs: number, updatedTime?: string) => ({
+      positionMs,
+      device: null,
+      updatedTime,
+    });
+
+    // Listened offline in an older build: the remote is older, keep local
+    test('an older remote keeps local', () => {
+      expect(
+        resolveStartPosition(local(900_000), at(50_000, '2026-10-22T08:00:00.000Z'), 'follow')
+          .source,
+      ).toBe('local');
+      expect(resolveStartPosition(local(900_000), at(50_000), 'follow').source).toBe('local');
+    });
+
+    test('a newer remote is followed', () => {
+      expect(
+        resolveStartPosition(local(50_000), at(900_000, '2026-10-22T12:00:00.000Z'), 'follow'),
+      ).toEqual({ kind: 'use', positionMs: 900_000, source: 'remote' });
+    });
+  });
+
+  test('follow keeps local when the remote is unchanged or close', () => {
+    // Listened offline: the remote still holds what Bookwave last saw
+    expect(resolveStartPosition(local(900_000, 50_000), remote(50_000), 'follow')).toEqual({
+      kind: 'use',
+      positionMs: 900_000,
+      source: 'local',
+    });
+    expect(resolveStartPosition(local(100_000), remote(130_000), 'follow').source).toBe('local');
   });
 });
 
@@ -137,21 +179,19 @@ describe('withRemoteSeen', () => {
 
 describe('resume re-check', () => {
   const base = {
-    policy: 'ask' as const,
     switching: false,
     awaitingStart: false,
     lastCheckAt: null,
     now: 100_000,
   };
 
-  test('re-checks an ask source that was never or not recently checked', () => {
+  test('re-checks a book that was never or not recently checked', () => {
     expect(shouldRecheckRemote(base)).toBe(true);
     expect(shouldRecheckRemote({ ...base, lastCheckAt: 90_000 })).toBe(true);
     expect(shouldRecheckRemote({ ...base, lastCheckAt: 95_000 })).toBe(false);
   });
 
-  test('never re-checks Storytel, a track switch or a book still loading', () => {
-    expect(shouldRecheckRemote({ ...base, policy: 'newest' })).toBe(false);
+  test('never re-checks during a track switch or while a book is loading', () => {
     expect(shouldRecheckRemote({ ...base, switching: true })).toBe(false);
     expect(shouldRecheckRemote({ ...base, awaitingStart: true })).toBe(false);
   });
@@ -171,25 +211,30 @@ describe('resume re-check', () => {
       'use',
     );
   });
+
+  // Paused in Bookwave, listened on the Storytel phone app, back at the
+  // computer: resuming jumps to the phone's position.
+  test('a paused Storytel book the phone moved jumps on resume', () => {
+    const current = storedPosition(1_399_654, 1_399_654);
+    expect(
+      resolveStartPosition(current, { positionMs: 3_200_000, device: null }, 'follow'),
+    ).toEqual({ kind: 'use', positionMs: 3_200_000, source: 'remote' });
+  });
 });
 
 describe('shouldWriteRemote', () => {
-  test('a paused, untouched ask book never pushes its position', () => {
-    expect(shouldWriteRemote('ask', 1_399_654, 1_399_654)).toBe(false);
+  test('a paused, untouched book never pushes its position', () => {
+    expect(shouldWriteRemote(1_399_654, 1_399_654)).toBe(false);
     // Float rounding of the element time stays within the tolerance
-    expect(shouldWriteRemote('ask', 1_400_400, 1_399_654)).toBe(false);
+    expect(shouldWriteRemote(1_400_400, 1_399_654)).toBe(false);
   });
 
-  test('an ask book Bookwave moved is sent', () => {
-    expect(shouldWriteRemote('ask', 1_460_000, 1_399_654)).toBe(true);
-    expect(shouldWriteRemote('ask', 1_300_000, 1_399_654)).toBe(true);
+  test('a book Bookwave moved is sent', () => {
+    expect(shouldWriteRemote(1_460_000, 1_399_654)).toBe(true);
+    expect(shouldWriteRemote(1_300_000, 1_399_654)).toBe(true);
   });
 
   test('without a known remote value the position is sent', () => {
-    expect(shouldWriteRemote('ask', 5000, undefined)).toBe(true);
-  });
-
-  test('Storytel always sends', () => {
-    expect(shouldWriteRemote('newest', 1_399_654, 1_399_654)).toBe(true);
+    expect(shouldWriteRemote(5000, undefined)).toBe(true);
   });
 });

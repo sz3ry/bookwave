@@ -11,6 +11,7 @@ import type {
 } from '../interfaces/library';
 import { extractChaptersFromResponse, generateAudioTracks } from '../utils/chapters';
 import { createTrackUrlCache, type TimelineTrack } from './timeline';
+import type { ConflictPolicy } from './positionSync';
 
 /**
  * Everything the audio context needs to play one book of one provider. The
@@ -41,10 +42,14 @@ export interface PlaybackSource {
     device: string | null;
     updatedTime?: string;
   } | null>;
-  writeRemotePosition(positionMs: number): Promise<void>;
+  /**
+   * Resolves false when a guarded write (`ifRemoteAt`, the position Bookwave
+   * last saw) was skipped because another device moved the book meanwhile.
+   */
+  writeRemotePosition(positionMs: number, ifRemoteAt?: number): Promise<boolean>;
   remoteWriteIntervalMs: number;
-  /** `newest`: the newer of local and remote wins. `ask`: see `resolveStartPosition`. */
-  conflictPolicy: 'newest' | 'ask';
+  /** See `ConflictPolicy` and `resolveStartPosition`. */
+  conflictPolicy: ConflictPolicy;
   /** `durationSeconds` is the book duration when known, otherwise 0. */
   loadChapters(durationSeconds: number): Promise<Chapter[]>;
   onPlaybackStarted?(): void;
@@ -80,12 +85,16 @@ export function createStorytelSource(book: BookShelfEntity | null, bookId: strin
       };
     },
 
-    async writeRemotePosition(positionMs) {
-      await api.put(`/bookmark-positional/${consumableId}`, { position: positionMs });
+    async writeRemotePosition(positionMs, ifRemoteAt) {
+      const response = await api.put(`/bookmark-positional/${consumableId}`, {
+        position: positionMs,
+        ...(ifRemoteAt === undefined ? {} : { ifRemoteAt }),
+      });
+      return response.data?.skipped !== true;
     },
 
     remoteWriteIntervalMs: 15000,
-    conflictPolicy: 'newest',
+    conflictPolicy: 'follow',
 
     async loadChapters(durationSeconds) {
       try {
@@ -197,8 +206,12 @@ export function createAudiotekaSource(
 
     readRemotePosition: () => fetchAudiotekaPosition(id),
 
-    async writeRemotePosition(positionMs) {
-      await api.put(`/audioteka/positions/${encodeURIComponent(id)}`, { position: positionMs });
+    async writeRemotePosition(positionMs, ifRemoteAt) {
+      const response = await api.put(`/audioteka/positions/${encodeURIComponent(id)}`, {
+        position: positionMs,
+        ...(ifRemoteAt === undefined ? {} : { ifRemoteAt }),
+      });
+      return response.data?.skipped !== true;
     },
 
     remoteWriteIntervalMs: 60000,

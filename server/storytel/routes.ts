@@ -6,6 +6,7 @@ import StorytelClient, { type BookShelfEntity, mapCatalogItem } from './client';
 import { type DiscoveryItem, isAllowedExploreUrl, pickSeriesParts } from './discovery';
 import { downloadToFile } from './download';
 import { createDownloadsIndex } from './downloadsIndex';
+import { remoteMovedSince } from '../positionGuard';
 import type { createSession } from './session';
 
 type StorytelSession = ReturnType<typeof createSession>;
@@ -496,7 +497,7 @@ export function storytelRoutes(session: StorytelSession, downloads: StorytelDown
 
     fastify.put<{
       Params: { consumableId: string };
-      Body: { position: number };
+      Body: { position: number; ifRemoteAt?: number };
     }>(
       '/api/bookmark-positional/:consumableId',
       {
@@ -505,9 +506,19 @@ export function storytelRoutes(session: StorytelSession, downloads: StorytelDown
       async (request, reply) => {
         try {
           const { consumableId } = request.params;
-          const { position } = request.body;
+          const { position, ifRemoteAt } = request.body;
 
           const storytelClient = request.storytel;
+
+          // A guarded write reads the position first, in this one request, so
+          // a quit (which waits only for running requests) still covers both.
+          if (ifRemoteAt !== undefined) {
+            const bookmarks = await storytelClient.getBookmarkPositional(consumableId);
+            const current = bookmarks?.find((entry) => entry.type === 'abook')?.position;
+            if (remoteMovedSince(current, ifRemoteAt)) {
+              return reply.send({ skipped: true });
+            }
+          }
 
           const deviceId = process.env.DEVICE_ID || crypto.randomUUID().toUpperCase();
           const updated = await storytelClient.updateBookmarkPositional(

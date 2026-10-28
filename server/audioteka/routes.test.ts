@@ -146,6 +146,39 @@ describe('Audioteka routes', () => {
     });
   });
 
+  test('a guarded PUT position is skipped when another device moved the book', async () => {
+    const calls = useFetch(({ path: p }) =>
+      p.startsWith('/v2/me/playback-progress/')
+        ? json({ position: 900_000, device: 'Phone', updated_at: '2026-10-28T10:00:00+00:00' })
+        : json({}),
+    );
+    login();
+    const res = await fastify.inject({
+      method: 'PUT',
+      url: `/api/audioteka/positions/${ID}`,
+      payload: { position: 120_000, ifRemoteAt: 50_000 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ skipped: true });
+    expect(calls.find((c) => c.path === '/v2/commands')).toBeUndefined();
+  });
+
+  test('a guarded PUT position is saved while the remote is the last seen one', async () => {
+    const calls = useFetch(({ path: p }) =>
+      p.startsWith('/v2/me/playback-progress/')
+        ? json({ position: 50_000, device: 'Bookwave', updated_at: '2026-10-28T10:00:00+00:00' })
+        : json({}),
+    );
+    login();
+    const res = await fastify.inject({
+      method: 'PUT',
+      url: `/api/audioteka/positions/${ID}`,
+      payload: { position: 120_000, ifRemoteAt: 50_000 },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(calls.find((c) => c.path === '/v2/commands')?.body).toMatchObject({ position: 120_000 });
+  });
+
   test('POST start answers 204', async () => {
     useFetch(() => json({}));
     login();

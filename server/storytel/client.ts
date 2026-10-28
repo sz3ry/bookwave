@@ -36,6 +36,8 @@ interface Bookmark {
   id: string;
   position: number;
   note?: string;
+  /** Positional bookmarks only: the format, `abook` or `ebook`. */
+  type?: string;
 }
 
 interface BookmarkResponse {
