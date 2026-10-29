@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/sz3ry/bookwave/compare/v1.5.0...v1.5.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* follow the storytel position moved on another device ([aa356ef](https://github.com/sz3ry/bookwave/commit/aa356efac5582c258295ba18d75b9c05316b2f82))
+
 ## [1.5.0](https://github.com/sz3ry/bookwave/compare/v1.4.0...v1.5.0) (2026-10-23)
 
 
