@@ -74,6 +74,33 @@ const WEB_SEARCH_BASE_URLS: Record<string, string> = {
 const webSearchBaseUrl = (country: string): string =>
   WEB_SEARCH_BASE_URLS[country] ?? `https://www.storytel.com/${country}/${country}`;
 
+// The web search dates an abook as `releaseDateFormat` "YYYY-MM-DD" (with
+// `releaseDate` "YYYYMMDD" next to it); returned as UTC midnight, the shape the
+// app API uses, so the renderer shows the same day in every time zone.
+function webSearchReleaseDate(abook: any): string | null {
+  const ymd =
+    typeof abook?.releaseDateFormat === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(abook.releaseDateFormat)
+      ? abook.releaseDateFormat
+      : typeof abook?.releaseDate === 'string' && /^\d{8}$/.test(abook.releaseDate)
+        ? `${abook.releaseDate.slice(0, 4)}-${abook.releaseDate.slice(4, 6)}-${abook.releaseDate.slice(6, 8)}`
+        : null;
+  return ymd ? `${ymd}T00:00:00Z` : null;
+}
+
+// The web search lists a book's series as `book.series: [{ id, name }]` with
+// the part number in `book.seriesOrder`; mapped to the app API's seriesInfo shape.
+function webSearchSeries(book: any): unknown {
+  const series = Array.isArray(book?.series) ? book.series[0] : undefined;
+  if (!series?.id) return undefined;
+  return {
+    id: series.id,
+    name: series.name,
+    orderInSeries:
+      typeof book.seriesOrder === 'number' && book.seriesOrder > 0 ? book.seriesOrder : null,
+  };
+}
+
 // Spreads `seriesInfo` only when Storytel sent a usable series reference.
 function seriesField(raw: unknown): { seriesInfo?: SeriesInfo } {
   const info = toSeriesInfo(raw);
@@ -633,85 +660,16 @@ class StorytelClient {
     const results: SearchResultBook[] = [];
     const seenIds = new Set<string>();
 
-    // 1. Try authenticated api.storytel.net search endpoints first
-    // This correctly scopes search results to the logged-in user's country/market
-    // and returns all available languages in their catalog (e.g. fi + sv + en).
-    try {
-      const headers = { Accept: '*/*' };
-
-      const endpoints = [
-        `https://api.storytel.net/search/v2?query=${encodeURIComponent(trimmed)}&configVariant=default`,
-        `https://api.storytel.net/search/page?query=${encodeURIComponent(trimmed)}&kidsMode=false`,
-        `https://api.storytel.net/search?query=${encodeURIComponent(trimmed)}&kidsMode=false`,
-      ];
-
-      for (const url of endpoints) {
-        try {
-          const response = await this.send({ url, headers }, { auth: true });
-          const rawItems = Array.isArray(response.data?.items)
-            ? response.data.items
-            : Array.isArray(response.data?.results)
-              ? response.data.results
-              : [];
-
-          for (const raw of rawItems) {
-            const model = raw.model || raw.item || raw.book || raw;
-            const id = String(model.id || model.consumableId || raw.id || raw.consumableId || '');
-            const title = model.title || model.name || raw.title || raw.name || '';
-            if (!id || !title || seenIds.has(id)) continue;
-
-            const formats: any[] = Array.isArray(model.formats) ? model.formats : [];
-            const abook = formats.find((f: any) => f.type === 'abook');
-            const ebook = formats.find((f: any) => f.type === 'ebook');
-
-            // Exclude ebook-only items since this application is an audiobook player
-            if (!abook) continue;
-
-            seenIds.add(id);
-
-            const coverUrl = abook?.cover?.url || ebook?.cover?.url || model.cover?.url || '';
-            const { language, languageName } = this.extractLanguageInfo(model, raw);
-
-            results.push({
-              id,
-              title,
-              authors: Array.isArray(model.authors)
-                ? model.authors.map((a: any) => a?.name || a).join(', ')
-                : '',
-              narrators: Array.isArray(model.narrators)
-                ? model.narrators.map((n: any) => n?.name || n).join(', ')
-                : '',
-              coverUrl,
-              category: model.category?.name || model.category?.title || '',
-              durationMs: abook?.durationInMilliseconds || 0,
-              description: model.description || '',
-              hasAbook: !!abook,
-              comingSoon: abook.isReleased === false,
-              releaseDate: typeof abook.releaseDate === 'string' ? abook.releaseDate : null,
-              hasEbook: !!ebook,
-              language,
-              languageName,
-              ...seriesField(model.seriesInfo),
-            });
-          }
-
-          if (results.length > 0) return results;
-        } catch {
-          // Try next api.storytel.net endpoint
-        }
-      }
-    } catch (err) {
-      console.warn('[storytelApi] api.storytel.net search failed, trying fallback:', err);
-    }
-
-    // 2. Fallback to storytel.com web search API if authenticated search returned 0 results.
-    // The endpoint is scoped by URL path (`/{country}/{lang}/api/search.action`, where only
-    // the country segment decides the catalog) and answers for the Swedish market when the
-    // prefix is missing. Without a known market it is skipped entirely: hits from a foreign
-    // catalog cannot be added to this account's bookshelf anyway.
+    // Storytel's authenticated api.storytel.net search endpoints (search/v2,
+    // search/page, search) answer 404 for every query, so search goes through
+    // the storytel.com web search. It is scoped by URL path
+    // (`/{country}/{lang}/api/search.action`, where only the country segment
+    // decides the catalog) and answers for the Swedish market when the prefix
+    // is missing. Without a known market search is skipped: hits from a foreign
+    // catalog cannot be played or added to this account's bookshelf.
     const country = await this.getMarketCountryCode();
     if (!country) {
-      console.warn('[storytelApi] market country unknown, skipping storytel.com fallback search');
+      console.warn('[storytelApi] market country unknown, skipping search');
       return results;
     }
 
@@ -783,15 +741,14 @@ class StorytelClient {
             hasEbook: !!ebook.id || !!item.ebook,
             language,
             languageName,
+            comingSoon: !!abook.isComing,
+            releaseDate: webSearchReleaseDate(abook),
+            ...seriesField(webSearchSeries(book)),
           });
-        }
-
-        if (results.length > 0) {
-          return results;
         }
       }
     } catch (err) {
-      console.warn('[storytelApi] storytel.com fallback search failed:', err);
+      console.warn('[storytelApi] storytel.com search failed:', err);
     }
 
     return results;

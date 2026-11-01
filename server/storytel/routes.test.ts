@@ -331,6 +331,29 @@ describe('discovery routes', () => {
     seriesInfo: { id: '70705', name: 'Saga', orderInSeries: order },
   });
   const loginRoute = () => json({ accountInfo: { jwt, singleSignToken: 'sst' } });
+  // Search goes through the storytel.com web search of the account's market,
+  // so it needs a JWT that names the store.
+  const plJwt = `${b64url({ alg: 'none' })}.${b64url({ exp: Math.floor(Date.now() / 1000) + 3600, store: 'STHP-PL' })}.sig`;
+  const plLoginRoute = () => json({ accountInfo: { jwt: plJwt, singleSignToken: 'sst' } });
+  const SEARCH_PATH = '/pl/pl/api/search.action';
+  const webBook = (id: string, order: number, abook: Record<string, unknown> = {}) => ({
+    book: {
+      id: Number(id),
+      consumableId: id,
+      name: `Book ${id}`,
+      authorsAsString: 'Author',
+      series: [{ id: 70705, name: 'Saga', countryId: 1, books: null }],
+      seriesOrder: order,
+    },
+    abook: {
+      id: Number(`9${id}`),
+      length: 60000,
+      isComing: 0,
+      releaseDate: '20191010',
+      releaseDateFormat: '2019-10-10',
+      ...abook,
+    },
+  });
 
   test('every route returns 401 without a session', async () => {
     for (const url of [
@@ -483,8 +506,8 @@ describe('discovery routes', () => {
 
   test('search and bookshelf carry seriesInfo', async () => {
     useFetch({
-      [LOGIN_PATH]: loginRoute,
-      '/search/v2': () => json({ items: [rawBook('5', 3)] }),
+      [LOGIN_PATH]: plLoginRoute,
+      [SEARCH_PATH]: () => json({ books: [webBook('5', 3)] }),
       [BOOKSHELF_PATH]: () =>
         json({
           items: {
@@ -518,13 +541,14 @@ describe('discovery routes', () => {
   });
 
   test('search marks unreleased audiobooks as coming soon', async () => {
-    const upcoming = rawBook('6', 2);
-    upcoming.formats = [
-      { ...abook('6'), isReleased: false, releaseDate: '2026-12-14T00:00:00Z' } as any,
-    ];
+    const upcoming = webBook('6', 2, {
+      isComing: 1,
+      releaseDate: '20261214',
+      releaseDateFormat: '2026-12-14',
+    });
     useFetch({
-      [LOGIN_PATH]: loginRoute,
-      '/search/v2': () => json({ items: [rawBook('5', 1), upcoming] }),
+      [LOGIN_PATH]: plLoginRoute,
+      [SEARCH_PATH]: () => json({ books: [webBook('5', 1), upcoming] }),
     });
     auth.restore(creds);
 
@@ -532,8 +556,27 @@ describe('discovery routes', () => {
       await fastify.inject({ method: 'GET', url: '/api/search?q=book' })
     ).json().results;
     expect(released.comingSoon).toBe(false);
+    expect(released.releaseDate).toBe('2019-10-10T00:00:00Z');
     expect(unreleased.comingSoon).toBe(true);
     expect(unreleased.releaseDate).toBe('2026-12-14T00:00:00Z');
+  });
+
+  test('search never calls the dead api.storytel.net search endpoints', async () => {
+    const paths: string[] = [];
+    configureSessionForTests({
+      fetch: async (input) => {
+        const { pathname } = new URL(String(input));
+        paths.push(pathname);
+        if (pathname === LOGIN_PATH) return plLoginRoute();
+        if (pathname === SEARCH_PATH) return json({ books: [webBook('5', 1)] });
+        throw new Error(`unexpected request to ${pathname}`);
+      },
+    });
+    auth.restore(creds);
+
+    const response = await fastify.inject({ method: 'GET', url: '/api/search?q=book' });
+    expect(response.json().results).toHaveLength(1);
+    expect(paths.filter((p) => p.startsWith('/search'))).toEqual([]);
   });
 });
 
