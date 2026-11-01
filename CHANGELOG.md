@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.2](https://github.com/sz3ry/bookwave/compare/v1.5.1...v1.5.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* search through storytel.com since the api.storytel.net search endpoints are gone ([94ec417](https://github.com/sz3ry/bookwave/commit/94ec417d727e71c5f016b2f997fa43c161b4297b))
+
 ## [1.5.1](https://github.com/sz3ry/bookwave/compare/v1.5.0...v1.5.1) (2026-10-28)
 
 
